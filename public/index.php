@@ -4,17 +4,25 @@ declare(strict_types=1);
 
 use Manage\Application\UseCases\AuthenticateApiKey;
 use Manage\Application\UseCases\AuthenticateUser;
+use Manage\Application\UseCases\AppendAgentMessage;
 use Manage\Application\UseCases\CreateDocument;
+use Manage\Application\UseCases\CreateAgent;
+use Manage\Application\UseCases\CreateAgentConversation;
 use Manage\Application\UseCases\ExportAllDocuments;
 use Manage\Application\UseCases\ExportAllPayloads;
 use Manage\Application\UseCases\ExportDocument;
+use Manage\Application\UseCases\GetAgent;
+use Manage\Application\UseCases\GetAgentConversation;
 use Manage\Application\UseCases\GetDocument;
 use Manage\Application\UseCases\GetLayoutConfig;
 use Manage\Application\UseCases\GetUiConfig;
 use Manage\Application\UseCases\EnsureModuleSettings;
+use Manage\Application\UseCases\ListAgents;
+use Manage\Application\UseCases\ListAgentConversations;
 use Manage\Application\UseCases\ListModules;
 use Manage\Application\UseCases\ListNavigation;
 use Manage\Application\UseCases\ReorderDocuments;
+use Manage\Application\UseCases\UpdateAgent;
 use Manage\Application\UseCases\UpdateDocument;
 use Manage\Infrastructure\Config\Env;
 use Manage\Infrastructure\FileSystem\JsonDocumentRepository;
@@ -23,6 +31,8 @@ use Manage\Infrastructure\Security\BcryptPasswordHasher;
 use Manage\Infrastructure\Security\EnvApiKeyProvider;
 use Manage\Infrastructure\Security\HmacTokenService;
 use Manage\Interface\Http\Controllers\AuthController;
+use Manage\Interface\Http\Controllers\AgentController;
+use Manage\Interface\Http\Controllers\AgentConversationController;
 use Manage\Interface\Http\Controllers\DocumentController;
 use Manage\Interface\Http\Controllers\ExportController;
 use Manage\Interface\Http\Controllers\LayoutConfigController;
@@ -64,6 +74,14 @@ $hasher = new BcryptPasswordHasher();
 $ensureModuleSettings = new EnsureModuleSettings($moduleRegistry, $moduleSettingsStore);
 $listNavigation = new ListNavigation($documentRepository, $ensureModuleSettings);
 $listModules = new ListModules($moduleRegistry);
+$listAgents = new ListAgents($documentRepository);
+$getAgent = new GetAgent($documentRepository);
+$createAgent = new CreateAgent($documentRepository);
+$updateAgent = new UpdateAgent($documentRepository);
+$listAgentConversations = new ListAgentConversations($documentRepository);
+$createAgentConversation = new CreateAgentConversation($documentRepository);
+$getAgentConversation = new GetAgentConversation($documentRepository);
+$appendAgentMessage = new AppendAgentMessage($documentRepository);
 $getDocument = new GetDocument($documentRepository);
 $reorderDocuments = new ReorderDocuments($documentRepository);
 $updateDocument = new UpdateDocument($documentRepository, $reorderDocuments, $ensureModuleSettings);
@@ -79,6 +97,14 @@ $authenticateUser = new AuthenticateUser($userRepository, $hasher, $tokenService
 $navigationController = new NavigationController($listNavigation);
 $moduleController = new ModuleController($listModules);
 $moduleRequestController = new ModuleRequestController($moduleRegistry);
+$agentController = new AgentController($listAgents, $getAgent, $createAgent, $updateAgent);
+$agentConversationController = new AgentConversationController(
+    $listAgentConversations,
+    $createAgentConversation,
+    $getAgentConversation,
+    $appendAgentMessage,
+    $tokenService
+);
 $documentController = new DocumentController($getDocument, $updateDocument, $createDocument, $exportDocument);
 $exportController = new ExportController($exportAllDocuments, $exportAllPayloads);
 $authController = new AuthController($authenticateUser, $authenticateApiKey);
@@ -96,6 +122,14 @@ if (str_starts_with($request->path(), '/api/')) {
     $router->add('POST', '/api/modules/{name}', $moduleRequestController);
     $router->add('GET', '/api/modules/{name}/{action}', $moduleRequestController);
     $router->add('POST', '/api/modules/{name}/{action}', $moduleRequestController);
+    $router->add('GET', '/api/agents', [$agentController, 'index']);
+    $router->add('POST', '/api/agents', [$agentController, 'create']);
+    $router->add('GET', '/api/agents/{id}/conversations', [$agentConversationController, 'index']);
+    $router->add('POST', '/api/agents/{id}/conversations', [$agentConversationController, 'create']);
+    $router->add('GET', '/api/agents/conversations/{id}', [$agentConversationController, 'show']);
+    $router->add('POST', '/api/agents/conversations/{id}/messages', [$agentConversationController, 'append']);
+    $router->add('GET', '/api/agents/{id}', [$agentController, 'show']);
+    $router->add('PUT', '/api/agents/{id}', [$agentController, 'update']);
     $router->add('GET', '/api/layout-config', $layoutConfigController);
     $router->add('GET', '/api/ui-config', $uiConfigController);
     $router->add('GET', '/api/documents/{id}', [$documentController, 'show']);

@@ -13,5 +13,6 @@
             "target": "uploader"
         }
     },
-    "order": 1
+    "order": 1,
+    "type": "module"
 }

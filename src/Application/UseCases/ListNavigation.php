@@ -25,6 +25,10 @@ final class ListNavigation
         $sectionsByPage = [];
 
         foreach ($this->documents->listAll() as $document) {
+            $type = $document->wrapper()->type();
+            if (!in_array($type, ['page', 'module'], true)) {
+                continue;
+            }
             $this->ensureModuleSettings->handle($document->wrapper());
             if ($document->wrapper()->isSection()) {
                 $sectionsByPage[$document->wrapper()->page()][] = $document;

@@ -6,6 +6,7 @@ namespace Manage\Domain\Document;
 
 final class DocumentWrapper
 {
+    private string $type;
     private string $page;
     private string $name;
     private ?string $language;
@@ -16,6 +17,7 @@ final class DocumentWrapper
     private mixed $data;
 
     private function __construct(
+        string $type,
         string $page,
         string $name,
         ?string $language,
@@ -25,6 +27,7 @@ final class DocumentWrapper
         mixed $data
     )
     {
+        $this->type = $type;
         $this->page = $page;
         $this->name = $name;
         $this->language = $language;
@@ -36,6 +39,14 @@ final class DocumentWrapper
 
     public static function fromArray(array $payload): self
     {
+        $type = $payload['type'] ?? 'page';
+        if (!is_string($type) || trim($type) === '') {
+            throw new \InvalidArgumentException('Document.type must be a non-empty string.');
+        }
+        $type = strtolower(trim($type));
+        if (!in_array($type, ['page', 'module', 'agent'], true)) {
+            throw new \InvalidArgumentException('Document.type must be one of: page, module, agent.');
+        }
         if (!isset($payload['page']) || !is_string($payload['page']) || trim($payload['page']) === '') {
             throw new \InvalidArgumentException('Document.page is required.');
         }
@@ -89,6 +100,7 @@ final class DocumentWrapper
         $modules = array_values(array_unique($modules));
 
         return new self(
+            $type,
             trim($payload['page']),
             trim($payload['name']),
             $language,
@@ -102,6 +114,11 @@ final class DocumentWrapper
     public function page(): string
     {
         return $this->page;
+    }
+
+    public function type(): string
+    {
+        return $this->type;
     }
 
     public function name(): string
@@ -137,17 +154,18 @@ final class DocumentWrapper
 
     public function withData(mixed $data): self
     {
-        return new self($this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $data);
+        return new self($this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $data);
     }
 
     public function withOrder(int $order): self
     {
-        return new self($this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->data);
+        return new self($this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->data);
     }
 
     public function toArray(): array
     {
         $payload = [
+            'type' => $this->type,
             'page' => $this->page,
             'name' => $this->name,
             'section' => $this->section,

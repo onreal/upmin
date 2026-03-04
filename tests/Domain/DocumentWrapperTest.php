@@ -18,12 +18,28 @@ final class DocumentWrapperTest extends TestCase
             'data' => ['title' => 'Hello'],
         ]);
 
+        $this->assertSame('page', $wrapper->type());
         $this->assertSame('content', $wrapper->page());
         $this->assertSame('Περιεχόμενο', $wrapper->name());
         $this->assertSame('el', $wrapper->language());
         $this->assertSame(2, $wrapper->order());
         $this->assertFalse($wrapper->isSection());
         $this->assertSame(['title' => 'Hello'], $wrapper->data());
+    }
+
+    public function testExplicitTypeIsAccepted(): void
+    {
+        $wrapper = DocumentWrapper::fromArray([
+            'type' => 'agent',
+            'page' => 'agents',
+            'name' => 'Assistant',
+            'order' => 1,
+            'section' => false,
+            'data' => [],
+        ]);
+
+        $this->assertSame('agent', $wrapper->type());
+        $this->assertSame('agents', $wrapper->page());
     }
 
     public function testInvalidWrapperThrows(): void

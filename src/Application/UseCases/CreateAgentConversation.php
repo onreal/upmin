@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Manage\Application\UseCases;
+
+use Manage\Application\Ports\DocumentRepository;
+use Manage\Domain\Document\Document;
+use Manage\Domain\Document\DocumentId;
+use Manage\Domain\Document\DocumentWrapper;
+
+final class CreateAgentConversation
+{
+    private DocumentRepository $documents;
+
+    public function __construct(DocumentRepository $documents)
+    {
+        $this->documents = $documents;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function handle(DocumentId $agentId, string $userId): ?array
+    {
+        $agent = $this->documents->get($agentId);
+        if ($agent === null) {
+            return null;
+        }
+
+        $agentWrapper = $agent->wrapper();
+        if ($agentWrapper->type() !== 'agent' || $agentWrapper->page() !== 'agents' || $agentWrapper->isSection()) {
+            return null;
+        }
+
+        $timestamp = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $createdAt = $timestamp->format(DATE_ATOM);
+        $labelDate = $timestamp->format('Y-m-d H:i');
+
+        $agentSlug = $this->slug($agentWrapper->name());
+        if ($agentSlug === '') {
+            $agentSlug = 'agent';
+        }
+
+        $userSlug = $this->slug($userId);
+        if ($userSlug === '') {
+            $userSlug = 'user';
+        }
+
+        $store = 'private';
+        $path = $this->uniquePath($store, $agentSlug, $userSlug, $timestamp->format('YmdHis'));
+
+        $wrapper = DocumentWrapper::fromArray([
+            'type' => 'agent',
+            'page' => 'agent-conversations',
+            'name' => $agentWrapper->name() . ' · ' . $labelDate,
+            'order' => 1,
+            'section' => false,
+            'data' => [
+                'agentId' => $agentId->encoded(),
+                'agentName' => $agentWrapper->name(),
+                'userId' => $userId,
+                'createdAt' => $createdAt,
+                'messages' => [],
+            ],
+        ]);
+
+        $document = new Document(DocumentId::fromParts($store, $path), $wrapper, $store, $path);
+        $this->documents->save($document);
+
+        return [
+            'id' => $document->id()->encoded(),
+            'store' => $document->store(),
+            'path' => $document->path(),
+            'payload' => $document->wrapper()->toArray(),
+        ];
+    }
+
+    private function uniquePath(string $store, string $agentSlug, string $userSlug, string $timestamp): string
+    {
+        $base = 'agents/conversations/' . $agentSlug . '-' . $userSlug . '-' . $timestamp;
+        $suffix = '';
+        $counter = 1;
+
+        while (true) {
+            $path = $base . $suffix . '.json';
+            $id = DocumentId::fromParts($store, $path);
+            if ($this->documents->get($id) === null) {
+                return $path;
+            }
+            $counter++;
+            $suffix = '-' . $counter;
+        }
+    }
+
+    private function slug(string $value): string
+    {
+        $value = strtolower(trim($value));
+        $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
+        return trim($value, '-');
+    }
+}

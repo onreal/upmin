@@ -3,10 +3,14 @@
 declare(strict_types=1);
 
 use Manage\Application\Ports\DocumentRepository;
+use Manage\Application\UseCases\EnsureModuleSettings;
 use Manage\Application\UseCases\ListNavigation;
 use Manage\Domain\Document\Document;
 use Manage\Domain\Document\DocumentId;
 use Manage\Domain\Document\DocumentWrapper;
+use Manage\Modules\ModuleContext;
+use Manage\Modules\ModuleRegistry;
+use Manage\Modules\ModuleSettingsStore;
 use PHPUnit\Framework\TestCase;
 
 final class ListNavigationTest extends TestCase
@@ -65,6 +69,19 @@ final class ListNavigationTest extends TestCase
                         'public',
                         'intro.json'
                     ),
+                    new Document(
+                        DocumentId::fromParts('private', 'agents/assistant.json'),
+                        DocumentWrapper::fromArray([
+                            'type' => 'agent',
+                            'page' => 'agents',
+                            'name' => 'Assistant',
+                            'order' => 1,
+                            'section' => false,
+                            'data' => [],
+                        ]),
+                        'private',
+                        'agents/assistant.json'
+                    ),
                 ];
             }
 
@@ -78,7 +95,12 @@ final class ListNavigationTest extends TestCase
             }
         };
 
-        $useCase = new ListNavigation($repository);
+        $context = new ModuleContext(sys_get_temp_dir(), sys_get_temp_dir());
+        $registry = new ModuleRegistry(sys_get_temp_dir() . '/modules', $context);
+        $settingsStore = new ModuleSettingsStore($context);
+        $ensureModuleSettings = new EnsureModuleSettings($registry, $settingsStore);
+
+        $useCase = new ListNavigation($repository, $ensureModuleSettings);
         $pages = $useCase->handle();
 
         $this->assertCount(2, $pages);

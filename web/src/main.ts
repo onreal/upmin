@@ -1,19 +1,29 @@
 import {
   fetchDocument,
   fetchLayoutConfig,
+  fetchAgents,
+  fetchAgent,
   fetchModules,
   fetchNavigation,
   fetchUiConfig,
+  createAgent,
   createDocument,
+  createAgentConversation,
   downloadArchive,
   downloadDocument,
+  fetchAgentConversation,
+  fetchAgentConversations,
   loginWithApiKey,
   loginWithPassword,
   loadAuth,
+  appendAgentMessage,
   saveAuth,
+  updateAgent,
   updateDocument,
   type AuthState,
   type AuthUser,
+  type AgentConversationSummary,
+  type AgentSummary,
   type DocumentPayload,
   type LayoutConfig,
   type ModuleDefinition,
@@ -38,8 +48,12 @@ let editor: JsonEditorHandle | null = null;
 let authDocumentId: string | null = null;
 let layoutConfig: LayoutConfig = {};
 let modules: ModuleDefinition[] = [];
+let agents: AgentSummary[] = [];
 let navigationPages: NavigationPage[] = [];
 const moduleSettingsCache = new Map<string, Record<string, unknown> | null>();
+let currentAgent: RemoteDocument | null = null;
+let currentConversation: RemoteDocument | null = null;
+let agentPoller: number | null = null;
 
 type EditableUser = AuthUser & { uuid?: string; password?: string } & Record<string, unknown>;
 type AuthData = { users: EditableUser[] } & Record<string, unknown>;
@@ -146,6 +160,19 @@ const setTheme = (theme: "light" | "dark", persist = true) => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const stopAgentPolling = () => {
+  if (agentPoller !== null) {
+    window.clearInterval(agentPoller);
+    agentPoller = null;
+  }
+};
+
+const clearAgentState = () => {
+  stopAgentPolling();
+  currentAgent = null;
+  currentConversation = null;
+};
+
 const encodeDocumentId = (store: string, path: string) => {
   const raw = `${store}:${path}`;
   const encoded = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
@@ -187,6 +214,9 @@ const fetchModuleSettings = async (moduleName: string, payload: DocumentPayload)
     return null;
   }
 };
+
+const getAgentField = (data: Record<string, unknown>, key: string) =>
+  typeof data[key] === "string" ? (data[key] as string) : "";
 
 const applyUiConfig = (config: UiConfig) => {
   const normalize = (input?: Record<string, string>) => {
@@ -261,6 +291,7 @@ const isTokenAuth = (value: AuthState): value is TokenAuth => {
 };
 
 const renderLogin = (error?: string) => {
+  clearAgentState();
   app.innerHTML = `
     <section class="section">
       <div class="container">
@@ -444,6 +475,14 @@ const renderAppShell = () => {
               <a class="navbar-item" id="modules-link">Modules</a>
             </div>
           </div>
+          <div class="navbar-item has-dropdown" id="agents-dropdown">
+            <a class="navbar-link">Agents</a>
+            <div class="navbar-dropdown">
+              <div id="nav-agents"></div>
+              <hr class="navbar-divider" />
+              <a class="navbar-item" id="agents-create-link">Create agent</a>
+            </div>
+          </div>
           <div class="navbar-item has-dropdown" id="user-dropdown">
             <a class="navbar-link" id="user-label">${getUserLabel()}</a>
             <div class="navbar-dropdown">
@@ -598,6 +637,73 @@ const renderAppShell = () => {
         </footer>
       </div>
     </div>
+    <div class="modal" id="agent-modal">
+      <div class="modal-background" data-close="agent"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Create agent</p>
+          <button class="delete" aria-label="close" data-close="agent"></button>
+        </header>
+        <section class="modal-card-body">
+          <div id="agent-error" class="notification is-danger is-light is-hidden"></div>
+          <form id="agent-form">
+            <div class="tabs is-toggle is-fullwidth mb-4">
+              <ul>
+                <li class="is-active"><a data-agent-store="public">Public</a></li>
+                <li><a data-agent-store="private">Private</a></li>
+              </ul>
+            </div>
+            <input type="hidden" id="agent-store" value="public" />
+            <div class="columns is-variable is-4 is-multiline">
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Name</label>
+                  <div class="control">
+                    <input id="agent-name" class="input" type="text" placeholder="Assistant" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Provider</label>
+                  <div class="control">
+                    <input id="agent-provider" class="input" type="text" placeholder="openai" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Model</label>
+                  <div class="control">
+                    <input id="agent-model" class="input" type="text" placeholder="gpt-4.1" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-full">
+                <div class="field">
+                  <label class="label">System prompt</label>
+                  <div class="control">
+                    <textarea id="agent-system" class="textarea" rows="3" placeholder="System prompt"></textarea>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-full">
+                <div class="field">
+                  <label class="label">Admin prompt</label>
+                  <div class="control">
+                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="Admin prompt"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </section>
+        <footer class="modal-card-foot">
+          <button id="agent-cancel" class="button app-button app-ghost">Cancel</button>
+          <button form="agent-form" type="submit" class="button app-button app-primary">Create agent</button>
+        </footer>
+      </div>
+    </div>
   `;
 
   const burger = document.querySelector(".navbar-burger") as HTMLElement | null;
@@ -609,6 +715,7 @@ const renderAppShell = () => {
 
   const dropdowns = [
     document.getElementById("private-dropdown"),
+    document.getElementById("agents-dropdown"),
     document.getElementById("user-dropdown"),
   ];
 
@@ -806,6 +913,7 @@ const renderAppShell = () => {
     }
 
     const payloadToCreate: DocumentPayload = {
+      type: "page",
       page,
       name,
       language: language || undefined,
@@ -826,6 +934,116 @@ const renderAppShell = () => {
       await loadDocument(created.id);
     } catch (err) {
       showCreateError((err as Error).message);
+    }
+  });
+
+  const agentModal = document.getElementById("agent-modal");
+  const agentError = document.getElementById("agent-error");
+  const agentForm = document.getElementById("agent-form") as HTMLFormElement | null;
+  const agentStoreInput = document.getElementById("agent-store") as HTMLInputElement | null;
+  const agentStoreTabs = Array.from(
+    agentModal?.querySelectorAll<HTMLElement>("[data-agent-store]") ?? []
+  );
+
+  const showAgentError = (message: string) => {
+    if (!agentError) {
+      alert(message);
+      return;
+    }
+    agentError.textContent = message;
+    agentError.classList.remove("is-hidden");
+  };
+
+  const clearAgentError = () => {
+    if (!agentError) {
+      return;
+    }
+    agentError.textContent = "";
+    agentError.classList.add("is-hidden");
+  };
+
+  const setAgentStore = (store: "public" | "private") => {
+    if (agentStoreInput) {
+      agentStoreInput.value = store;
+    }
+    agentStoreTabs.forEach((tab) => {
+      const value = tab.getAttribute("data-agent-store");
+      tab.parentElement?.classList.toggle("is-active", value === store);
+    });
+  };
+
+  const openAgentModal = () => {
+    clearAgentError();
+    agentForm?.reset();
+    setAgentStore("public");
+    agentModal?.classList.add("is-active");
+  };
+
+  const closeAgentModal = () => {
+    agentModal?.classList.remove("is-active");
+    clearAgentError();
+  };
+
+  document.getElementById("agents-create-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openAgentModal();
+    document.getElementById("agents-dropdown")?.classList.remove("is-active");
+  });
+
+  document.getElementById("agent-cancel")?.addEventListener("click", closeAgentModal);
+  agentModal?.querySelectorAll("[data-close='agent']").forEach((el) => {
+    el.addEventListener("click", closeAgentModal);
+  });
+  agentStoreTabs.forEach((tab) => {
+    tab.addEventListener("click", (event) => {
+      event.preventDefault();
+      const value = tab.getAttribute("data-agent-store");
+      if (value === "public" || value === "private") {
+        setAgentStore(value);
+      }
+    });
+  });
+
+  agentForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!auth) {
+      return;
+    }
+
+    clearAgentError();
+
+    const name = (document.getElementById("agent-name") as HTMLInputElement | null)?.value.trim() || "";
+    const provider =
+      (document.getElementById("agent-provider") as HTMLInputElement | null)?.value.trim() || "";
+    const model = (document.getElementById("agent-model") as HTMLInputElement | null)?.value.trim() || "";
+    const systemPrompt =
+      (document.getElementById("agent-system") as HTMLTextAreaElement | null)?.value.trim() || "";
+    const adminPrompt =
+      (document.getElementById("agent-admin") as HTMLTextAreaElement | null)?.value.trim() || "";
+    const storeValue =
+      (document.getElementById("agent-store") as HTMLInputElement | null)?.value === "private"
+        ? "private"
+        : "public";
+
+    if (!name || !provider || !model || !systemPrompt || !adminPrompt) {
+      showAgentError("All fields are required.");
+      return;
+    }
+
+    try {
+      const created = await createAgent(auth, {
+        store: storeValue,
+        name,
+        provider,
+        model,
+        systemPrompt,
+        adminPrompt,
+      });
+      closeAgentModal();
+      await loadAgents();
+      await renderAgentView(created);
+    } catch (err) {
+      showAgentError((err as Error).message);
     }
   });
 };
@@ -941,6 +1159,30 @@ const renderNavigation = (pages: NavigationPage[]) => {
     });
 };
 
+const renderAgentsMenu = () => {
+  const container = document.getElementById("nav-agents");
+  if (!container) {
+    return;
+  }
+  container.innerHTML = "";
+
+  if (!agents.length) {
+    container.innerHTML = `<div class="navbar-item is-size-7 app-muted">No agents found.</div>`;
+    return;
+  }
+
+  agents.forEach((agent) => {
+    const link = document.createElement("a");
+    link.className = "navbar-item";
+    link.textContent = agent.name;
+    link.addEventListener("click", () => {
+      void loadAgent(agent.id);
+      document.getElementById("agents-dropdown")?.classList.remove("is-active");
+    });
+    container.append(link);
+  });
+};
+
 const renderModulePanel = async (doc: RemoteDocument) => {
   const panel = document.getElementById("module-panel");
   if (!panel) {
@@ -994,6 +1236,7 @@ const renderModulesView = () => {
   if (!content) {
     return;
   }
+  clearAgentState();
 
   const intro = `
     <div class="mb-4">
@@ -1073,11 +1316,324 @@ const renderModulesView = () => {
   });
 };
 
+const renderAgentView = async (agentDoc: RemoteDocument) => {
+  const content = document.getElementById("content");
+  if (!content) {
+    return;
+  }
+
+  stopAgentPolling();
+  currentAgent = agentDoc;
+  currentConversation = null;
+
+  const data = isRecord(agentDoc.payload.data) ? agentDoc.payload.data : {};
+  const provider = getAgentField(data, "provider");
+  const model = getAgentField(data, "model");
+  const systemPrompt = getAgentField(data, "systemPrompt");
+  const adminPrompt = getAgentField(data, "adminPrompt");
+
+  content.innerHTML = `
+    <div class="mb-4">
+      <h1 class="title is-4">${agentDoc.payload.name}</h1>
+      <p class="app-muted">Agent · ${agentDoc.store}/${agentDoc.path}</p>
+    </div>
+    <div class="columns is-variable is-4">
+      <div class="column is-one-third">
+        <div class="app-panel">
+          <div class="mb-3">
+            <h2 class="title is-6">Settings</h2>
+            <p class="app-muted">Provider, model, and prompts.</p>
+          </div>
+          <div class="field">
+            <label class="label">Name</label>
+            <div class="control">
+              <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Provider</label>
+            <div class="control">
+              <input id="agent-edit-provider" class="input" type="text" value="${provider}" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Model</label>
+            <div class="control">
+              <input id="agent-edit-model" class="input" type="text" value="${model}" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">System prompt</label>
+            <div class="control">
+              <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Admin prompt</label>
+            <div class="control">
+              <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
+            </div>
+          </div>
+          <div class="buttons">
+            <button id="agent-save" class="button app-button app-primary">Save</button>
+          </div>
+        </div>
+        <div class="app-panel mt-4">
+          <div class="app-panel-header">
+            <div>
+              <h2 class="title is-6 mb-1">Conversations</h2>
+              <p class="app-muted">Reuse context or start fresh.</p>
+            </div>
+            <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
+          </div>
+          <div id="agent-conversation-list" class="app-conversation-list"></div>
+        </div>
+      </div>
+      <div class="column">
+        <div class="app-panel app-chat">
+          <div class="app-chat-header">
+            <div>
+              <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
+              <div id="agent-chat-meta" class="app-chat-meta app-muted">Select or create a conversation.</div>
+            </div>
+          </div>
+          <div id="agent-chat-messages" class="app-chat-messages"></div>
+          <div class="app-chat-input">
+            <form id="agent-chat-form">
+              <div class="field">
+                <div class="control">
+                  <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
+                </div>
+              </div>
+              <div class="buttons">
+                <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const renderMessages = (conversation: RemoteDocument) => {
+    const messagesContainer = document.getElementById("agent-chat-messages");
+    if (!messagesContainer) {
+      return;
+    }
+    const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+    const messages = Array.isArray(payloadData.messages) ? payloadData.messages : [];
+    if (!messages.length) {
+      messagesContainer.innerHTML = `<p class="app-muted">No messages yet.</p>`;
+      return;
+    }
+
+    messagesContainer.innerHTML = messages
+      .map((message) => {
+        const record = isRecord(message) ? message : {};
+        const role = typeof record.role === "string" ? record.role : "user";
+        const content = typeof record.content === "string" ? record.content : "";
+        const label = role === "assistant" ? "Agent" : "You";
+        const roleClass = role === "assistant" ? "is-assistant" : "is-user";
+        return `
+          <div class="app-chat-message ${roleClass}">
+            <div class="app-chat-message-role">${label}</div>
+            <div class="app-chat-message-content">${content}</div>
+          </div>
+        `;
+      })
+      .join("");
+  };
+
+  const updateConversationHeader = (conversation: RemoteDocument | null) => {
+    const title = document.getElementById("agent-chat-title");
+    const meta = document.getElementById("agent-chat-meta");
+    if (!title || !meta) {
+      return;
+    }
+    if (!conversation) {
+      title.textContent = "No conversation selected";
+      meta.textContent = "Select or create a conversation.";
+      return;
+    }
+    const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+    const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
+    title.textContent = conversation.payload.name || "Conversation";
+    meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+  };
+
+  const updateChatInputState = (active: boolean) => {
+    const input = document.getElementById("agent-chat-text") as HTMLTextAreaElement | null;
+    const send = document.getElementById("agent-chat-send") as HTMLButtonElement | null;
+    if (input) {
+      input.disabled = !active;
+    }
+    if (send) {
+      send.disabled = !active;
+    }
+  };
+
+  const loadConversation = async (conversationId: string) => {
+    if (!auth) {
+      return;
+    }
+    try {
+      const conversation = await fetchAgentConversation(auth, conversationId);
+      currentConversation = conversation;
+      updateConversationHeader(conversation);
+      renderMessages(conversation);
+      updateChatInputState(true);
+      stopAgentPolling();
+      agentPoller = window.setInterval(async () => {
+        if (!auth || !currentConversation || currentConversation.id !== conversationId) {
+          return;
+        }
+        try {
+          const updated = await fetchAgentConversation(auth, conversationId);
+          const previous = currentConversation;
+          currentConversation = updated;
+          const prevData = isRecord(previous.payload.data) ? previous.payload.data : {};
+          const nextData = isRecord(updated.payload.data) ? updated.payload.data : {};
+          const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
+          const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
+          if (prevCount !== nextCount) {
+            renderMessages(updated);
+          }
+        } catch {
+          // ignore polling errors
+        }
+      }, 3000);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const renderConversationList = (items: AgentConversationSummary[]) => {
+    const list = document.getElementById("agent-conversation-list");
+    if (!list) {
+      return;
+    }
+    if (!items.length) {
+      list.innerHTML = `<p class="app-muted">No conversations yet.</p>`;
+      return;
+    }
+    list.innerHTML = items
+      .map((item) => {
+        const active = currentConversation?.id === item.id ? "is-active" : "";
+        const meta = item.createdAt ? `<div class="app-conversation-meta">${item.createdAt}</div>` : "";
+        return `
+          <button class="button app-button app-ghost app-conversation-item ${active}" data-conversation-id="${item.id}">
+            <div class="app-conversation-title">${item.name}</div>
+            ${meta}
+          </button>
+        `;
+      })
+      .join("");
+
+    list.querySelectorAll<HTMLButtonElement>("[data-conversation-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.getAttribute("data-conversation-id");
+        if (id) {
+          void loadConversation(id);
+        }
+      });
+    });
+  };
+
+  const refreshConversations = async () => {
+    if (!auth) {
+      return;
+    }
+    try {
+      const response = await fetchAgentConversations(auth, agentDoc.id);
+      renderConversationList(response.conversations ?? []);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  document.getElementById("agent-save")?.addEventListener("click", async () => {
+    if (!auth || !currentAgent) {
+      return;
+    }
+    const nameInput = document.getElementById("agent-edit-name") as HTMLInputElement | null;
+    const providerInput = document.getElementById("agent-edit-provider") as HTMLInputElement | null;
+    const modelInput = document.getElementById("agent-edit-model") as HTMLInputElement | null;
+    const systemInput = document.getElementById("agent-edit-system") as HTMLTextAreaElement | null;
+    const adminInput = document.getElementById("agent-edit-admin") as HTMLTextAreaElement | null;
+
+    const nameValue = nameInput?.value.trim() || "";
+    const providerValue = providerInput?.value.trim() || "";
+    const modelValue = modelInput?.value.trim() || "";
+    const systemValue = systemInput?.value.trim() || "";
+    const adminValue = adminInput?.value.trim() || "";
+
+    if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
+      alert("All agent fields are required.");
+      return;
+    }
+
+    try {
+      const updated = await updateAgent(auth, currentAgent.id, {
+        name: nameValue,
+        provider: providerValue,
+        model: modelValue,
+        systemPrompt: systemValue,
+        adminPrompt: adminValue,
+      });
+      currentAgent = updated;
+      await loadAgents();
+      await renderAgentView(updated);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  });
+
+  document.getElementById("agent-new-conversation")?.addEventListener("click", async () => {
+    if (!auth || !currentAgent) {
+      return;
+    }
+    try {
+      const created = await createAgentConversation(auth, currentAgent.id);
+      currentConversation = created;
+      await refreshConversations();
+      await loadConversation(created.id);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  });
+
+  document.getElementById("agent-chat-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!auth || !currentConversation) {
+      return;
+    }
+    const input = document.getElementById("agent-chat-text") as HTMLTextAreaElement | null;
+    const content = input?.value.trim() || "";
+    if (!content) {
+      return;
+    }
+    try {
+      const updated = await appendAgentMessage(auth, currentConversation.id, content);
+      currentConversation = updated;
+      input.value = "";
+      renderMessages(updated);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  });
+
+  updateChatInputState(false);
+  updateConversationHeader(null);
+  await refreshConversations();
+};
+
 const renderDocument = (doc: RemoteDocument) => {
   const content = document.getElementById("content");
   if (!content) {
     return;
   }
+
+  clearAgentState();
 
   const payload = doc.payload;
   const selectedModules = normalizeModuleList(payload.modules, payload.module ?? null);
@@ -1111,6 +1667,7 @@ const renderDocument = (doc: RemoteDocument) => {
 
       const payloadToSave: DocumentPayload = {
         ...payload,
+        type: payload.type ?? "module",
         data: editor?.getValue() ?? payload.data,
       };
 
@@ -1270,6 +1827,7 @@ const renderDocument = (doc: RemoteDocument) => {
     const orderValue = parsedOrder;
 
     const payloadToSave: DocumentPayload = {
+      type: payload.type ?? "page",
       page: pageInput?.value.trim() || payload.page,
       name: nameInput?.value.trim() || payload.name,
       language: languageInput?.value.trim() || undefined,
@@ -1320,6 +1878,7 @@ const renderProfile = async () => {
   if (!content) {
     return;
   }
+  clearAgentState();
 
   if (!isTokenAuth(auth) || !auth.user) {
     content.innerHTML = `<p class="app-muted">Δεν υπάρχει προφίλ για API key σύνδεση.</p>`;
@@ -1473,6 +2032,19 @@ const loadDocument = async (id: string) => {
   }
 };
 
+const loadAgent = async (id: string) => {
+  if (!auth) {
+    return;
+  }
+  try {
+    const agent = await fetchAgent(auth, id);
+    currentDocument = null;
+    await renderAgentView(agent);
+  } catch (err) {
+    alert((err as Error).message);
+  }
+};
+
 const refreshNavigation = async () => {
   if (!auth) {
     return;
@@ -1510,6 +2082,19 @@ const loadLayoutConfig = async () => {
   }
 };
 
+const loadAgents = async () => {
+  if (!auth) {
+    return;
+  }
+  try {
+    const response = await fetchAgents(auth);
+    agents = Array.isArray(response.agents) ? response.agents : [];
+  } catch {
+    agents = [];
+  }
+  renderAgentsMenu();
+};
+
 const loadModules = async () => {
   if (!auth) {
     return;
@@ -1538,6 +2123,7 @@ const renderApp = async () => {
   await loadLayoutConfig();
   await loadModules();
   renderAppShell();
+  await loadAgents();
   await refreshNavigation();
 };
 

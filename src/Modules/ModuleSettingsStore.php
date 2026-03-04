@@ -56,12 +56,20 @@ final class ModuleSettingsStore
         $existingData = is_array($existing) ? $existing : [];
         $merged = $this->mergeDefaults($data, $existingData);
 
-        if ($merged === $existingData) {
-            return;
+        $needsWrite = false;
+        if (($payload['type'] ?? null) !== 'module') {
+            $payload['type'] = 'module';
+            $needsWrite = true;
         }
 
-        $payload['data'] = $merged;
-        $this->writePayload($path, $payload);
+        if ($merged !== $existingData) {
+            $payload['data'] = $merged;
+            $needsWrite = true;
+        }
+
+        if ($needsWrite) {
+            $this->writePayload($path, $payload);
+        }
     }
 
     private function pathForKey(string $key): ?string
@@ -77,6 +85,7 @@ final class ModuleSettingsStore
     private function defaultPayload(string $label, array $data): array
     {
         return [
+            'type' => 'module',
             'page' => 'modules',
             'name' => $label,
             'section' => true,
@@ -125,6 +134,7 @@ final class ModuleSettingsStore
         }
         $existing = $payload['data'] ?? null;
         $existingData = is_array($existing) ? $existing : [];
+        $payload['type'] = 'module';
         $payload['page'] = 'modules';
         $payload['name'] = $label;
         $payload['section'] = true;

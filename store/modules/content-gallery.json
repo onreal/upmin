@@ -23,5 +23,6 @@
         "output": {
             "target": "gallery"
         }
-    }
+    },
+    "type": "module"
 }

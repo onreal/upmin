@@ -230,6 +230,66 @@ export const deleteModuleFile = (
     auth
   );
 
+export const fetchAgents = (auth: AuthState) =>
+  request<{ agents: AgentSummary[] }>(`/api/agents`, { method: "GET" }, auth);
+
+export const fetchAgent = (auth: AuthState, id: string) =>
+  request<RemoteDocument>(`/api/agents/${id}`, { method: "GET" }, auth);
+
+export const createAgent = (
+  auth: AuthState,
+  payload: {
+    store: "public" | "private";
+    name: string;
+    provider: string;
+    model: string;
+    systemPrompt: string;
+    adminPrompt: string;
+  }
+) =>
+  request<RemoteDocument>(`/api/agents`, { method: "POST", body: JSON.stringify(payload) }, auth);
+
+export const updateAgent = (
+  auth: AuthState,
+  id: string,
+  payload: {
+    name: string;
+    provider: string;
+    model: string;
+    systemPrompt: string;
+    adminPrompt: string;
+  }
+) =>
+  request<RemoteDocument>(
+    `/api/agents/${id}`,
+    { method: "PUT", body: JSON.stringify(payload) },
+    auth
+  );
+
+export const fetchAgentConversations = (auth: AuthState, id: string) =>
+  request<{ conversations: AgentConversationSummary[] }>(
+    `/api/agents/${id}/conversations`,
+    { method: "GET" },
+    auth
+  );
+
+export const createAgentConversation = (auth: AuthState, id: string) =>
+  request<RemoteDocument>(
+    `/api/agents/${id}/conversations`,
+    { method: "POST", body: JSON.stringify({}) },
+    auth
+  );
+
+export const fetchAgentConversation = (auth: AuthState, id: string) =>
+  request<RemoteDocument>(`/api/agents/conversations/${id}`, { method: "GET" }, auth);
+
+export const appendAgentMessage = (auth: AuthState, id: string, content: string) =>
+  request<RemoteDocument>(
+    `/api/agents/conversations/${id}/messages`,
+    { method: "POST", body: JSON.stringify({ content }) },
+    auth
+  );
+
 export type NavigationPage = {
   page: string;
   name: string;
@@ -249,6 +309,7 @@ export type NavigationPage = {
 };
 
 export type DocumentPayload = {
+  type?: string | null;
   page: string;
   name: string;
   language?: string | null;
@@ -257,6 +318,22 @@ export type DocumentPayload = {
   modules?: string[] | null;
   module?: string | null;
   data: unknown;
+};
+
+export type AgentSummary = {
+  id: string;
+  name: string;
+  store: string;
+  path: string;
+  order?: number;
+};
+
+export type AgentConversationSummary = {
+  id: string;
+  name: string;
+  createdAt?: string | null;
+  store: string;
+  path: string;
 };
 
 export type RemoteDocument = {
