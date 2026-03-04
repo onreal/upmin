@@ -9,8 +9,23 @@ const outdir = resolve(root, "public/assets");
 
 await mkdir(outdir, { recursive: true });
 
+const styleFiles = [
+  "web/src/styles/tokens.css",
+  "web/src/styles/base.css",
+  "web/src/styles/layout.css",
+  "web/src/styles/components.css",
+  "web/src/styles/modules.css",
+  "web/src/styles/logs.css",
+  "web/src/styles/editor.css",
+  "web/src/styles/chat.css",
+  "web/src/styles/notifications.css",
+];
+
 const copyStyles = async () => {
-  const css = await readFile(resolve(root, "web/src/styles.css"), "utf8");
+  const cssParts = await Promise.all(
+    styleFiles.map(async (file) => readFile(resolve(root, file), "utf8"))
+  );
+  const css = cssParts.join("\n");
   await writeFile(resolve(outdir, "app.css"), css);
 };
 

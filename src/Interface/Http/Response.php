@@ -45,4 +45,14 @@ final class Response
 
         echo $this->body;
     }
+
+    public function status(): int
+    {
+        return $this->status;
+    }
+
+    public function body(): mixed
+    {
+        return $this->body;
+    }
 }

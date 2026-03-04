@@ -1,0 +1,36 @@
+.app-notifications {
+  position: fixed;
+  top: var(--app-gap-lg);
+  right: var(--app-gap-lg);
+  z-index: 50;
+  width: min(360px, 90vw);
+}
+
+.app-toast {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
+  box-shadow: var(--app-shadow);
+  border-radius: var(--app-radius-md);
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  transform: translateY(0);
+  opacity: 1;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.app-notifications.app-toast-hide .app-toast {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.app-toast-success {
+  border-left: 4px solid var(--app-accent);
+}
+
+.app-toast-error {
+  border-left: 4px solid var(--app-danger);
+}

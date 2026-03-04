@@ -1,0 +1,11 @@
+{
+    "type": "module",
+    "page": "logs",
+    "name": "Logger Settings",
+    "section": true,
+    "data": {
+        "maxItems": 1000,
+        "maxDays": 7
+    },
+    "order": 1
+}

@@ -1,0 +1,77 @@
+.navbar.app-surface {
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.navbar.app-surface .navbar-item,
+.navbar.app-surface .navbar-link {
+  color: var(--app-text);
+}
+
+.navbar.app-surface .navbar-burger {
+  color: var(--app-text);
+}
+
+.navbar.app-surface .navbar-burger:hover {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+.navbar.app-surface .navbar-menu {
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-border);
+}
+
+.app-nav-actions {
+  display: inline-flex;
+  gap: var(--app-gap-sm);
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.app-nav-actions .button {
+  white-space: nowrap;
+}
+
+.navbar.app-surface .navbar-item:hover,
+.navbar.app-surface .navbar-link:hover,
+.navbar.app-surface .navbar-item.is-active,
+.navbar.app-surface .navbar-link.is-active,
+.navbar.app-surface .navbar-item.has-dropdown.is-active .navbar-link {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  color: var(--app-text);
+}
+
+.menu-label {
+  color: var(--app-muted);
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.menu-list a {
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+}
+
+.menu-list a.is-active {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  color: var(--app-text);
+}
+
+.navbar-dropdown {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow);
+}
+
+.navbar-divider {
+  background: var(--app-border);
+}
+
+.navbar-dropdown .navbar-item {
+  color: var(--app-text);
+}
+
+.navbar-dropdown .navbar-item:hover {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}

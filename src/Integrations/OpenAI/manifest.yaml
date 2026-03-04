@@ -1,0 +1,12 @@
+name: "openai"
+description: "OpenAI API"
+supportsModels: true
+fields:
+  - key: "apiKey"
+    label: "API key"
+    type: "password"
+    required: true
+  - key: "organization"
+    label: "Organization ID"
+    type: "text"
+    required: false

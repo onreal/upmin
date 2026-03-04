@@ -146,4 +146,40 @@ final class CreateDocumentTest extends TestCase
 
         $this->assertNull($result);
     }
+
+    public function testRejectsCreatingLogFiles(): void
+    {
+        $repository = new class() implements DocumentRepository {
+            public function listAll(): array
+            {
+                return [];
+            }
+
+            public function get(DocumentId $id): ?Document
+            {
+                return null;
+            }
+
+            public function save(Document $document): void
+            {
+            }
+        };
+
+        $context = new ModuleContext(sys_get_temp_dir(), sys_get_temp_dir());
+        $registry = new ModuleRegistry(sys_get_temp_dir() . '/modules', $context);
+        $settingsStore = new ModuleSettingsStore($context);
+        $ensureModuleSettings = new EnsureModuleSettings($registry, $settingsStore);
+        $useCase = new CreateDocument($repository, new ReorderDocuments($repository), $ensureModuleSettings);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Logs are read-only.');
+
+        $useCase->handle('private', 'logs/20260101-errors.json', [
+            'page' => 'logs',
+            'name' => 'Errors',
+            'order' => 1,
+            'section' => true,
+            'data' => [],
+        ]);
+    }
 }

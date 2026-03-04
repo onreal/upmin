@@ -33,6 +33,6 @@ final class Router
             }
         }
 
-        return Response::json(['error' => 'Not Found'], 404);
+        return Response::json(['ok' => false, 'message' => 'Not Found'], 404);
     }
 }

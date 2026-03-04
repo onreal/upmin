@@ -1,0 +1,136 @@
+.app-module {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  padding: var(--app-gap-md);
+  background: color-mix(in srgb, var(--app-surface) 92%, var(--app-bg));
+  display: grid;
+  gap: var(--app-gap-sm);
+}
+
+.app-module-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap-xs);
+}
+
+.app-module-title {
+  font-weight: 600;
+}
+
+.app-module-meta {
+  color: var(--app-muted);
+  font-size: 0.85rem;
+}
+
+.app-module-body {
+  display: grid;
+  gap: var(--app-gap-sm);
+}
+
+.app-module-preview {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-sm);
+  background: var(--app-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  text-align: center;
+}
+
+.app-module-preview img {
+  max-height: 120px;
+  max-width: 180px;
+  height: auto;
+  border-radius: var(--app-radius-sm);
+}
+
+.app-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--app-gap-sm);
+}
+
+.app-gallery-item {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-xs);
+  background: var(--app-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-gallery-item img {
+  max-width: 100%;
+  max-height: 100px;
+  height: auto;
+  border-radius: var(--app-radius-sm);
+}
+
+.app-gallery-item.is-selected {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 35%, transparent);
+}
+
+.app-gallery-modal .modal-card-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.app-gallery-modal-body img {
+  max-width: 100%;
+  max-height: 60vh;
+  height: auto;
+  border-radius: var(--app-radius-sm);
+}
+
+.app-module-list {
+  display: grid;
+  gap: var(--app-gap-sm);
+}
+
+.app-module-picker {
+  display: grid;
+  gap: var(--app-gap-xs);
+}
+
+.app-module-option {
+  display: flex;
+  align-items: center;
+  gap: var(--app-gap-xs);
+  padding: var(--app-gap-xs);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+}
+
+.app-module-option-label {
+  font-weight: 600;
+}
+
+.app-module-option-meta {
+  color: var(--app-muted);
+  font-size: 0.8rem;
+}
+
+.app-module-row {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-sm);
+  background: var(--app-surface);
+  display: grid;
+  gap: var(--app-gap-xs);
+}
+
+.app-module-row-title {
+  font-weight: 600;
+}
+
+.app-module-row-meta {
+  color: var(--app-muted);
+  font-size: 0.85rem;
+}

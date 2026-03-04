@@ -31,8 +31,22 @@ final class UpdateDocument
         if ($document === null) {
             return null;
         }
+        if (
+            $document->store() === 'private'
+            && str_starts_with($document->path(), 'logs/')
+            && $document->path() !== 'logs/logger-settings.json'
+        ) {
+            throw new \InvalidArgumentException('Logs are read-only.');
+        }
 
         $wrapper = DocumentWrapper::fromArray($payload);
+        if (
+            $document->store() === 'private'
+            && $wrapper->page() === 'logs'
+            && $document->path() !== 'logs/logger-settings.json'
+        ) {
+            throw new \InvalidArgumentException('Logs are read-only.');
+        }
         $updated = $document->withWrapper($wrapper);
         $updated = $this->reorderDocuments->handle($updated);
         $this->ensureModuleSettings->handle($updated->wrapper());

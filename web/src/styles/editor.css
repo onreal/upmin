@@ -1,0 +1,60 @@
+.json-editor {
+  display: grid;
+  gap: var(--app-gap-sm);
+}
+
+.json-node {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-sm);
+  background: color-mix(in srgb, var(--app-surface) 92%, var(--app-bg));
+  position: relative;
+}
+
+.json-summary {
+  font-weight: 600;
+}
+
+.json-children {
+  display: grid;
+  gap: var(--app-gap-sm);
+  margin-top: var(--app-gap-sm);
+}
+
+.json-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr 110px;
+  gap: var(--app-gap-sm);
+  align-items: center;
+}
+
+.json-key {
+  font-weight: 600;
+}
+
+.json-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.json-remove {
+  padding: 0.25rem 0.7rem;
+}
+
+.json-remove-inline {
+  position: absolute;
+  top: var(--app-gap-sm);
+  right: var(--app-gap-sm);
+}
+
+.json-add {
+  display: flex;
+  gap: var(--app-gap-sm);
+  align-items: center;
+}
+
+@media (max-width: 980px) {
+  .json-row {
+    grid-template-columns: 1fr;
+  }
+}

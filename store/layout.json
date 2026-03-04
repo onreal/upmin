@@ -1,10 +1,11 @@
 {
+    "type": "page",
     "page": "layout",
     "name": "Layout",
     "section": false,
     "data": {
         "header": {
-            "title": "Manage",
+            "title": "UpMin",
             "subtitle": "Stateless Admin",
             "createLabel": "Create",
             "settingsLabel": "Settings",

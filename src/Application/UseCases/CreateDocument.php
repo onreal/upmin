@@ -43,6 +43,9 @@ final class CreateDocument
         if (str_contains($path, '..') || str_starts_with($path, '/') || str_contains($path, '\\')) {
             throw new \InvalidArgumentException('Document.path is invalid.');
         }
+        if ($store === 'private' && str_starts_with($path, 'logs/') && $path !== 'logs/logger-settings.json') {
+            throw new \InvalidArgumentException('Logs are read-only.');
+        }
 
         $id = DocumentId::fromParts($store, $path);
         if ($this->documents->get($id) !== null) {
@@ -50,6 +53,13 @@ final class CreateDocument
         }
 
         $wrapper = DocumentWrapper::fromArray($payload);
+        if (
+            $store === 'private'
+            && $wrapper->page() === 'logs'
+            && $path !== 'logs/logger-settings.json'
+        ) {
+            throw new \InvalidArgumentException('Logs are read-only.');
+        }
         $document = new Document($id, $wrapper, $store, $path);
         $document = $this->reorderDocuments->handle($document);
         $this->ensureModuleSettings->handle($document->wrapper());

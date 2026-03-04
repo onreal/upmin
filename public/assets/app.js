@@ -1,180 +1,2461 @@
-// web/src/api.ts
-var STORAGE_KEY = "manage_auth";
-var loadAuth = () => {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// web/src/api/types.ts
+var init_types = __esm({
+  "web/src/api/types.ts"() {
+    "use strict";
   }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
+});
+
+// web/src/api/client.ts
+var STORAGE_KEY, notify, successMessageFor, loadAuth, saveAuth, buildHeaders, request, requestBlob, requestForm;
+var init_client = __esm({
+  "web/src/api/client.ts"() {
+    "use strict";
+    STORAGE_KEY = "manage_auth";
+    notify = (payload) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("app:notice", { detail: payload }));
+    };
+    successMessageFor = (method) => {
+      if (method === "GET")
+        return "Loaded.";
+      if (method === "POST")
+        return "Created.";
+      if (method === "PUT")
+        return "Saved.";
+      if (method === "DELETE")
+        return "Deleted.";
+      return "Done.";
+    };
+    loadAuth = () => {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        return null;
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+    saveAuth = (auth) => {
+      if (!auth) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
+    };
+    buildHeaders = (auth, json) => {
+      const headers = {};
+      if (json) {
+        headers["Content-Type"] = "application/json";
+      }
+      if (auth?.type === "apiKey") {
+        headers["X-API-KEY"] = auth.value;
+      }
+      if (auth?.type === "token") {
+        headers["Authorization"] = `Bearer ${auth.value}`;
+      }
+      return headers;
+    };
+    request = async (url, options, auth) => {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...buildHeaders(auth, true),
+          ...options.headers || {}
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }));
+        const message = error.message || error.error || response.statusText || "Request failed";
+        notify({ type: "error", message });
+        throw new Error(message);
+      }
+      const data = await response.json();
+      const method = (options.method || "GET").toUpperCase();
+      notify({ type: "success", message: successMessageFor(method) });
+      return data;
+    };
+    requestBlob = async (url, options, auth) => {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...buildHeaders(auth, true),
+          ...options.headers || {}
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }));
+        const message = error.message || error.error || response.statusText || "Request failed";
+        notify({ type: "error", message });
+        throw new Error(message);
+      }
+      const contentType = response.headers.get("Content-Type") || "";
+      if (!contentType.includes("application/zip") && !contentType.includes("application/json") && !contentType.includes("application/gzip") && !contentType.includes("application/x-gzip") && !contentType.includes("application/octet-stream")) {
+        throw new Error("Unexpected download response.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      const filename = match ? match[1] : null;
+      notify({ type: "success", message: "Download ready." });
+      return { blob, filename };
+    };
+    requestForm = async (url, body, auth) => {
+      const response = await fetch(url, {
+        method: "POST",
+        body,
+        headers: {
+          ...buildHeaders(auth, false)
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }));
+        const message = error.message || error.error || response.statusText || "Request failed";
+        notify({ type: "error", message });
+        throw new Error(message);
+      }
+      const data = await response.json();
+      notify({ type: "success", message: "Uploaded successfully." });
+      return data;
+    };
+  }
+});
+
+// web/src/api/auth.ts
+var loginWithApiKey, loginWithPassword;
+var init_auth = __esm({
+  "web/src/api/auth.ts"() {
+    "use strict";
+    init_client();
+    loginWithApiKey = (apiKey) => request(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify({ apiKey })
+      },
+      null
+    );
+    loginWithPassword = (email, password) => request(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify({ email, password })
+      },
+      null
+    );
+  }
+});
+
+// web/src/api/documents.ts
+var fetchDocument, updateDocument, createDocument, downloadDocument, downloadArchive;
+var init_documents = __esm({
+  "web/src/api/documents.ts"() {
+    "use strict";
+    init_client();
+    fetchDocument = (auth, id) => request(`/api/documents/${id}`, { method: "GET" }, auth);
+    updateDocument = (auth, id, payload) => request(`/api/documents/${id}`, { method: "PUT", body: JSON.stringify(payload) }, auth);
+    createDocument = (auth, requestPayload) => request(
+      `/api/documents`,
+      { method: "POST", body: JSON.stringify(requestPayload) },
+      auth
+    );
+    downloadDocument = (auth, id) => requestBlob(`/api/documents/${id}/export`, { method: "GET" }, auth);
+    downloadArchive = (auth) => requestBlob(`/api/export.tar.gz`, { method: "GET" }, auth);
+  }
+});
+
+// web/src/api/navigation.ts
+var fetchNavigation;
+var init_navigation = __esm({
+  "web/src/api/navigation.ts"() {
+    "use strict";
+    init_client();
+    fetchNavigation = (auth) => request("/api/navigation", { method: "GET" }, auth);
+  }
+});
+
+// web/src/api/ui.ts
+var fetchUiConfig, fetchLayoutConfig;
+var init_ui = __esm({
+  "web/src/api/ui.ts"() {
+    "use strict";
+    init_client();
+    fetchUiConfig = (auth) => request("/api/ui-config", { method: "GET" }, auth);
+    fetchLayoutConfig = (auth) => request("/api/layout-config", { method: "GET" }, auth);
+  }
+});
+
+// web/src/api/modules.ts
+var fetchModules, uploadModuleFile, fetchModuleList, deleteModuleFile;
+var init_modules = __esm({
+  "web/src/api/modules.ts"() {
+    "use strict";
+    init_client();
+    fetchModules = (auth) => request("/api/modules", { method: "GET" }, auth);
+    uploadModuleFile = (auth, moduleName, file, settingsKey) => {
+      const body = new FormData();
+      body.append("file", file);
+      if (settingsKey) {
+        body.append("settings", settingsKey);
+      }
+      return requestForm(
+        `/api/modules/${moduleName}`,
+        body,
+        auth
+      );
+    };
+    fetchModuleList = (auth, moduleName, params) => {
+      const search = new URLSearchParams();
+      if (params.visibility) {
+        search.set("visibility", params.visibility);
+      }
+      if (params.settings) {
+        search.set("settings", params.settings);
+      }
+      const query = search.toString();
+      const url = query ? `/api/modules/${moduleName}/list?${query}` : `/api/modules/${moduleName}/list`;
+      return request(url, { method: "GET" }, auth);
+    };
+    deleteModuleFile = (auth, moduleName, payload) => request(
+      `/api/modules/${moduleName}/delete`,
+      { method: "POST", body: JSON.stringify(payload) },
+      auth
+    );
+  }
+});
+
+// web/src/api/integrations.ts
+var fetchIntegrations, fetchIntegrationSettings, updateIntegrationSettings, syncIntegrationModels;
+var init_integrations = __esm({
+  "web/src/api/integrations.ts"() {
+    "use strict";
+    init_client();
+    fetchIntegrations = (auth) => request(
+      "/api/integrations",
+      { method: "GET" },
+      auth
+    );
+    fetchIntegrationSettings = (auth, name) => request(
+      `/api/integrations/${encodeURIComponent(name)}`,
+      { method: "GET" },
+      auth
+    );
+    updateIntegrationSettings = (auth, name, payload) => request(
+      `/api/integrations/${encodeURIComponent(name)}`,
+      { method: "PUT", body: JSON.stringify(payload) },
+      auth
+    );
+    syncIntegrationModels = (auth, name) => request(
+      `/api/integrations/${encodeURIComponent(name)}/sync`,
+      { method: "POST" },
+      auth
+    );
+  }
+});
+
+// web/src/api/logs.ts
+var fetchLogs;
+var init_logs = __esm({
+  "web/src/api/logs.ts"() {
+    "use strict";
+    init_client();
+    fetchLogs = (auth) => request("/api/logs", { method: "GET" }, auth);
+  }
+});
+
+// web/src/api/agents.ts
+var fetchAgents, fetchAgent, createAgent, updateAgent, fetchAgentConversations, createAgentConversation, fetchAgentConversation, appendAgentMessage;
+var init_agents = __esm({
+  "web/src/api/agents.ts"() {
+    "use strict";
+    init_client();
+    fetchAgents = (auth) => request(`/api/agents`, { method: "GET" }, auth);
+    fetchAgent = (auth, id) => request(`/api/agents/${id}`, { method: "GET" }, auth);
+    createAgent = (auth, payload) => request(`/api/agents`, { method: "POST", body: JSON.stringify(payload) }, auth);
+    updateAgent = (auth, id, payload) => request(
+      `/api/agents/${id}`,
+      { method: "PUT", body: JSON.stringify(payload) },
+      auth
+    );
+    fetchAgentConversations = (auth, id) => request(
+      `/api/agents/${id}/conversations`,
+      { method: "GET" },
+      auth
+    );
+    createAgentConversation = (auth, id) => request(
+      `/api/agents/${id}/conversations`,
+      { method: "POST", body: JSON.stringify({}) },
+      auth
+    );
+    fetchAgentConversation = (auth, id) => request(`/api/agents/conversations/${id}`, { method: "GET" }, auth);
+    appendAgentMessage = (auth, id, content) => request(
+      `/api/agents/conversations/${id}/messages`,
+      { method: "POST", body: JSON.stringify({ content }) },
+      auth
+    );
+  }
+});
+
+// web/src/api/index.ts
+var api_exports = {};
+__export(api_exports, {
+  appendAgentMessage: () => appendAgentMessage,
+  createAgent: () => createAgent,
+  createAgentConversation: () => createAgentConversation,
+  createDocument: () => createDocument,
+  deleteModuleFile: () => deleteModuleFile,
+  downloadArchive: () => downloadArchive,
+  downloadDocument: () => downloadDocument,
+  fetchAgent: () => fetchAgent,
+  fetchAgentConversation: () => fetchAgentConversation,
+  fetchAgentConversations: () => fetchAgentConversations,
+  fetchAgents: () => fetchAgents,
+  fetchDocument: () => fetchDocument,
+  fetchIntegrationSettings: () => fetchIntegrationSettings,
+  fetchIntegrations: () => fetchIntegrations,
+  fetchLayoutConfig: () => fetchLayoutConfig,
+  fetchLogs: () => fetchLogs,
+  fetchModuleList: () => fetchModuleList,
+  fetchModules: () => fetchModules,
+  fetchNavigation: () => fetchNavigation,
+  fetchUiConfig: () => fetchUiConfig,
+  loadAuth: () => loadAuth,
+  loginWithApiKey: () => loginWithApiKey,
+  loginWithPassword: () => loginWithPassword,
+  request: () => request,
+  requestBlob: () => requestBlob,
+  requestForm: () => requestForm,
+  saveAuth: () => saveAuth,
+  syncIntegrationModels: () => syncIntegrationModels,
+  updateAgent: () => updateAgent,
+  updateDocument: () => updateDocument,
+  updateIntegrationSettings: () => updateIntegrationSettings,
+  uploadModuleFile: () => uploadModuleFile
+});
+var init_api = __esm({
+  "web/src/api/index.ts"() {
+    "use strict";
+    init_types();
+    init_client();
+    init_auth();
+    init_documents();
+    init_navigation();
+    init_ui();
+    init_modules();
+    init_integrations();
+    init_logs();
+    init_agents();
+  }
+});
+
+// web/src/app/bootstrap.ts
+init_api();
+
+// web/src/app/state.ts
+init_api();
+var state = {
+  auth: loadAuth(),
+  currentDocument: null,
+  editor: null,
+  authDocumentId: null,
+  layoutConfig: {},
+  modules: [],
+  integrations: [],
+  integrationSettings: {},
+  currentIntegration: null,
+  openIntegrationModalHandler: null,
+  agents: [],
+  logs: [],
+  navigationPages: [],
+  moduleSettingsCache: /* @__PURE__ */ new Map(),
+  currentAgent: null,
+  currentConversation: null,
+  agentPoller: null
+};
+var editorRef = {
+  get: () => state.editor,
+  set: (next) => {
+    state.editor = next;
   }
 };
-var saveAuth = (auth2) => {
-  if (!auth2) {
-    localStorage.removeItem(STORAGE_KEY);
+
+// web/src/features/auth/utils.ts
+var isAuthData = (value) => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const record = value;
+  if (!Array.isArray(record.users)) {
+    return false;
+  }
+  return record.users.every((user) => user && typeof user === "object");
+};
+var isTokenAuth = (value) => {
+  return !!value && value.type === "token";
+};
+
+// web/src/app/layout.ts
+var getUserLabel = () => {
+  if (isTokenAuth(state.auth) && state.auth.user) {
+    const name = `${state.auth.user.firstname} ${state.auth.user.lastname}`.trim();
+    return name || state.auth.user.email;
+  }
+  if (state.auth?.type === "apiKey") {
+    return "API Key";
+  }
+  return "Guest";
+};
+var headerCopy = () => ({
+  title: state.layoutConfig.header?.title ?? "Manage",
+  subtitle: state.layoutConfig.header?.subtitle ?? "Stateless Admin",
+  settingsLabel: state.layoutConfig.header?.settingsLabel ?? "Settings",
+  themeLabel: state.layoutConfig.header?.themeLabel ?? "Theme",
+  createLabel: state.layoutConfig.header?.createLabel ?? "Create +",
+  profileLabel: state.layoutConfig.header?.profileLabel ?? "Profile",
+  logoutLabel: state.layoutConfig.header?.logoutLabel ?? "Logout"
+});
+var sidebarCopy = () => ({
+  publicLabel: state.layoutConfig.sidebar?.publicLabel ?? "Public",
+  privateLabel: state.layoutConfig.sidebar?.privateLabel ?? "Private"
+});
+var profileCopy = () => ({
+  title: state.layoutConfig.profile?.title ?? "Profile",
+  subtitle: state.layoutConfig.profile?.subtitle ?? "\u0395\u03BD\u03B7\u03BC\u03B5\u03C1\u03CE\u03C3\u03C4\u03B5 \u03C4\u03B1 \u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03B1 \u03C3\u03B1\u03C2.",
+  saveLabel: state.layoutConfig.profile?.saveLabel ?? "Save Profile"
+});
+
+// web/src/ui/shell.ts
+var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
+  const app = document.getElementById("app");
+  if (!app) {
+    throw new Error("Missing app container");
+  }
+  const header = headerCopy();
+  const sidebar = sidebarCopy();
+  app.innerHTML = `
+    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="main navigation">
+      <div class="navbar-brand">
+        <a class="navbar-item">
+          <span class="title is-5 mb-0">${header.title}</span>
+        </a>
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="adminNavbar">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </a>
+      </div>
+      <div id="adminNavbar" class="navbar-menu">
+        <div class="navbar-start">
+          <div class="navbar-item app-muted">${header.subtitle}</div>
+        </div>
+        <div class="navbar-end">
+          <div class="navbar-item">
+            <div class="app-nav-actions">
+              <button id="create-action" class="button app-button app-primary">
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
+                    <path
+                      d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1z"
+                      fill="currentColor"
+                    ></path>
+                  </svg>
+                </span>
+                <span>${header.createLabel}</span>
+              </button>
+              <button
+                id="export-zip-header"
+                class="button app-button app-ghost"
+                aria-label="Export all documents"
+                title="Export all documents"
+              >
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                    <path
+                      d="M7 2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linejoin="round"
+                    ></path>
+                    <path
+                      d="M14 2v5h5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linejoin="round"
+                    ></path>
+                    <path
+                      d="M10 7h2v2h-2V7zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2"
+                      fill="currentColor"
+                    ></path>
+                  </svg>
+                </span>
+              </button>
+              <button
+                id="theme-toggle"
+                class="button app-button app-ghost"
+                aria-label="${header.themeLabel}"
+                title="${header.themeLabel}"
+              >
+                <span class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="4"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    ></circle>
+                    <path
+                      d="M12 3v2m0 14v2M3 12h2m14 0h2M6.5 6.5l1.4 1.4m8.2 8.2l1.4 1.4M6.5 17.5l1.4-1.4m8.2-8.2l1.4-1.4"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                    ></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+          <div class="navbar-item has-dropdown" id="private-dropdown">
+            <a class="navbar-link">${header.settingsLabel}</a>
+            <div class="navbar-dropdown">
+              <a class="navbar-item" id="modules-link">Modules</a>
+              <a class="navbar-item" id="integrations-link">Integrations</a>
+              <a class="navbar-item" id="logs-link">Logs</a>
+            </div>
+          </div>
+          <div class="navbar-item has-dropdown" id="agents-dropdown">
+            <a class="navbar-link">Agents</a>
+            <div class="navbar-dropdown">
+              <div id="nav-agents"></div>
+              <hr class="navbar-divider" />
+              <a class="navbar-item" id="agents-create-link">Create agent</a>
+            </div>
+          </div>
+          <div class="navbar-item has-dropdown" id="user-dropdown">
+            <a class="navbar-link" id="user-label">${getUserLabel()}</a>
+            <div class="navbar-dropdown">
+              <a class="navbar-item" id="profile-link">${header.profileLabel}</a>
+              <hr class="navbar-divider" />
+              <a class="navbar-item" id="logout">${header.logoutLabel}</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <section class="section pt-4">
+      <div class="container is-fluid">
+        <div class="columns is-variable is-4">
+          <aside class="column is-one-quarter">
+            <div class="box app-surface">
+              <aside class="menu">
+                <p class="menu-label">${sidebar.publicLabel}</p>
+                <ul id="nav-public" class="menu-list"></ul>
+                <p class="menu-label mt-4">${sidebar.privateLabel}</p>
+                <ul id="nav-private" class="menu-list"></ul>
+              </aside>
+            </div>
+          </aside>
+          <div class="column">
+            <div id="content" class="box app-surface">
+              <p class="app-muted">\u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03BC\u03B9\u03B1 \u03B5\u03BD\u03CC\u03C4\u03B7\u03C4\u03B1.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <div id="app-notifications" class="app-notifications"></div>
+    <div class="modal" id="create-modal">
+      <div class="modal-background" data-close="create"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Create document</p>
+          <button class="delete" aria-label="close" data-close="create"></button>
+        </header>
+        <section class="modal-card-body">
+          <div id="create-error" class="notification is-danger is-light is-hidden"></div>
+          <form id="create-form">
+            <div class="columns is-variable is-4 is-multiline">
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Filename</label>
+                  <div class="control">
+                    <input
+                      id="create-path"
+                      class="input"
+                      type="text"
+                      placeholder="content.json"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <p class="help">Must end with .json</p>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Order</label>
+                  <div class="control">
+                    <input
+                      id="create-order"
+                      class="input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                    />
+                  </div>
+                  <p class="help">Lower numbers appear first.</p>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Store</label>
+                  <div class="control">
+                    <div class="tabs is-toggle is-small is-fullwidth">
+                      <ul>
+                        <li class="is-active">
+                          <a href="#" data-store="public">Public</a>
+                        </li>
+                        <li>
+                          <a href="#" data-store="private">Private</a>
+                        </li>
+                      </ul>
+                    </div>
+                    <input id="create-store" type="hidden" value="public" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Page</label>
+                  <div class="control">
+                    <input id="create-page" class="input" type="text" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Name</label>
+                  <div class="control">
+                    <input id="create-name" class="input" type="text" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Language</label>
+                  <div class="control">
+                    <input id="create-language" class="input" type="text" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Modules</label>
+                  <div class="control">
+                    <div id="create-modules" class="app-module-picker">
+                      ${moduleChecklistHtml2()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Section</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="create-section">
+                        <option value="false" selected>false</option>
+                        <option value="true">true</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-full">
+                <div class="field">
+                  <label class="label">Data (JSON)</label>
+                  <div class="control">
+                    <textarea id="create-data" class="textarea" rows="6">{}</textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </section>
+        <footer class="modal-card-foot">
+          <button form="create-form" type="submit" class="button app-button app-primary">Create</button>
+          <button id="create-cancel" type="button" class="button app-button app-ghost">Cancel</button>
+        </footer>
+      </div>
+    </div>
+    <div class="modal" id="agent-modal">
+      <div class="modal-background" data-close="agent"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Create agent</p>
+          <button class="delete" aria-label="close" data-close="agent"></button>
+        </header>
+        <section class="modal-card-body">
+          <div id="agent-error" class="notification is-danger is-light is-hidden"></div>
+          <form id="agent-form">
+            <div class="tabs is-toggle is-fullwidth mb-4">
+              <ul>
+                <li class="is-active"><a data-agent-store="public">Public</a></li>
+                <li><a data-agent-store="private">Private</a></li>
+              </ul>
+            </div>
+            <input type="hidden" id="agent-store" value="public" />
+            <div class="columns is-variable is-4 is-multiline">
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Name</label>
+                  <div class="control">
+                    <input id="agent-name" class="input" type="text" placeholder="Assistant" />
+                  </div>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Provider</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="agent-provider"></select>
+                    </div>
+                  </div>
+                  <p id="agent-provider-help" class="help app-muted"></p>
+                </div>
+              </div>
+              <div class="column is-half">
+                <div class="field">
+                  <label class="label">Model</label>
+                  <div class="control">
+                    <input
+                      id="agent-model-search"
+                      class="input"
+                      type="search"
+                      placeholder="Search models"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="control mt-2">
+                    <div class="select is-fullwidth">
+                      <select id="agent-model"></select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-full">
+                <div class="field">
+                  <label class="label">System prompt</label>
+                  <div class="control">
+                    <textarea id="agent-system" class="textarea" rows="3" placeholder="System prompt"></textarea>
+                  </div>
+                </div>
+              </div>
+              <div class="column is-full">
+                <div class="field">
+                  <label class="label">Admin prompt</label>
+                  <div class="control">
+                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="Admin prompt"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </section>
+        <footer class="modal-card-foot">
+          <button id="agent-cancel" class="button app-button app-ghost">Cancel</button>
+          <button
+            id="agent-submit"
+            form="agent-form"
+            type="submit"
+            class="button app-button app-primary"
+          >
+            Create agent
+          </button>
+        </footer>
+      </div>
+    </div>
+    <div class="modal" id="integration-modal">
+      <div class="modal-background" data-close="integration"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title" id="integration-modal-title">Configure integration</p>
+          <button class="delete" aria-label="close" data-close="integration"></button>
+        </header>
+        <section class="modal-card-body">
+          <div id="integration-error" class="notification is-danger is-light is-hidden"></div>
+          <form id="integration-form">
+            <div id="integration-fields" class="app-stack app-gap-md"></div>
+          </form>
+        </section>
+        <footer class="modal-card-foot">
+          <button id="integration-cancel" class="button app-button app-ghost">Cancel</button>
+          <button form="integration-form" type="submit" class="button app-button app-primary">Save</button>
+        </footer>
+      </div>
+    </div>
+  `;
+};
+
+// web/src/ui/notifications.ts
+var noticeTimer = null;
+var noticeListenerAttached = false;
+var showNotice = (type, message) => {
+  const container = document.getElementById("app-notifications");
+  if (!container) {
     return;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(auth2));
+  const toneClass = type === "error" ? "app-toast-error" : "app-toast-success";
+  container.innerHTML = `
+    <div class="notification app-toast ${toneClass}">
+      <button class="delete" aria-label="close"></button>
+      <span>${message}</span>
+    </div>
+  `;
+  const closeButton = container.querySelector(".delete");
+  closeButton?.addEventListener("click", () => {
+    container.innerHTML = "";
+  });
+  if (noticeTimer !== null) {
+    window.clearTimeout(noticeTimer);
+  }
+  noticeTimer = window.setTimeout(() => {
+    container.classList.add("app-toast-hide");
+    window.setTimeout(() => {
+      container.classList.remove("app-toast-hide");
+      container.innerHTML = "";
+      noticeTimer = null;
+    }, 200);
+  }, 300);
 };
-var buildHeaders = (auth2, json) => {
-  const headers = {};
-  if (json) {
-    headers["Content-Type"] = "application/json";
+var initNotifications = () => {
+  if (noticeListenerAttached) {
+    return;
   }
-  if (auth2?.type === "apiKey") {
-    headers["X-API-KEY"] = auth2.value;
-  }
-  if (auth2?.type === "token") {
-    headers["Authorization"] = `Bearer ${auth2.value}`;
-  }
-  return headers;
+  noticeListenerAttached = true;
+  window.addEventListener("app:notice", (event) => {
+    const customEvent = event;
+    showNotice(customEvent.detail.type, customEvent.detail.message);
+  });
 };
-var request = async (url, options, auth2) => {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...buildHeaders(auth2, true),
-      ...options.headers || {}
+
+// web/src/ui/theme.ts
+var THEME_KEY = "manage_theme";
+var tokenRegistry = [
+  "app-gap-xs",
+  "app-gap-sm",
+  "app-gap-md",
+  "app-gap-lg",
+  "app-radius-sm",
+  "app-radius-md",
+  "app-radius-lg",
+  "app-shadow",
+  "app-border",
+  "app-bg",
+  "app-surface",
+  "app-text",
+  "app-muted",
+  "app-accent",
+  "app-accent-contrast",
+  "app-danger"
+];
+var uiTokens = {
+  light: {},
+  dark: {}
+};
+var getStoredTheme = () => {
+  const value = localStorage.getItem(THEME_KEY);
+  if (value === "light" || value === "dark") {
+    return value;
+  }
+  return null;
+};
+var currentTheme = getStoredTheme() ?? "light";
+var applyTokensForTheme = (theme) => {
+  const root = document.documentElement;
+  const tokens = uiTokens[theme];
+  tokenRegistry.forEach((key) => {
+    const cssKey = `--${key}`;
+    if (tokens[key]) {
+      root.style.setProperty(cssKey, tokens[key]);
+    } else {
+      root.style.removeProperty(cssKey);
     }
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || "Request failed");
-  }
-  return await response.json();
 };
-var requestBlob = async (url, options, auth2) => {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...buildHeaders(auth2, true),
-      ...options.headers || {}
+var setTheme = (theme, persist = true) => {
+  currentTheme = theme;
+  document.documentElement.dataset.theme = theme;
+  applyTokensForTheme(theme);
+  if (persist) {
+    localStorage.setItem(THEME_KEY, theme);
+  }
+};
+var getCurrentTheme = () => currentTheme;
+var applyUiConfig = (config) => {
+  const normalize = (input) => {
+    const output = {};
+    if (!input)
+      return output;
+    tokenRegistry.forEach((key) => {
+      if (input[key]) {
+        output[key] = input[key];
+      }
+    });
+    return output;
+  };
+  uiTokens.light = normalize(config.tokens);
+  uiTokens.dark = normalize(config.darkTokens);
+  const storedTheme = getStoredTheme();
+  if (!storedTheme && (config.theme === "light" || config.theme === "dark")) {
+    setTheme(config.theme, false);
+    return;
+  }
+  setTheme(currentTheme, false);
+};
+var initTheme = () => {
+  setTheme(currentTheme, false);
+};
+
+// web/src/features/auth/login.ts
+init_api();
+var renderLogin = (context, error) => {
+  const { container, onAuth, onSuccess, onClearAgentState } = context;
+  onClearAgentState();
+  container.innerHTML = `
+    <section class="section">
+      <div class="container">
+        <div class="box app-surface">
+          <div class="mb-4">
+            <h1 class="title is-4">Admin Login</h1>
+            <p class="app-muted">\u03A3\u03C5\u03BD\u03B4\u03B5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BC\u03B5 API key \u03AE email/password.</p>
+          </div>
+          ${error ? `<div class="notification is-danger is-light">${error}</div>` : ""}
+          <div class="columns is-variable is-4">
+            <div class="column">
+              <form id="api-key-form">
+                <div class="field">
+                  <label class="label">API Key</label>
+                  <div class="control">
+                    <input class="input" type="password" name="apiKey" required />
+                  </div>
+                </div>
+                <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7 \u03BC\u03B5 API Key</button>
+              </form>
+            </div>
+            <div class="column">
+              <form id="user-form">
+                <div class="field">
+                  <label class="label">Email</label>
+                  <div class="control">
+                    <input class="input" type="email" name="email" required />
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="label">Password</label>
+                  <div class="control">
+                    <input class="input" type="password" name="password" required />
+                  </div>
+                </div>
+                <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7 \u03C7\u03C1\u03AE\u03C3\u03C4\u03B7</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+  const apiKeyForm = document.getElementById("api-key-form");
+  const userForm = document.getElementById("user-form");
+  apiKeyForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(apiKeyForm);
+    const apiKey = String(form.get("apiKey") || "");
+    if (!apiKey) {
+      return;
+    }
+    try {
+      await loginWithApiKey(apiKey);
+      const nextAuth = { type: "apiKey", value: apiKey };
+      onAuth(nextAuth);
+      saveAuth(nextAuth);
+      await onSuccess();
+    } catch (err) {
+      renderLogin(context, err.message);
     }
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || "Request failed");
-  }
-  const contentType = response.headers.get("Content-Type") || "";
-  if (!contentType.includes("application/zip") && !contentType.includes("application/json") && !contentType.includes("application/gzip") && !contentType.includes("application/x-gzip") && !contentType.includes("application/octet-stream")) {
-    throw new Error("Unexpected download response.");
-  }
-  const blob = await response.blob();
-  const disposition = response.headers.get("Content-Disposition") || "";
-  const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-  const filename = match ? match[1] : null;
-  return { blob, filename };
-};
-var requestForm = async (url, body, auth2) => {
-  const response = await fetch(url, {
-    method: "POST",
-    body,
-    headers: {
-      ...buildHeaders(auth2, false)
+  userForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(userForm);
+    const email = String(form.get("email") || "");
+    const password = String(form.get("password") || "");
+    if (!email || !password) {
+      return;
+    }
+    try {
+      const result = await loginWithPassword(email, password);
+      const nextAuth = { type: "token", value: result.token, user: result.user };
+      onAuth(nextAuth);
+      saveAuth(nextAuth);
+      await onSuccess();
+    } catch (err) {
+      renderLogin(context, err.message);
     }
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || "Request failed");
-  }
-  return await response.json();
 };
-var loginWithApiKey = (apiKey) => request(
-  "/api/auth/login",
-  {
-    method: "POST",
-    body: JSON.stringify({ apiKey })
-  },
-  null
-);
-var loginWithPassword = (email, password) => request(
-  "/api/auth/login",
-  {
-    method: "POST",
-    body: JSON.stringify({ email, password })
-  },
-  null
-);
-var fetchNavigation = (auth2) => request(
-  "/api/navigation",
-  { method: "GET" },
-  auth2
-);
-var fetchDocument = (auth2, id) => request(
-  `/api/documents/${id}`,
-  { method: "GET" },
-  auth2
-);
-var updateDocument = (auth2, id, payload) => request(
-  `/api/documents/${id}`,
-  { method: "PUT", body: JSON.stringify(payload) },
-  auth2
-);
-var createDocument = (auth2, requestPayload) => request(
-  `/api/documents`,
-  { method: "POST", body: JSON.stringify(requestPayload) },
-  auth2
-);
-var fetchUiConfig = (auth2) => request("/api/ui-config", { method: "GET" }, auth2);
-var fetchLayoutConfig = (auth2) => request("/api/layout-config", { method: "GET" }, auth2);
-var downloadDocument = (auth2, id) => requestBlob(`/api/documents/${id}/export`, { method: "GET" }, auth2);
-var downloadArchive = (auth2) => requestBlob(`/api/export.tar.gz`, { method: "GET" }, auth2);
-var fetchModules = (auth2) => request("/api/modules", { method: "GET" }, auth2);
-var uploadModuleFile = (auth2, moduleName, file, settingsKey) => {
-  const body = new FormData();
-  body.append("file", file);
-  if (settingsKey) {
-    body.append("settings", settingsKey);
+
+// web/src/features/auth/profile.ts
+init_api();
+
+// web/src/features/agents/state.ts
+var stopAgentPolling = () => {
+  if (state.agentPoller !== null) {
+    window.clearInterval(state.agentPoller);
+    state.agentPoller = null;
   }
-  return requestForm(
-    `/api/modules/${moduleName}`,
-    body,
-    auth2
+};
+var clearAgentState = () => {
+  stopAgentPolling();
+  state.currentAgent = null;
+  state.currentConversation = null;
+};
+
+// web/src/features/auth/profile.ts
+var renderProfile = async () => {
+  const content = document.getElementById("content");
+  if (!content) {
+    return;
+  }
+  clearAgentState();
+  const auth = state.auth;
+  if (!isTokenAuth(auth) || !auth.user) {
+    content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03C5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u03C0\u03C1\u03BF\u03C6\u03AF\u03BB \u03B3\u03B9\u03B1 API key \u03C3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7.</p>`;
+    return;
+  }
+  const currentUser = auth.user;
+  if (!state.authDocumentId) {
+    content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03B2\u03C1\u03AD\u03B8\u03B7\u03BA\u03B5 auth.json.</p>`;
+    return;
+  }
+  let authDoc;
+  try {
+    authDoc = await fetchDocument(auth, state.authDocumentId);
+  } catch (err) {
+    content.innerHTML = `<p class="app-muted">${err.message}</p>`;
+    return;
+  }
+  const data = authDoc.payload.data;
+  if (!isAuthData(data)) {
+    content.innerHTML = `<p class="app-muted">\u03A4\u03BF auth.json \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 users.</p>`;
+    return;
+  }
+  const users = data.users;
+  const index = users.findIndex((user) => {
+    if (user.email === currentUser.email)
+      return true;
+    if (user.id && user.id === currentUser.id)
+      return true;
+    if (user.uuid && user.uuid === currentUser.id)
+      return true;
+    return false;
+  });
+  if (index < 0) {
+    content.innerHTML = `<p class="app-muted">\u039F \u03C7\u03C1\u03AE\u03C3\u03C4\u03B7\u03C2 \u03B4\u03B5\u03BD \u03B2\u03C1\u03AD\u03B8\u03B7\u03BA\u03B5 \u03C3\u03C4\u03BF auth.json.</p>`;
+    return;
+  }
+  const current = users[index];
+  const profile = profileCopy();
+  content.innerHTML = `
+    <div class="mb-4">
+      <h1 class="title is-4">${profile.title}</h1>
+      <p class="app-muted">${profile.subtitle}</p>
+    </div>
+    <div class="columns is-variable is-4 is-multiline">
+      <div class="column is-half">
+        <div class="field">
+          <label class="label">First Name</label>
+          <div class="control">
+            <input id="profile-firstname" class="input" type="text" value="${current.firstname || ""}" />
+          </div>
+        </div>
+      </div>
+      <div class="column is-half">
+        <div class="field">
+          <label class="label">Last Name</label>
+          <div class="control">
+            <input id="profile-lastname" class="input" type="text" value="${current.lastname || ""}" />
+          </div>
+        </div>
+      </div>
+      <div class="column is-half">
+        <div class="field">
+          <label class="label">Email</label>
+          <div class="control">
+            <input id="profile-email" class="input" type="email" value="${current.email || ""}" />
+          </div>
+        </div>
+      </div>
+      <div class="column is-half">
+        <div class="field">
+          <label class="label">Password</label>
+          <div class="control">
+            <input id="profile-password" class="input" type="password" placeholder="Leave blank to keep" />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4">
+      <button id="profile-save" class="button app-button app-primary">${profile.saveLabel}</button>
+    </div>
+  `;
+  document.getElementById("profile-save")?.addEventListener("click", async () => {
+    if (!isTokenAuth(state.auth) || !state.auth.user) {
+      return;
+    }
+    const firstname = document.getElementById("profile-firstname")?.value.trim();
+    const lastname = document.getElementById("profile-lastname")?.value.trim();
+    const email = document.getElementById("profile-email")?.value.trim();
+    const password = document.getElementById("profile-password")?.value.trim();
+    const updatedUser = {
+      ...current,
+      firstname: firstname ?? current.firstname,
+      lastname: lastname ?? current.lastname,
+      email: email ?? current.email
+    };
+    if (password) {
+      updatedUser.password = password;
+    }
+    const updatedUsers = [...users];
+    updatedUsers[index] = updatedUser;
+    const updatedPayload = {
+      ...authDoc.payload,
+      data: {
+        ...data,
+        users: updatedUsers
+      }
+    };
+    try {
+      await updateDocument(state.auth, authDoc.id, updatedPayload);
+      state.auth = {
+        ...state.auth,
+        user: {
+          ...state.auth.user,
+          firstname: updatedUser.firstname,
+          lastname: updatedUser.lastname,
+          email: updatedUser.email
+        }
+      };
+      saveAuth(state.auth);
+      renderProfile();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+};
+
+// web/src/app/shell-events.ts
+var initShellEvents = ({
+  onLogout,
+  onShowProfile,
+  onShowModules,
+  onShowIntegrations,
+  onShowLogs,
+  onExportAll,
+  onOpenCreate,
+  onOpenAgentModal
+}) => {
+  const burger = document.querySelector(".navbar-burger");
+  const menu = document.getElementById("adminNavbar");
+  burger?.addEventListener("click", () => {
+    burger.classList.toggle("is-active");
+    menu?.classList.toggle("is-active");
+  });
+  const dropdowns = [
+    document.getElementById("private-dropdown"),
+    document.getElementById("agents-dropdown"),
+    document.getElementById("user-dropdown")
+  ];
+  dropdowns.forEach((dropdown) => {
+    const link = dropdown?.querySelector(".navbar-link");
+    link?.addEventListener("click", (event) => {
+      event.preventDefault();
+      dropdown?.classList.toggle("is-active");
+    });
+  });
+  document.addEventListener("click", (event) => {
+    dropdowns.forEach((dropdown) => {
+      if (!dropdown || dropdown.contains(event.target)) {
+        return;
+      }
+      dropdown.classList.remove("is-active");
+    });
+  });
+  document.getElementById("logout")?.addEventListener("click", onLogout);
+  document.getElementById("theme-toggle")?.addEventListener("click", () => {
+    const next = getCurrentTheme() === "light" ? "dark" : "light";
+    setTheme(next);
+  });
+  document.getElementById("profile-link")?.addEventListener("click", () => {
+    onShowProfile();
+  });
+  document.getElementById("modules-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowModules();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+  document.getElementById("integrations-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowIntegrations();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+  document.getElementById("logs-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowLogs();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+  document.getElementById("export-zip-header")?.addEventListener("click", () => {
+    onExportAll();
+  });
+  document.getElementById("create-action")?.addEventListener("click", onOpenCreate);
+  document.getElementById("agents-create-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onOpenAgentModal();
+    document.getElementById("agents-dropdown")?.classList.remove("is-active");
+  });
+};
+
+// web/src/features/modals/create-document.ts
+init_api();
+
+// web/src/features/modules/helpers.ts
+var normalizeModuleList = (modulesValue, fallback) => {
+  const list = Array.isArray(modulesValue) ? [...modulesValue] : [];
+  if (fallback && !list.includes(fallback)) {
+    list.push(fallback);
+  }
+  return list.map((entry) => entry.trim()).filter((entry) => entry !== "").filter((entry, index, self) => self.indexOf(entry) === index);
+};
+var moduleChecklistHtml = (modules, selected = []) => {
+  if (!modules.length) {
+    return `<p class="help">No modules available.</p>`;
+  }
+  const selectedSet = new Set(selected);
+  return modules.map((module) => {
+    const isChecked = selectedSet.has(module.name);
+    const description = module.description ? `<span class="app-module-option-meta">${module.description}</span>` : "";
+    return `
+        <label class="checkbox app-module-option">
+          <input type="checkbox" value="${module.name}" ${isChecked ? "checked" : ""} />
+          <span class="app-module-option-label">${module.name}</span>
+          ${description}
+        </label>
+      `;
+  }).join("");
+};
+var readSelectedModules = (container) => {
+  if (!container) {
+    return [];
+  }
+  return Array.from(container.querySelectorAll("input[type='checkbox']")).filter((input) => input.checked).map((input) => input.value.trim()).filter((value) => value !== "");
+};
+var findModuleDefinition = (modules, name) => modules.find((module) => module.name === name) ?? null;
+
+// web/src/features/modals/create-document.ts
+var initCreateModal = ({ getAuth, onCreated, refreshNavigation: refreshNavigation2 }) => {
+  const createModal = document.getElementById("create-modal");
+  const createError = document.getElementById("create-error");
+  const createForm = document.getElementById("create-form");
+  const createStoreInput = document.getElementById("create-store");
+  const createStoreTabs = Array.from(
+    createModal?.querySelectorAll("[data-store]") ?? []
   );
+  const showCreateError = (message) => {
+    if (!createError) {
+      alert(message);
+      return;
+    }
+    createError.textContent = message;
+    createError.classList.remove("is-hidden");
+  };
+  const clearCreateError = () => {
+    if (!createError) {
+      return;
+    }
+    createError.textContent = "";
+    createError.classList.add("is-hidden");
+  };
+  const setCreateStore = (store) => {
+    if (createStoreInput) {
+      createStoreInput.value = store;
+    }
+    createStoreTabs.forEach((tab) => {
+      const value = tab.getAttribute("data-store");
+      tab.parentElement?.classList.toggle("is-active", value === store);
+    });
+  };
+  const openCreateModal = () => {
+    clearCreateError();
+    createForm?.reset();
+    const dataInput = document.getElementById("create-data");
+    if (dataInput) {
+      dataInput.value = "{}";
+    }
+    setCreateStore("public");
+    createModal?.classList.add("is-active");
+  };
+  const closeCreateModal = () => {
+    createModal?.classList.remove("is-active");
+    clearCreateError();
+  };
+  document.getElementById("create-cancel")?.addEventListener("click", closeCreateModal);
+  createModal?.querySelectorAll("[data-close='create']").forEach((el) => {
+    el.addEventListener("click", closeCreateModal);
+  });
+  createStoreTabs.forEach((tab) => {
+    tab.addEventListener("click", (event) => {
+      event.preventDefault();
+      const value = tab.getAttribute("data-store");
+      if (value === "public" || value === "private") {
+        setCreateStore(value);
+      }
+    });
+  });
+  createForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const auth = getAuth();
+    if (!auth) {
+      return;
+    }
+    clearCreateError();
+    const path = document.getElementById("create-path")?.value.trim() || "";
+    const orderRaw = document.getElementById("create-order")?.value.trim() || "";
+    const page = document.getElementById("create-page")?.value.trim() || "";
+    const name = document.getElementById("create-name")?.value.trim() || "";
+    const language = document.getElementById("create-language")?.value.trim() || "";
+    const modulesValue = readSelectedModules(document.getElementById("create-modules"));
+    const section = document.getElementById("create-section")?.value === "true";
+    const storeValue = document.getElementById("create-store")?.value === "private" ? "private" : "public";
+    const dataRaw = document.getElementById("create-data")?.value.trim() || "";
+    if (!path) {
+      showCreateError("Filename is required.");
+      return;
+    }
+    if (!path.endsWith(".json")) {
+      showCreateError("Filename must end with .json.");
+      return;
+    }
+    if (path.includes("/") || path.includes("\\") || path.includes("..")) {
+      showCreateError("Filename must not include path separators.");
+      return;
+    }
+    if (!page) {
+      showCreateError("Page is required.");
+      return;
+    }
+    if (!name) {
+      showCreateError("Name is required.");
+      return;
+    }
+    if (!orderRaw) {
+      showCreateError("Order is required.");
+      return;
+    }
+    const orderValue = Number(orderRaw);
+    if (!Number.isInteger(orderValue)) {
+      showCreateError("Order must be an integer.");
+      return;
+    }
+    if (!dataRaw) {
+      showCreateError("Data is required.");
+      return;
+    }
+    let data;
+    try {
+      data = JSON.parse(dataRaw);
+    } catch {
+      showCreateError("Data must be valid JSON.");
+      return;
+    }
+    const payloadToCreate = {
+      type: "page",
+      page,
+      name,
+      language: language || void 0,
+      order: orderValue,
+      section,
+      modules: modulesValue.length ? modulesValue : void 0,
+      data
+    };
+    try {
+      const created = await createDocument(auth, {
+        store: storeValue,
+        path,
+        payload: payloadToCreate
+      });
+      closeCreateModal();
+      await refreshNavigation2();
+      await onCreated(created.id);
+    } catch (err) {
+      showCreateError(err.message);
+    }
+  });
+  return { openCreateModal };
 };
-var fetchModuleList = (auth2, moduleName, params) => {
-  const search = new URLSearchParams();
-  if (params.visibility) {
-    search.set("visibility", params.visibility);
+
+// web/src/features/modals/create-agent.ts
+init_api();
+
+// web/src/features/integrations/helpers.ts
+var getEnabledIntegrations = (integrations) => integrations.filter((integration) => integration.enabled);
+var getIntegrationModels = (integrationSettings, name) => {
+  const settings = integrationSettings[name];
+  const models = settings?.models;
+  if (!Array.isArray(models)) {
+    return [];
   }
-  if (params.settings) {
-    search.set("settings", params.settings);
-  }
-  const query = search.toString();
-  const url = query ? `/api/modules/${moduleName}/list?${query}` : `/api/modules/${moduleName}/list`;
-  return request(url, { method: "GET" }, auth2);
+  return models.filter((model) => typeof model === "string");
 };
-var deleteModuleFile = (auth2, moduleName, payload) => request(
-  `/api/modules/${moduleName}/delete`,
-  { method: "POST", body: JSON.stringify(payload) },
-  auth2
-);
-var fetchAgents = (auth2) => request(`/api/agents`, { method: "GET" }, auth2);
-var fetchAgent = (auth2, id) => request(`/api/agents/${id}`, { method: "GET" }, auth2);
-var createAgent = (auth2, payload) => request(`/api/agents`, { method: "POST", body: JSON.stringify(payload) }, auth2);
-var updateAgent = (auth2, id, payload) => request(
-  `/api/agents/${id}`,
-  { method: "PUT", body: JSON.stringify(payload) },
-  auth2
-);
-var fetchAgentConversations = (auth2, id) => request(
-  `/api/agents/${id}/conversations`,
-  { method: "GET" },
-  auth2
-);
-var createAgentConversation = (auth2, id) => request(
-  `/api/agents/${id}/conversations`,
-  { method: "POST", body: JSON.stringify({}) },
-  auth2
-);
-var fetchAgentConversation = (auth2, id) => request(`/api/agents/conversations/${id}`, { method: "GET" }, auth2);
-var appendAgentMessage = (auth2, id, content) => request(
-  `/api/agents/conversations/${id}/messages`,
-  { method: "POST", body: JSON.stringify({ content }) },
-  auth2
-);
+var populateProviderSelect = (select, integrations, selectedProvider, help, includeDisabledCurrent = false) => {
+  const enabled = getEnabledIntegrations(integrations);
+  select.innerHTML = "";
+  if (!enabled.length) {
+    const option = new Option("No integrations enabled", "", true, true);
+    option.disabled = true;
+    select.append(option);
+    select.disabled = true;
+    if (help) {
+      help.textContent = "Enable an integration from Settings > Integrations.";
+    }
+    return "";
+  }
+  select.disabled = false;
+  if (includeDisabledCurrent && selectedProvider) {
+    const exists = enabled.some((integration) => integration.name === selectedProvider);
+    if (!exists) {
+      const option = new Option(`${selectedProvider} (disabled)`, selectedProvider, true, true);
+      option.disabled = true;
+      select.append(option);
+      if (help) {
+        help.textContent = "Current provider is disabled. Select an enabled provider.";
+      }
+    } else if (help) {
+      help.textContent = "";
+    }
+  } else if (help) {
+    help.textContent = "";
+  }
+  enabled.forEach((integration) => {
+    const option = new Option(integration.name, integration.name);
+    select.append(option);
+  });
+  const defaultProvider = enabled[0]?.name ?? "";
+  const provider = selectedProvider && enabled.some((integration) => integration.name === selectedProvider) ? selectedProvider : defaultProvider;
+  if (provider) {
+    select.value = provider;
+  }
+  return select.value;
+};
+var populateModelSelect = (select, models, selectedModel, includeDisabledCurrent = false) => {
+  select.innerHTML = "";
+  if (!models.length) {
+    const option = new Option("No models synced", "", true, true);
+    option.disabled = true;
+    select.append(option);
+    select.disabled = true;
+    return "";
+  }
+  select.disabled = false;
+  if (includeDisabledCurrent && selectedModel && !models.includes(selectedModel)) {
+    const option = new Option(`${selectedModel} (unavailable)`, selectedModel, true, true);
+    option.disabled = true;
+    select.append(option);
+  }
+  models.forEach((model2) => {
+    const option = new Option(model2, model2);
+    select.append(option);
+  });
+  const defaultModel = models[0] ?? "";
+  const model = selectedModel && models.includes(selectedModel) ? selectedModel : defaultModel;
+  if (model) {
+    select.value = model;
+  }
+  return select.value;
+};
+var setupProviderModelControls = (providerSelect, modelSelect, modelSearch, providerHelp, integrations, integrationSettings, selectedProvider, selectedModel, includeDisabledCurrent = false) => {
+  const modelsForProvider = (provider) => getIntegrationModels(integrationSettings, provider);
+  let activeProvider = populateProviderSelect(
+    providerSelect,
+    integrations,
+    selectedProvider,
+    providerHelp,
+    includeDisabledCurrent
+  );
+  let availableModels = modelsForProvider(activeProvider);
+  let activeModel = populateModelSelect(
+    modelSelect,
+    availableModels,
+    selectedModel,
+    includeDisabledCurrent
+  );
+  const applySearch = () => {
+    if (!modelSearch) {
+      return;
+    }
+    const query = modelSearch.value.trim().toLowerCase();
+    const filtered = query ? availableModels.filter((model) => model.toLowerCase().includes(query)) : availableModels;
+    activeModel = populateModelSelect(modelSelect, filtered, activeModel, includeDisabledCurrent);
+  };
+  providerSelect.addEventListener("change", () => {
+    activeProvider = providerSelect.value;
+    availableModels = modelsForProvider(activeProvider);
+    activeModel = populateModelSelect(modelSelect, availableModels, null, includeDisabledCurrent);
+    applySearch();
+  });
+  modelSelect.addEventListener("change", () => {
+    activeModel = modelSelect.value;
+  });
+  modelSearch?.addEventListener("input", applySearch);
+  return {
+    getProvider: () => activeProvider,
+    getModel: () => activeModel
+  };
+};
+
+// web/src/features/modals/create-agent.ts
+var initAgentModal = ({ getAuth, reloadAgents, onAgentCreated }) => {
+  const agentModal = document.getElementById("agent-modal");
+  const agentError = document.getElementById("agent-error");
+  const agentForm = document.getElementById("agent-form");
+  const agentStoreInput = document.getElementById("agent-store");
+  const agentStoreTabs = Array.from(
+    agentModal?.querySelectorAll("[data-agent-store]") ?? []
+  );
+  const agentProviderSelect = document.getElementById("agent-provider");
+  const agentModelSelect = document.getElementById("agent-model");
+  const agentModelSearch = document.getElementById("agent-model-search");
+  const agentProviderHelp = document.getElementById("agent-provider-help");
+  const agentSubmit = document.getElementById("agent-submit");
+  const showAgentError = (message) => {
+    if (!agentError) {
+      alert(message);
+      return;
+    }
+    agentError.textContent = message;
+    agentError.classList.remove("is-hidden");
+  };
+  const clearAgentError = () => {
+    if (!agentError) {
+      return;
+    }
+    agentError.textContent = "";
+    agentError.classList.add("is-hidden");
+  };
+  const setAgentStore = (store) => {
+    if (agentStoreInput) {
+      agentStoreInput.value = store;
+    }
+    agentStoreTabs.forEach((tab) => {
+      const value = tab.getAttribute("data-agent-store");
+      tab.parentElement?.classList.toggle("is-active", value === store);
+    });
+  };
+  const refreshControls = () => {
+    if (!agentProviderSelect || !agentModelSelect) {
+      return;
+    }
+    setupProviderModelControls(
+      agentProviderSelect,
+      agentModelSelect,
+      agentModelSearch,
+      agentProviderHelp,
+      state.integrations,
+      state.integrationSettings
+    );
+    if (agentSubmit) {
+      agentSubmit.disabled = agentModelSelect.disabled || agentProviderSelect.disabled;
+    }
+  };
+  const updateSubmitState = () => {
+    if (agentSubmit && agentProviderSelect && agentModelSelect) {
+      agentSubmit.disabled = agentModelSelect.disabled || agentProviderSelect.disabled;
+    }
+  };
+  agentProviderSelect?.addEventListener("change", updateSubmitState);
+  agentModelSelect?.addEventListener("change", updateSubmitState);
+  const openAgentModal = () => {
+    clearAgentError();
+    agentForm?.reset();
+    setAgentStore("public");
+    refreshControls();
+    agentModal?.classList.add("is-active");
+  };
+  const closeAgentModal = () => {
+    agentModal?.classList.remove("is-active");
+    clearAgentError();
+  };
+  document.getElementById("agent-cancel")?.addEventListener("click", closeAgentModal);
+  agentModal?.querySelectorAll("[data-close='agent']").forEach((el) => {
+    el.addEventListener("click", closeAgentModal);
+  });
+  agentStoreTabs.forEach((tab) => {
+    tab.addEventListener("click", (event) => {
+      event.preventDefault();
+      const value = tab.getAttribute("data-agent-store");
+      if (value === "public" || value === "private") {
+        setAgentStore(value);
+      }
+    });
+  });
+  agentForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const auth = getAuth();
+    if (!auth) {
+      return;
+    }
+    clearAgentError();
+    const name = document.getElementById("agent-name")?.value.trim() || "";
+    const provider = agentProviderSelect?.value.trim() || "";
+    const model = agentModelSelect?.value.trim() || "";
+    const systemPrompt = document.getElementById("agent-system")?.value.trim() || "";
+    const adminPrompt = document.getElementById("agent-admin")?.value.trim() || "";
+    const storeValue = document.getElementById("agent-store")?.value === "private" ? "private" : "public";
+    if (!name || !provider || !model || !systemPrompt || !adminPrompt) {
+      showAgentError("All fields are required.");
+      return;
+    }
+    if (agentProviderSelect?.disabled || agentModelSelect?.disabled) {
+      showAgentError("Enable an integration and sync models first.");
+      return;
+    }
+    try {
+      const created = await createAgent(auth, {
+        store: storeValue,
+        name,
+        provider,
+        model,
+        systemPrompt,
+        adminPrompt
+      });
+      closeAgentModal();
+      await reloadAgents();
+      await onAgentCreated(created.id);
+    } catch (err) {
+      showAgentError(err.message);
+    }
+  });
+  return { openAgentModal, refreshControls };
+};
+
+// web/src/features/modals/integration.ts
+init_api();
+var initIntegrationModal = ({
+  getAuth,
+  reloadIntegrations,
+  onAfterSave
+}) => {
+  const integrationModal = document.getElementById("integration-modal");
+  const integrationForm = document.getElementById("integration-form");
+  const integrationFields = document.getElementById("integration-fields");
+  const integrationError = document.getElementById("integration-error");
+  const integrationTitle = document.getElementById("integration-modal-title");
+  const integrationCancel = document.getElementById("integration-cancel");
+  let currentIntegration = null;
+  const showIntegrationError = (message) => {
+    if (!integrationError) {
+      alert(message);
+      return;
+    }
+    integrationError.textContent = message;
+    integrationError.classList.remove("is-hidden");
+  };
+  const clearIntegrationError = () => {
+    if (!integrationError) {
+      return;
+    }
+    integrationError.textContent = "";
+    integrationError.classList.add("is-hidden");
+  };
+  const closeIntegrationModal = () => {
+    integrationModal?.classList.remove("is-active");
+    clearIntegrationError();
+    currentIntegration = null;
+  };
+  const buildIntegrationFields = (integration) => {
+    if (!integrationFields) {
+      return;
+    }
+    integrationFields.innerHTML = "";
+    const existing = state.integrationSettings[integration.name];
+    integration.fields.forEach((field) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "field";
+      const label = document.createElement("label");
+      label.className = "label";
+      label.textContent = field.label;
+      const input = document.createElement("input");
+      input.className = "input";
+      input.type = field.type === "password" ? "password" : "text";
+      input.id = `integration-${integration.name}-${field.key}`;
+      input.autocomplete = "off";
+      if (field.required) {
+        input.required = true;
+      }
+      const existingValue = existing?.[field.key];
+      if (typeof existingValue === "string") {
+        input.value = existingValue;
+      }
+      wrapper.appendChild(label);
+      if (field.type === "password") {
+        const fieldRow = document.createElement("div");
+        fieldRow.className = "field has-addons";
+        const inputControl = document.createElement("div");
+        inputControl.className = "control is-expanded";
+        inputControl.appendChild(input);
+        const buttonControl = document.createElement("div");
+        buttonControl.className = "control";
+        const toggleButton = document.createElement("button");
+        toggleButton.type = "button";
+        toggleButton.className = "button app-button app-ghost";
+        toggleButton.innerHTML = `
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+              <path
+                d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linejoin="round"
+              ></path>
+              <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+            </svg>
+          </span>
+        `;
+        toggleButton.addEventListener("click", () => {
+          input.type = input.type === "password" ? "text" : "password";
+        });
+        buttonControl.appendChild(toggleButton);
+        fieldRow.appendChild(inputControl);
+        fieldRow.appendChild(buttonControl);
+        wrapper.appendChild(fieldRow);
+      } else {
+        const control = document.createElement("div");
+        control.className = "control";
+        control.appendChild(input);
+        wrapper.appendChild(control);
+      }
+      if (field.required) {
+        const help = document.createElement("p");
+        help.className = "help app-muted";
+        help.textContent = "Required";
+        wrapper.appendChild(help);
+      }
+      integrationFields.appendChild(wrapper);
+    });
+  };
+  const openIntegrationModal = (integration) => {
+    currentIntegration = integration;
+    clearIntegrationError();
+    if (integrationTitle) {
+      integrationTitle.textContent = `${integration.enabled ? "Edit" : "Enable"} ${integration.name}`;
+    }
+    buildIntegrationFields(integration);
+    integrationModal?.classList.add("is-active");
+  };
+  integrationCancel?.addEventListener("click", closeIntegrationModal);
+  integrationModal?.querySelectorAll("[data-close='integration']").forEach((el) => {
+    el.addEventListener("click", closeIntegrationModal);
+  });
+  integrationForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const auth = getAuth();
+    if (!auth || !currentIntegration) {
+      return;
+    }
+    clearIntegrationError();
+    const payload = {};
+    for (const field of currentIntegration.fields) {
+      const input = document.getElementById(
+        `integration-${currentIntegration.name}-${field.key}`
+      );
+      const value = input?.value.trim() || "";
+      if (!value) {
+        if (field.required) {
+          showIntegrationError(`${field.label} is required.`);
+          return;
+        }
+        continue;
+      }
+      payload[field.key] = value;
+    }
+    try {
+      await updateIntegrationSettings(auth, currentIntegration.name, payload);
+      closeIntegrationModal();
+      await reloadIntegrations();
+      onAfterSave();
+    } catch (err) {
+      showIntegrationError(err.message);
+    }
+  });
+  return { openIntegrationModal };
+};
+
+// web/src/app/loaders.ts
+init_api();
+
+// web/src/app/navigation.ts
+var findAuthDocumentId = (pages) => {
+  for (const page of pages) {
+    if (page.store === "private" && page.path?.endsWith("auth.json") && page.documentId) {
+      return page.documentId;
+    }
+    for (const section of page.sections) {
+      if (section.store === "private" && section.path.endsWith("auth.json")) {
+        return section.id;
+      }
+    }
+  }
+  return null;
+};
+var renderNavList = (container, pages, mode, onSelectDocument) => {
+  container.innerHTML = "";
+  pages.filter((page) => page.store === mode).forEach((page) => {
+    const pageItem = document.createElement("li");
+    const pageLink = document.createElement("a");
+    pageLink.textContent = page.name;
+    if (page.documentId && state.currentDocument?.id === page.documentId) {
+      pageLink.classList.add("is-active");
+    }
+    pageLink.addEventListener("click", () => {
+      if (page.documentId) {
+        onSelectDocument(page.documentId);
+      }
+    });
+    pageItem.append(pageLink);
+    const sections = page.sections.filter((section) => section.store === mode);
+    if (sections.length > 0) {
+      const sectionList = document.createElement("ul");
+      sections.forEach((section) => {
+        const sectionItem = document.createElement("li");
+        const sectionLink = document.createElement("a");
+        sectionLink.textContent = section.name;
+        if (state.currentDocument?.id === section.id) {
+          sectionLink.classList.add("is-active");
+        }
+        sectionLink.addEventListener("click", () => {
+          onSelectDocument(section.id);
+        });
+        sectionItem.append(sectionLink);
+        sectionList.append(sectionItem);
+      });
+      pageItem.append(sectionList);
+    }
+    container.append(pageItem);
+  });
+};
+var renderNavigation = (pages, onSelectDocument) => {
+  const navPublic = document.getElementById("nav-public");
+  const navPrivate = document.getElementById("nav-private");
+  if (!navPublic || !navPrivate) {
+    return;
+  }
+  state.authDocumentId = findAuthDocumentId(pages);
+  renderNavList(navPublic, pages, "public", onSelectDocument);
+  renderNavList(navPrivate, pages, "private", onSelectDocument);
+};
+
+// web/src/features/agents/menu.ts
+var renderAgentsMenu = (agents, onSelectAgent) => {
+  const container = document.getElementById("nav-agents");
+  if (!container) {
+    return;
+  }
+  container.innerHTML = "";
+  if (!agents.length) {
+    container.innerHTML = `<div class="navbar-item is-size-7 app-muted">No agents found.</div>`;
+    return;
+  }
+  agents.forEach((agent) => {
+    const link = document.createElement("a");
+    link.className = "navbar-item";
+    link.textContent = agent.name;
+    link.addEventListener("click", () => {
+      onSelectAgent(agent.id);
+      document.getElementById("agents-dropdown")?.classList.remove("is-active");
+    });
+    container.append(link);
+  });
+};
+
+// web/src/app/loaders.ts
+var loadUiConfig = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchUiConfig(state.auth);
+    applyUiConfig(response.config ?? {});
+  } catch {
+    setTheme(getCurrentTheme(), false);
+  }
+};
+var loadLayoutConfig = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchLayoutConfig(state.auth);
+    state.layoutConfig = response.config ?? {};
+  } catch {
+    state.layoutConfig = {};
+  }
+};
+var loadModules = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchModules(state.auth);
+    if (Array.isArray(response.modules)) {
+      state.modules = response.modules;
+    } else if (response.modules && typeof response.modules === "object") {
+      state.modules = Object.values(response.modules);
+    } else {
+      state.modules = [];
+    }
+  } catch {
+    state.modules = [];
+  }
+};
+var loadIntegrations = async ({ onAfterLoad } = {}) => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchIntegrations(state.auth);
+    state.integrations = Array.isArray(response.integrations) ? response.integrations : [];
+  } catch {
+    state.integrations = [];
+  }
+  Object.keys(state.integrationSettings).forEach((key) => {
+    delete state.integrationSettings[key];
+  });
+  if (!state.auth) {
+    return;
+  }
+  const enabled = state.integrations.filter((integration) => integration.enabled);
+  await Promise.all(
+    enabled.map(async (integration) => {
+      try {
+        const response = await fetchIntegrationSettings(state.auth, integration.name);
+        state.integrationSettings[integration.name] = response.settings ?? {};
+      } catch {
+        state.integrationSettings[integration.name] = {};
+      }
+    })
+  );
+  onAfterLoad?.();
+};
+var loadAgents = async (onSelectAgent) => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchAgents(state.auth);
+    state.agents = Array.isArray(response.agents) ? response.agents : [];
+  } catch {
+    state.agents = [];
+  }
+  renderAgentsMenu(state.agents, onSelectAgent);
+};
+var refreshNavigation = async (onSelectDocument) => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const nav = await fetchNavigation(state.auth);
+    state.navigationPages = nav.pages;
+    renderNavigation(nav.pages, onSelectDocument);
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+// web/src/views/integrations.ts
+var renderIntegrationsView = ({
+  content,
+  auth,
+  integrations,
+  getIntegrations,
+  getIntegrationModels: getIntegrationModels2,
+  clearAgentState: clearAgentState2,
+  openIntegrationModal,
+  syncIntegrationModels: syncIntegrationModels2,
+  reloadIntegrations
+}) => {
+  if (!content) {
+    return;
+  }
+  clearAgentState2();
+  if (!integrations.length) {
+    content.innerHTML = `
+      <div class="app-view-header mb-4">
+        <div>
+          <h1 class="title is-4">Integrations</h1>
+          <p class="app-muted">Configure AI providers and sync available models.</p>
+        </div>
+      </div>
+      <div class="notification is-light">No integrations found.</div>
+    `;
+    return;
+  }
+  const list = integrations.map((integration) => {
+    const enabledLabel = integration.enabled ? "Enabled" : "Disabled";
+    const models = integration.supportsModels ? getIntegrationModels2(integration.name).length : null;
+    const modelsLine = integration.supportsModels ? `<div class="app-module-row-meta">Models: ${models}</div>` : "";
+    const syncDisabled = integration.enabled ? "" : "disabled";
+    const settingsLabel = integration.enabled ? "Edit settings" : "Enable integration";
+    return `
+        <div class="app-module-row">
+          <div class="app-module-row-title">${integration.name}</div>
+          <div class="app-module-row-meta">${integration.description}</div>
+          <div class="app-module-row-meta">Status: ${enabledLabel}</div>
+          ${modelsLine}
+          <div class="buttons">
+            <button
+              class="button app-button app-ghost app-icon-button"
+              data-integration-config="${integration.name}"
+              aria-label="${settingsLabel}"
+              title="${settingsLabel}"
+            >
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                  <path
+                    d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  ></path>
+                  <path
+                    d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  ></path>
+                </svg>
+              </span>
+            </button>
+            ${integration.supportsModels ? `<button class="button app-button app-ghost" data-integration-sync="${integration.name}" ${syncDisabled}>
+                    Sync models
+                  </button>` : ""}
+          </div>
+        </div>
+      `;
+  }).join("");
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">Integrations</h1>
+        <p class="app-muted">Configure AI providers and sync available models.</p>
+      </div>
+    </div>
+    <div class="app-module-list">${list}</div>
+  `;
+  document.querySelectorAll("[data-integration-config]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const name = button.getAttribute("data-integration-config") || "";
+      const integration = integrations.find((entry) => entry.name === name) ?? null;
+      if (integration) {
+        openIntegrationModal(integration);
+      }
+    });
+  });
+  document.querySelectorAll("[data-integration-sync]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!auth) {
+        return;
+      }
+      const name = button.getAttribute("data-integration-sync") || "";
+      if (!name) {
+        return;
+      }
+      try {
+        await syncIntegrationModels2(auth, name);
+        await reloadIntegrations();
+        renderIntegrationsView({
+          content,
+          auth,
+          integrations: getIntegrations(),
+          getIntegrations,
+          getIntegrationModels: getIntegrationModels2,
+          clearAgentState: clearAgentState2,
+          openIntegrationModal,
+          syncIntegrationModels: syncIntegrationModels2,
+          reloadIntegrations
+        });
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+};
+
+// web/src/utils.ts
+var isRecord = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1e3);
+};
+var encodeDocumentId = (store, path) => {
+  const raw = `${store}:${path}`;
+  return btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+// web/src/views/logs.ts
+var buildLogSelector = (logs, currentId) => {
+  if (!logs.length) {
+    return `
+      <div class="field">
+        <label class="label">Log file</label>
+        <div class="control">
+          <div class="select is-fullwidth">
+            <select disabled>
+              <option>No logs available</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  const options = logs.map((log) => {
+    const selected = log.id === currentId ? "selected" : "";
+    return `<option value="${log.id}" ${selected}>${log.name}</option>`;
+  }).join("");
+  return `
+    <div class="field">
+      <label class="label">Log file</label>
+      <div class="control">
+        <div class="select is-fullwidth">
+          <select id="log-file-select">${options}</select>
+        </div>
+      </div>
+    </div>
+  `;
+};
+var renderLogsView = async ({
+  content,
+  auth,
+  logs,
+  setLogs,
+  fetchLogs: fetchLogs2,
+  loadDocument: loadDocument2,
+  clearAgentState: clearAgentState2,
+  openLoggerSettings: openLoggerSettings2
+}) => {
+  if (!content) {
+    return;
+  }
+  clearAgentState2();
+  if (!auth) {
+    content.innerHTML = `<p class="app-muted">Authentication required.</p>`;
+    return;
+  }
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">Logs</h1>
+        <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+      </div>
+      <div class="app-view-actions">
+        <button
+          id="logger-settings-open"
+          class="button app-button app-ghost app-icon-button"
+          aria-label="Logger settings"
+          title="Logger settings"
+        >
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+              <path
+                d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div class="notification is-light">Loading logs...</div>
+  `;
+  try {
+    const response = await fetchLogs2(auth);
+    logs = Array.isArray(response.logs) ? response.logs : [];
+    setLogs(logs);
+  } catch (err) {
+    content.innerHTML = `<p class="app-muted">${err.message}</p>`;
+    return;
+  }
+  if (!logs.length) {
+    content.innerHTML = `
+      <div class="app-view-header mb-4">
+        <div>
+          <h1 class="title is-4">Logs</h1>
+          <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+        </div>
+        <div class="app-view-actions">
+          <button
+            id="logger-settings-open"
+            class="button app-button app-ghost app-icon-button"
+            aria-label="Logger settings"
+            title="Logger settings"
+          >
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                <path
+                  d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></path>
+                <path
+                  d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></path>
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="notification is-light">No logs found.</div>
+    `;
+    document.getElementById("logger-settings-open")?.addEventListener("click", () => {
+      openLoggerSettings2();
+    });
+    return;
+  }
+  const list = logs.map((log) => {
+    const metaParts = [];
+    if (log.count !== void 0) {
+      metaParts.push(`${log.count} items`);
+    }
+    if (log.updatedAt) {
+      metaParts.push(`updated ${log.updatedAt}`);
+    }
+    const meta = metaParts.length ? metaParts.join(" \xB7 ") : "";
+    return `
+        <div class="app-module-row">
+          <div class="app-module-row-title">${log.name}</div>
+          <div class="app-module-row-meta">${log.path}</div>
+          ${meta ? `<div class="app-module-row-meta">${meta}</div>` : ""}
+          <div class="buttons">
+            <button class="button app-button app-ghost" data-log-id="${encodeURIComponent(
+      log.id
+    )}">Open</button>
+          </div>
+        </div>
+      `;
+  }).join("");
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">Logs</h1>
+        <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+      </div>
+      <div class="app-view-actions">
+        <button
+          id="logger-settings-open"
+          class="button app-button app-ghost app-icon-button"
+          aria-label="Logger settings"
+          title="Logger settings"
+        >
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+              <path
+                d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div class="app-log-toolbar mb-4">
+      ${buildLogSelector(logs)}
+    </div>
+    <div class="app-module-list">${list}</div>
+  `;
+  document.getElementById("logger-settings-open")?.addEventListener("click", () => {
+    openLoggerSettings2();
+  });
+  const select = document.getElementById("log-file-select");
+  select?.addEventListener("change", () => {
+    const id = select.value.trim();
+    if (id) {
+      loadDocument2(id);
+    }
+  });
+  document.querySelectorAll("[data-log-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const encoded = button.getAttribute("data-log-id") || "";
+      const id = decodeURIComponent(encoded);
+      if (id) {
+        loadDocument2(id);
+      }
+    });
+  });
+};
+var renderLogDocument = ({
+  content,
+  auth,
+  doc,
+  logs,
+  loadDocument: loadDocument2,
+  openLoggerSettings: openLoggerSettings2,
+  downloadDocument: downloadDocument2
+}) => {
+  if (!content) {
+    return;
+  }
+  const payload = doc.payload;
+  const data = isRecord(payload.data) ? payload.data : {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  const createdAt = typeof data.createdAt === "string" ? data.createdAt : "";
+  const updatedAt = typeof data.updatedAt === "string" ? data.updatedAt : "";
+  const count = items.length;
+  const listHtml = items.length ? items.map((item) => {
+    const record = isRecord(item) ? item : {};
+    const timestamp = typeof record.timestamp === "string" ? record.timestamp : "";
+    const endpoint = typeof record.endpoint === "string" ? record.endpoint : "";
+    const message = typeof record.message === "string" ? record.message : "";
+    const type = typeof record.type === "string" ? record.type : "";
+    const status = typeof record.status === "number" ? record.status : null;
+    const statusLabel = status !== null ? `${status}` : "";
+    return `
+            <div class="app-log-item">
+              <div class="app-log-header">
+                <div class="app-log-title">${endpoint || "Request"}</div>
+                <div class="app-log-meta">${statusLabel}</div>
+              </div>
+              <div class="app-log-message">${message}</div>
+              <div class="app-log-meta">
+                ${timestamp ? `${timestamp} \xB7 ` : ""}${type}
+              </div>
+            </div>
+          `;
+  }).join("") : `<div class="notification is-light">No log entries yet.</div>`;
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">${payload.name}</h1>
+        <p class="app-muted">Logs \xB7 ${doc.store}/${doc.path}</p>
+      </div>
+      <div class="app-view-actions">
+        <button
+          id="logger-settings-open"
+          class="button app-button app-ghost app-icon-button"
+          aria-label="Logger settings"
+          title="Logger settings"
+        >
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+              <path
+                d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div class="app-log-toolbar mb-4">
+      ${buildLogSelector(logs, doc.id)}
+    </div>
+    <div class="app-log-summary">
+      <div class="app-log-summary-item"><span class="app-muted">Items</span> ${count}</div>
+      ${createdAt ? `<div class="app-log-summary-item"><span class="app-muted">Created</span> ${createdAt}</div>` : ""}
+      ${updatedAt ? `<div class="app-log-summary-item"><span class="app-muted">Updated</span> ${updatedAt}</div>` : ""}
+    </div>
+    <div class="mb-4 buttons">
+      <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+    </div>
+    <div class="app-log-list">
+      ${listHtml}
+    </div>
+  `;
+  document.getElementById("logger-settings-open")?.addEventListener("click", () => {
+    openLoggerSettings2();
+  });
+  const select = document.getElementById("log-file-select");
+  select?.addEventListener("change", () => {
+    const id = select.value.trim();
+    if (id) {
+      loadDocument2(id);
+    }
+  });
+  document.getElementById("export-json")?.addEventListener("click", async () => {
+    if (!auth) {
+      return;
+    }
+    try {
+      const result = await downloadDocument2(auth, doc.id);
+      const filename = result.filename ?? `${doc.path.split("/").pop() || "log"}.json`;
+      triggerDownload(result.blob, filename);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+};
+
+// web/src/modules/gallery/index.ts
+init_api();
 
 // web/src/modules/utils.ts
 var slug = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -190,14 +2471,14 @@ var moduleSettingsKey = (payload, moduleName) => {
 var legacyModuleSettingsKey = (moduleName) => slug(moduleName) || "module";
 
 // web/src/modules/uploader/utils.ts
-var isRecord = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var isRecord2 = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 var describeStorage = (module) => {
   const parameters = module.parameters ?? {};
-  if (!isRecord(parameters)) {
+  if (!isRecord2(parameters)) {
     return "";
   }
   const storage = parameters.storage;
-  if (!isRecord(storage)) {
+  if (!isRecord2(storage)) {
     return "";
   }
   const visibility = typeof storage.visibility === "string" ? storage.visibility : "public";
@@ -230,28 +2511,28 @@ var resolveSchemaKeys = (schema) => {
   const altKey = properties.alt?.type === "string" ? "alt" : null;
   return { urlKey, altKey };
 };
-var coerceDataObject = (payload, editor2) => {
-  if (isRecord(payload.data)) {
+var coerceDataObject = (payload, editor) => {
+  if (isRecord2(payload.data)) {
     return payload.data;
   }
   payload.data = {};
-  editor2?.setValue(payload.data);
+  editor?.setValue(payload.data);
   return payload.data;
 };
 var isSelected = (list, urlKey, url) => {
   if (!Array.isArray(list)) {
     return false;
   }
-  return list.some((entry) => isRecord(entry) && entry[urlKey] === url);
+  return list.some((entry) => isRecord2(entry) && entry[urlKey] === url);
 };
 var renderGalleryModule = (panel, context) => {
-  const { module, payload, editor: editor2, auth: auth2 } = context;
-  const schema = isRecord(module.schema) ? module.schema : null;
-  const data = coerceDataObject(payload, editor2);
+  const { module, payload, editor, auth } = context;
+  const schema = isRecord2(module.schema) ? module.schema : null;
+  const data = coerceDataObject(payload, editor);
   const { urlKey, altKey } = resolveSchemaKeys(schema);
-  const settings = isRecord(context.settings) ? context.settings : null;
-  const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
-  const sourceSettings = settings && isRecord(settings.source) ? settings.source : null;
+  const settings = isRecord2(context.settings) ? context.settings : null;
+  const outputSettings = settings && isRecord2(settings.output) ? settings.output : null;
+  const sourceSettings = settings && isRecord2(settings.source) ? settings.source : null;
   const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : module.name;
   const settingsKey = moduleSettingsKey(payload, module.name);
   const initialVisibility = typeof sourceSettings?.visibility === "string" ? sourceSettings.visibility : "all";
@@ -375,7 +2656,7 @@ var renderGalleryModule = (panel, context) => {
       }
       list.push(entry);
     }
-    editor2?.setValue(data);
+    editor?.setValue(data);
     closeModal();
     renderGrid();
   });
@@ -389,30 +2670,30 @@ var renderGalleryModule = (panel, context) => {
     }
     const list = data[targetKey];
     data[targetKey] = list.filter(
-      (entry) => !(isRecord(entry) && entry[urlKey] === currentItem?.url)
+      (entry) => !(isRecord2(entry) && entry[urlKey] === currentItem?.url)
     );
-    editor2?.setValue(data);
+    editor?.setValue(data);
     closeModal();
     renderGrid();
   });
   deleteButton?.addEventListener("click", async () => {
-    if (!auth2 || !currentItem) {
+    if (!auth || !currentItem) {
       return;
     }
     if (!confirm("Delete this file? This cannot be undone.")) {
       return;
     }
     try {
-      await deleteModuleFile(auth2, module.name, {
+      await deleteModuleFile(auth, module.name, {
         path: currentItem.path,
         visibility: currentItem.visibility,
         settings: settingsKey
       });
       if (Array.isArray(data[targetKey])) {
         data[targetKey] = data[targetKey].filter(
-          (entry) => !(isRecord(entry) && entry[urlKey] === currentItem?.url)
+          (entry) => !(isRecord2(entry) && entry[urlKey] === currentItem?.url)
         );
-        editor2?.setValue(data);
+        editor?.setValue(data);
       }
       closeModal();
       void loadItems();
@@ -425,7 +2706,7 @@ var renderGalleryModule = (panel, context) => {
     const selectedUrls = /* @__PURE__ */ new Set();
     if (Array.isArray(list)) {
       list.forEach((entry) => {
-        if (isRecord(entry) && typeof entry[urlKey] === "string") {
+        if (isRecord2(entry) && typeof entry[urlKey] === "string") {
           selectedUrls.add(entry[urlKey]);
         }
       });
@@ -436,14 +2717,14 @@ var renderGalleryModule = (panel, context) => {
     });
   };
   const loadItems = async () => {
-    if (!auth2) {
+    if (!auth) {
       status.textContent = "Login required.";
       return;
     }
     status.textContent = "Loading media...";
     grid.innerHTML = "";
     try {
-      const response = await fetchModuleList(auth2, module.name, {
+      const response = await fetchModuleList(auth, module.name, {
         visibility: currentVisibility,
         settings: settingsKey
       });
@@ -454,7 +2735,7 @@ var renderGalleryModule = (panel, context) => {
       }
       status.textContent = "";
       items.forEach((item) => {
-        if (!isRecord(item) || typeof item.url !== "string" || typeof item.path !== "string") {
+        if (!isRecord2(item) || typeof item.url !== "string" || typeof item.path !== "string") {
           return;
         }
         const card = document.createElement("button");
@@ -498,6 +2779,7 @@ var renderGalleryModule = (panel, context) => {
 };
 
 // web/src/modules/uploader/index.ts
+init_api();
 var resolveUploaderKeys = (schema) => {
   const properties = schema?.properties ?? {};
   const entries = Object.entries(properties);
@@ -520,12 +2802,12 @@ var resolveUploaderKeys = (schema) => {
   const altKey = properties.alt?.type === "string" ? "alt" : null;
   return { urlKey, altKey };
 };
-var coerceDataObject2 = (payload, editor2) => {
-  if (isRecord(payload.data)) {
+var coerceDataObject2 = (payload, editor) => {
+  if (isRecord2(payload.data)) {
     return payload.data;
   }
   payload.data = {};
-  editor2?.setValue(payload.data);
+  editor?.setValue(payload.data);
   return payload.data;
 };
 var buildHeader = (module) => {
@@ -548,12 +2830,12 @@ var buildHeader = (module) => {
   return header;
 };
 var renderUploaderModule = (panel, context) => {
-  const { module, payload, editor: editor2, auth: auth2 } = context;
-  const schema = isRecord(module.schema) ? module.schema : null;
-  const data = coerceDataObject2(payload, editor2);
+  const { module, payload, editor, auth } = context;
+  const schema = isRecord2(module.schema) ? module.schema : null;
+  const data = coerceDataObject2(payload, editor);
   const { urlKey, altKey } = resolveUploaderKeys(schema);
-  const settings = isRecord(context.settings) ? context.settings : null;
-  const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
+  const settings = isRecord2(context.settings) ? context.settings : null;
+  const outputSettings = settings && isRecord2(settings.output) ? settings.output : null;
   const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : module.name;
   if (!urlKey) {
     const notice = document.createElement("div");
@@ -613,14 +2895,14 @@ var renderUploaderModule = (panel, context) => {
   };
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
-    if (!file || !auth2) {
+    if (!file || !auth) {
       return;
     }
     fileInput.disabled = true;
     setUploadStatus("Uploading...");
     try {
       const settingsKey = moduleSettingsKey(payload, module.name);
-      const result = await uploadModuleFile(auth2, module.name, file, settingsKey);
+      const result = await uploadModuleFile(auth, module.name, file, settingsKey);
       urlInput.value = result.url;
       setPendingUrl(result.url);
       setUploadStatus("Upload complete.");
@@ -675,7 +2957,7 @@ var renderUploaderModule = (panel, context) => {
       data[targetKey] = list;
     }
     list.push(entry);
-    editor2?.setValue(data);
+    editor?.setValue(data);
     urlInput.value = "";
     if (altInput) {
       altInput.value = "";
@@ -732,6 +3014,181 @@ var renderModule = (name, panel, context) => {
   renderer(panel, context);
   return true;
 };
+
+// web/src/views/modules.ts
+var renderModulePanel = async ({
+  auth,
+  doc,
+  editor,
+  normalizeModuleList: normalizeModuleList2,
+  fetchModuleSettings: fetchModuleSettings2,
+  findModuleDefinition: findModuleDefinition2
+}) => {
+  const panel = document.getElementById("module-panel");
+  if (!panel) {
+    return;
+  }
+  panel.innerHTML = "";
+  const moduleNames = normalizeModuleList2(doc.payload.modules, doc.payload.module ?? null);
+  if (!moduleNames.length) {
+    panel.classList.add("is-hidden");
+    return;
+  }
+  panel.classList.remove("is-hidden");
+  const moduleSettingsList = await Promise.all(
+    moduleNames.map(async (moduleName) => ({
+      name: moduleName,
+      settings: await fetchModuleSettings2(moduleName, doc.payload)
+    }))
+  );
+  moduleSettingsList.forEach(({ name: moduleName, settings }) => {
+    const module = findModuleDefinition2(moduleName);
+    if (!module) {
+      const notice = document.createElement("div");
+      notice.className = "notification is-warning is-light";
+      notice.textContent = `Module "${moduleName}" was not found.`;
+      panel.append(notice);
+      return;
+    }
+    const handled = renderModule(module.name, panel, {
+      auth,
+      module,
+      payload: doc.payload,
+      editor,
+      settings
+    });
+    if (!handled) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "notification is-light";
+      placeholder.textContent = `${module.name} module is available but has no renderer yet.`;
+      panel.append(placeholder);
+    }
+  });
+};
+var renderModulesView = ({
+  content,
+  modules,
+  navigationPages,
+  clearAgentState: clearAgentState2,
+  loadDocument: loadDocument2
+}) => {
+  if (!content) {
+    return;
+  }
+  clearAgentState2();
+  const list = modules.map((module) => {
+    const author = module.author ? ` \xB7 ${module.author}` : "";
+    const storage = describeStorage(module);
+    const storageLine = storage ? `<div class="app-module-row-meta">${storage}</div>` : "";
+    return `
+        <div class="app-module-row">
+          <div class="app-module-row-title">${module.name}</div>
+          <div class="app-module-row-meta">${module.description}${author}</div>
+          <div class="app-module-row-meta">Input: ${module.input} \xB7 Output: ${module.output}</div>
+          ${storageLine}
+        </div>
+      `;
+  }).join("");
+  const settingsDocs = navigationPages.filter((page) => page.page === "modules").flatMap((page) => page.sections).filter((section) => section.store === "private").map((section) => ({
+    id: section.id,
+    name: section.name,
+    path: section.path
+  }));
+  const settingsList = settingsDocs.map(
+    (doc) => `
+        <div class="app-module-row">
+          <div class="app-module-row-title">${doc.name}</div>
+          <div class="app-module-row-meta">${doc.path}</div>
+          <div class="buttons">
+            <button
+              class="button app-button app-ghost app-icon-button"
+              aria-label="Open settings"
+              title="Open settings"
+              data-module-settings="${encodeURIComponent(doc.id)}"
+            >
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                  <path
+                    d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  ></path>
+                  <path
+                    d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  ></path>
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      `
+  ).join("");
+  const settingsSection = `
+    <div id="module-settings-panel" class="app-module-settings is-hidden">
+      <div class="mb-3">
+        <h2 class="title is-5">Settings</h2>
+        <p class="app-muted">Edit per-page or per-section module settings saved in manage/store/modules.</p>
+      </div>
+      ${settingsDocs.length ? `<div class="app-module-list">${settingsList}</div>` : `<div class="notification is-light">No module settings found yet.</div>`}
+    </div>
+  `;
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">Modules</h1>
+        <p class="app-muted">Available modules loaded from manage/src/Modules.</p>
+      </div>
+      <div class="app-view-actions">
+        <button
+          id="module-settings-toggle"
+          class="button app-button app-ghost app-icon-button"
+          aria-label="Module settings"
+          title="Module settings"
+        >
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+              <path
+                d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+    ${modules.length ? `<div class="app-module-list">${list}</div>` : `<div class="notification is-light">No modules found.</div>`}
+    ${settingsSection}
+  `;
+  const toggle = document.getElementById("module-settings-toggle");
+  const panel = document.getElementById("module-settings-panel");
+  toggle?.addEventListener("click", () => {
+    panel?.classList.toggle("is-hidden");
+  });
+  document.querySelectorAll("[data-module-settings]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const encoded = button.getAttribute("data-module-settings") || "";
+      const id = decodeURIComponent(encoded);
+      if (id) {
+        loadDocument2(id);
+      }
+    });
+  });
+};
+
+// web/src/app/documents.ts
+init_api();
 
 // web/src/json-editor.ts
 var isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
@@ -982,1432 +3439,39 @@ var buildJsonEditor = (container, initialValue) => {
   };
 };
 
-// web/src/main.ts
-var app = document.getElementById("app");
-if (!app) {
-  throw new Error("Missing app container");
-}
-var auth = loadAuth();
-var currentDocument = null;
-var editor = null;
-var authDocumentId = null;
-var layoutConfig = {};
-var modules = [];
-var agents = [];
-var navigationPages = [];
-var moduleSettingsCache = /* @__PURE__ */ new Map();
-var currentAgent = null;
-var currentConversation = null;
-var agentPoller = null;
-var THEME_KEY = "manage_theme";
-var tokenRegistry = [
-  "app-gap-xs",
-  "app-gap-sm",
-  "app-gap-md",
-  "app-gap-lg",
-  "app-radius-sm",
-  "app-radius-md",
-  "app-radius-lg",
-  "app-shadow",
-  "app-border",
-  "app-bg",
-  "app-surface",
-  "app-text",
-  "app-muted",
-  "app-accent",
-  "app-accent-contrast",
-  "app-danger"
-];
-var normalizeModuleList = (modulesValue, fallback) => {
-  const list = Array.isArray(modulesValue) ? modulesValue : [];
-  if (fallback && !list.includes(fallback)) {
-    list.push(fallback);
-  }
-  return list.map((entry) => entry.trim()).filter((entry) => entry !== "").filter((entry, index, self) => self.indexOf(entry) === index);
-};
-var moduleChecklistHtml = (selected = []) => {
-  if (!modules.length) {
-    return `<p class="help">No modules available.</p>`;
-  }
-  const selectedSet = new Set(selected);
-  return modules.map((module) => {
-    const isChecked = selectedSet.has(module.name);
-    const description = module.description ? `<span class="app-module-option-meta">${module.description}</span>` : "";
-    return `
-        <label class="checkbox app-module-option">
-          <input type="checkbox" value="${module.name}" ${isChecked ? "checked" : ""} />
-          <span class="app-module-option-label">${module.name}</span>
-          ${description}
-        </label>
-      `;
-  }).join("");
-};
-var readSelectedModules = (container) => {
-  if (!container) {
-    return [];
-  }
-  return Array.from(container.querySelectorAll("input[type='checkbox']")).filter((input) => input.checked).map((input) => input.value.trim()).filter((value) => value !== "");
-};
-var findModuleDefinition = (name) => modules.find((module) => module.name === name) ?? null;
-var uiTokens = {
-  light: {},
-  dark: {}
-};
-var getStoredTheme = () => {
-  const value = localStorage.getItem(THEME_KEY);
-  return value === "dark" || value === "light" ? value : null;
-};
-var currentTheme = getStoredTheme() ?? "light";
-var applyTokensForTheme = (theme) => {
-  const root = document.documentElement;
-  const tokens = uiTokens[theme];
-  tokenRegistry.forEach((key) => {
-    const cssKey = `--${key}`;
-    if (tokens[key]) {
-      root.style.setProperty(cssKey, tokens[key]);
-    } else {
-      root.style.removeProperty(cssKey);
-    }
-  });
-};
-var setTheme = (theme, persist = true) => {
-  currentTheme = theme;
-  document.documentElement.dataset.theme = theme;
-  applyTokensForTheme(theme);
-  if (persist) {
-    localStorage.setItem(THEME_KEY, theme);
-  }
-};
-var isRecord2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-var stopAgentPolling = () => {
-  if (agentPoller !== null) {
-    window.clearInterval(agentPoller);
-    agentPoller = null;
-  }
-};
-var clearAgentState = () => {
-  stopAgentPolling();
-  currentAgent = null;
-  currentConversation = null;
-};
-var encodeDocumentId = (store, path) => {
-  const raw = `${store}:${path}`;
-  const encoded = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  return encoded;
-};
-var fetchModuleSettings = async (moduleName, payload) => {
-  if (!auth) {
-    return null;
-  }
-  const key = moduleSettingsKey(payload, moduleName);
-  if (moduleSettingsCache.has(key)) {
-    return moduleSettingsCache.get(key) ?? null;
-  }
-  const path = `modules/${key}.json`;
-  const id = encodeDocumentId("private", path);
-  try {
-    const doc = await fetchDocument(auth, id);
-    const settings = isRecord2(doc.payload.data) ? doc.payload.data : null;
-    moduleSettingsCache.set(key, settings);
-    return settings;
-  } catch {
-    if (!payload.section) {
-      const legacyKey = legacyModuleSettingsKey(moduleName);
-      if (legacyKey) {
-        const legacyPath = `modules/${legacyKey}.json`;
-        const legacyId = encodeDocumentId("private", legacyPath);
-        try {
-          const legacyDoc = await fetchDocument(auth, legacyId);
-          const legacySettings = isRecord2(legacyDoc.payload.data) ? legacyDoc.payload.data : null;
-          moduleSettingsCache.set(key, legacySettings);
-          return legacySettings;
-        } catch {
-        }
-      }
-    }
-    moduleSettingsCache.set(key, null);
-    return null;
-  }
-};
-var getAgentField = (data, key) => typeof data[key] === "string" ? data[key] : "";
-var applyUiConfig = (config) => {
-  const normalize = (input) => {
-    const output = {};
-    if (!input)
-      return output;
-    tokenRegistry.forEach((key) => {
-      if (input[key]) {
-        output[key] = input[key];
-      }
-    });
-    return output;
-  };
-  uiTokens.light = normalize(config.tokens);
-  uiTokens.dark = normalize(config.darkTokens);
-  const storedTheme = getStoredTheme();
-  if (!storedTheme && (config.theme === "light" || config.theme === "dark")) {
-    setTheme(config.theme, false);
-    return;
-  }
-  setTheme(currentTheme, false);
-};
-setTheme(currentTheme, false);
-var getUserLabel = () => {
-  if (isTokenAuth(auth) && auth.user) {
-    const name = `${auth.user.firstname} ${auth.user.lastname}`.trim();
-    return name || auth.user.email;
-  }
-  if (auth?.type === "apiKey") {
-    return "API Key";
-  }
-  return "Guest";
-};
-var headerCopy = () => ({
-  title: layoutConfig.header?.title ?? "Manage",
-  subtitle: layoutConfig.header?.subtitle ?? "Stateless Admin",
-  settingsLabel: layoutConfig.header?.settingsLabel ?? "Settings",
-  themeLabel: layoutConfig.header?.themeLabel ?? "Theme",
-  createLabel: layoutConfig.header?.createLabel ?? "Create +",
-  profileLabel: layoutConfig.header?.profileLabel ?? "Profile",
-  logoutLabel: layoutConfig.header?.logoutLabel ?? "Logout"
-});
-var sidebarCopy = () => ({
-  publicLabel: layoutConfig.sidebar?.publicLabel ?? "Public"
-});
-var profileCopy = () => ({
-  title: layoutConfig.profile?.title ?? "Profile",
-  subtitle: layoutConfig.profile?.subtitle ?? "\u0395\u03BD\u03B7\u03BC\u03B5\u03C1\u03CE\u03C3\u03C4\u03B5 \u03C4\u03B1 \u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03B1 \u03C3\u03B1\u03C2.",
-  saveLabel: layoutConfig.profile?.saveLabel ?? "Save Profile"
-});
-var isAuthData = (value) => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const record = value;
-  if (!Array.isArray(record.users)) {
-    return false;
-  }
-  return record.users.every((user) => user && typeof user === "object");
-};
-var isTokenAuth = (value) => {
-  return !!value && value.type === "token";
-};
-var renderLogin = (error) => {
-  clearAgentState();
-  app.innerHTML = `
-    <section class="section">
-      <div class="container">
-        <div class="box app-surface">
-          <div class="mb-4">
-            <h1 class="title is-4">Admin Login</h1>
-            <p class="app-muted">\u03A3\u03C5\u03BD\u03B4\u03B5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BC\u03B5 API key \u03AE email/password.</p>
-          </div>
-          ${error ? `<div class="notification is-danger is-light">${error}</div>` : ""}
-          <div class="columns is-variable is-4">
-            <div class="column">
-              <form id="api-key-form">
-                <div class="field">
-                  <label class="label">API Key</label>
-                  <div class="control">
-                    <input class="input" type="password" name="apiKey" required />
-                  </div>
-                </div>
-                <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7 \u03BC\u03B5 API Key</button>
-              </form>
-            </div>
-            <div class="column">
-              <form id="user-form">
-                <div class="field">
-                  <label class="label">Email</label>
-                  <div class="control">
-                    <input class="input" type="email" name="email" required />
-                  </div>
-                </div>
-                <div class="field">
-                  <label class="label">Password</label>
-                  <div class="control">
-                    <input class="input" type="password" name="password" required />
-                  </div>
-                </div>
-                <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7 \u03C7\u03C1\u03AE\u03C3\u03C4\u03B7</button>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
-  const apiKeyForm = document.getElementById("api-key-form");
-  const userForm = document.getElementById("user-form");
-  apiKeyForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(apiKeyForm);
-    const apiKey = String(form.get("apiKey") || "");
-    if (!apiKey) {
-      return;
-    }
-    try {
-      await loginWithApiKey(apiKey);
-      auth = { type: "apiKey", value: apiKey };
-      saveAuth(auth);
-      await renderApp();
-    } catch (err) {
-      renderLogin(err.message);
-    }
-  });
-  userForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(userForm);
-    const email = String(form.get("email") || "");
-    const password = String(form.get("password") || "");
-    if (!email || !password) {
-      return;
-    }
-    try {
-      const result = await loginWithPassword(email, password);
-      auth = { type: "token", value: result.token, user: result.user };
-      saveAuth(auth);
-      await renderApp();
-    } catch (err) {
-      renderLogin(err.message);
-    }
-  });
-};
-var renderAppShell = () => {
-  const header = headerCopy();
-  const sidebar = sidebarCopy();
-  app.innerHTML = `
-    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="main navigation">
-      <div class="navbar-brand">
-        <a class="navbar-item">
-          <span class="title is-5 mb-0">${header.title}</span>
-        </a>
-        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="adminNavbar">
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-        </a>
-      </div>
-      <div id="adminNavbar" class="navbar-menu">
-        <div class="navbar-start">
-          <div class="navbar-item app-muted">${header.subtitle}</div>
-        </div>
-        <div class="navbar-end">
-          <div class="navbar-item">
-            <div class="app-nav-actions">
-              <button id="create-action" class="button app-button app-primary">
-                <span class="icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
-                    <path
-                      d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1z"
-                      fill="currentColor"
-                    ></path>
-                  </svg>
-                </span>
-                <span>${header.createLabel}</span>
-              </button>
-              <button
-                id="export-zip-header"
-                class="button app-button app-ghost"
-                aria-label="Export all documents"
-                title="Export all documents"
-              >
-                <span class="icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-                    <path
-                      d="M7 2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linejoin="round"
-                    ></path>
-                    <path
-                      d="M14 2v5h5"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linejoin="round"
-                    ></path>
-                    <path
-                      d="M10 7h2v2h-2V7zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2"
-                      fill="currentColor"
-                    ></path>
-                  </svg>
-                </span>
-              </button>
-              <button
-                id="theme-toggle"
-                class="button app-button app-ghost"
-                aria-label="${header.themeLabel}"
-                title="${header.themeLabel}"
-              >
-                <span class="icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="4"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                    ></circle>
-                    <path
-                      d="M12 3v2m0 14v2M3 12h2m14 0h2M6.5 6.5l1.4 1.4m8.2 8.2l1.4 1.4M6.5 17.5l1.4-1.4m8.2-8.2l1.4-1.4"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linecap="round"
-                    ></path>
-                  </svg>
-                </span>
-              </button>
-            </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="private-dropdown">
-            <a class="navbar-link">${header.settingsLabel}</a>
-            <div class="navbar-dropdown">
-              <div id="nav-private"></div>
-              <hr class="navbar-divider" />
-              <div class="navbar-item is-size-7 app-muted">Modules</div>
-              <a class="navbar-item" id="modules-link">Modules</a>
-            </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="agents-dropdown">
-            <a class="navbar-link">Agents</a>
-            <div class="navbar-dropdown">
-              <div id="nav-agents"></div>
-              <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link">Create agent</a>
-            </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="user-dropdown">
-            <a class="navbar-link" id="user-label">${getUserLabel()}</a>
-            <div class="navbar-dropdown">
-              <a class="navbar-item" id="profile-link">${header.profileLabel}</a>
-              <hr class="navbar-divider" />
-              <a class="navbar-item" id="logout">${header.logoutLabel}</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-    <section class="section pt-4">
-      <div class="container is-fluid">
-        <div class="columns is-variable is-4">
-          <aside class="column is-one-quarter">
-            <div class="box app-surface">
-              <aside class="menu">
-                <p class="menu-label">${sidebar.publicLabel}</p>
-                <ul id="nav-public" class="menu-list"></ul>
-              </aside>
-            </div>
-          </aside>
-          <div class="column">
-            <div id="content" class="box app-surface">
-              <p class="app-muted">\u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03BC\u03B9\u03B1 \u03B5\u03BD\u03CC\u03C4\u03B7\u03C4\u03B1.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    <div class="modal" id="create-modal">
-      <div class="modal-background" data-close="create"></div>
-      <div class="modal-card">
-        <header class="modal-card-head">
-          <p class="modal-card-title">Create document</p>
-          <button class="delete" aria-label="close" data-close="create"></button>
-        </header>
-        <section class="modal-card-body">
-          <div id="create-error" class="notification is-danger is-light is-hidden"></div>
-          <form id="create-form">
-            <div class="columns is-variable is-4 is-multiline">
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Filename</label>
-                  <div class="control">
-                    <input
-                      id="create-path"
-                      class="input"
-                      type="text"
-                      placeholder="content.json"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <p class="help">Must end with .json</p>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Order</label>
-                  <div class="control">
-                    <input
-                      id="create-order"
-                      class="input"
-                      type="number"
-                      min="0"
-                      step="1"
-                      placeholder="0"
-                    />
-                  </div>
-                  <p class="help">Lower numbers appear first.</p>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Store</label>
-                  <div class="control">
-                    <div class="tabs is-toggle is-small is-fullwidth">
-                      <ul>
-                        <li class="is-active">
-                          <a href="#" data-store="public">Public</a>
-                        </li>
-                        <li>
-                          <a href="#" data-store="private">Private</a>
-                        </li>
-                      </ul>
-                    </div>
-                    <input id="create-store" type="hidden" value="public" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Page</label>
-                  <div class="control">
-                    <input id="create-page" class="input" type="text" autocomplete="off" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Name</label>
-                  <div class="control">
-                    <input id="create-name" class="input" type="text" autocomplete="off" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Language</label>
-                  <div class="control">
-                    <input id="create-language" class="input" type="text" autocomplete="off" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Modules</label>
-                  <div class="control">
-                    <div id="create-modules" class="app-module-picker">
-                      ${moduleChecklistHtml()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Section</label>
-                  <div class="control">
-                    <div class="select is-fullwidth">
-                      <select id="create-section">
-                        <option value="false" selected>false</option>
-                        <option value="true">true</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="column is-full">
-                <div class="field">
-                  <label class="label">Data (JSON)</label>
-                  <div class="control">
-                    <textarea id="create-data" class="textarea" rows="6">{}</textarea>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </form>
-        </section>
-        <footer class="modal-card-foot">
-          <button form="create-form" type="submit" class="button app-button app-primary">Create</button>
-          <button id="create-cancel" type="button" class="button app-button app-ghost">Cancel</button>
-        </footer>
-      </div>
-    </div>
-    <div class="modal" id="agent-modal">
-      <div class="modal-background" data-close="agent"></div>
-      <div class="modal-card">
-        <header class="modal-card-head">
-          <p class="modal-card-title">Create agent</p>
-          <button class="delete" aria-label="close" data-close="agent"></button>
-        </header>
-        <section class="modal-card-body">
-          <div id="agent-error" class="notification is-danger is-light is-hidden"></div>
-          <form id="agent-form">
-            <div class="tabs is-toggle is-fullwidth mb-4">
-              <ul>
-                <li class="is-active"><a data-agent-store="public">Public</a></li>
-                <li><a data-agent-store="private">Private</a></li>
-              </ul>
-            </div>
-            <input type="hidden" id="agent-store" value="public" />
-            <div class="columns is-variable is-4 is-multiline">
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Name</label>
-                  <div class="control">
-                    <input id="agent-name" class="input" type="text" placeholder="Assistant" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Provider</label>
-                  <div class="control">
-                    <input id="agent-provider" class="input" type="text" placeholder="openai" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-half">
-                <div class="field">
-                  <label class="label">Model</label>
-                  <div class="control">
-                    <input id="agent-model" class="input" type="text" placeholder="gpt-4.1" />
-                  </div>
-                </div>
-              </div>
-              <div class="column is-full">
-                <div class="field">
-                  <label class="label">System prompt</label>
-                  <div class="control">
-                    <textarea id="agent-system" class="textarea" rows="3" placeholder="System prompt"></textarea>
-                  </div>
-                </div>
-              </div>
-              <div class="column is-full">
-                <div class="field">
-                  <label class="label">Admin prompt</label>
-                  <div class="control">
-                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="Admin prompt"></textarea>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </form>
-        </section>
-        <footer class="modal-card-foot">
-          <button id="agent-cancel" class="button app-button app-ghost">Cancel</button>
-          <button form="agent-form" type="submit" class="button app-button app-primary">Create agent</button>
-        </footer>
-      </div>
-    </div>
-  `;
-  const burger = document.querySelector(".navbar-burger");
-  const menu = document.getElementById("adminNavbar");
-  burger?.addEventListener("click", () => {
-    burger.classList.toggle("is-active");
-    menu?.classList.toggle("is-active");
-  });
-  const dropdowns = [
-    document.getElementById("private-dropdown"),
-    document.getElementById("agents-dropdown"),
-    document.getElementById("user-dropdown")
-  ];
-  dropdowns.forEach((dropdown) => {
-    const link = dropdown?.querySelector(".navbar-link");
-    link?.addEventListener("click", (event) => {
-      event.preventDefault();
-      dropdown?.classList.toggle("is-active");
-    });
-  });
-  document.addEventListener("click", (event) => {
-    dropdowns.forEach((dropdown) => {
-      if (!dropdown || dropdown.contains(event.target)) {
-        return;
-      }
-      dropdown.classList.remove("is-active");
-    });
-  });
-  document.getElementById("logout")?.addEventListener("click", () => {
-    auth = null;
-    saveAuth(null);
-    renderLogin();
-  });
-  document.getElementById("theme-toggle")?.addEventListener("click", () => {
-    const next = currentTheme === "light" ? "dark" : "light";
-    setTheme(next);
-  });
-  document.getElementById("profile-link")?.addEventListener("click", () => {
-    void renderProfile();
-  });
-  document.getElementById("modules-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    renderModulesView();
-    document.getElementById("private-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("export-zip-header")?.addEventListener("click", async () => {
-    if (!auth) {
-      return;
-    }
-    try {
-      const result = await downloadArchive(auth);
-      const url = URL.createObjectURL(result.blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = result.filename ?? "manage-export.tar.gz";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1e3);
-    } catch (err) {
-      alert(err.message);
-    }
-  });
-  const createModal = document.getElementById("create-modal");
-  const createError = document.getElementById("create-error");
-  const createForm = document.getElementById("create-form");
-  const createStoreInput = document.getElementById("create-store");
-  const createStoreTabs = Array.from(
-    createModal?.querySelectorAll("[data-store]") ?? []
-  );
-  const showCreateError = (message) => {
-    if (!createError) {
-      alert(message);
-      return;
-    }
-    createError.textContent = message;
-    createError.classList.remove("is-hidden");
-  };
-  const clearCreateError = () => {
-    if (!createError) {
-      return;
-    }
-    createError.textContent = "";
-    createError.classList.add("is-hidden");
-  };
-  const setCreateStore = (store) => {
-    if (createStoreInput) {
-      createStoreInput.value = store;
-    }
-    createStoreTabs.forEach((tab) => {
-      const value = tab.getAttribute("data-store");
-      tab.parentElement?.classList.toggle("is-active", value === store);
-    });
-  };
-  const openCreateModal = () => {
-    clearCreateError();
-    createForm?.reset();
-    const dataInput = document.getElementById("create-data");
-    if (dataInput) {
-      dataInput.value = "{}";
-    }
-    setCreateStore("public");
-    createModal?.classList.add("is-active");
-  };
-  const closeCreateModal = () => {
-    createModal?.classList.remove("is-active");
-    clearCreateError();
-  };
-  document.getElementById("create-action")?.addEventListener("click", openCreateModal);
-  document.getElementById("create-cancel")?.addEventListener("click", closeCreateModal);
-  createModal?.querySelectorAll("[data-close='create']").forEach((el) => {
-    el.addEventListener("click", closeCreateModal);
-  });
-  createStoreTabs.forEach((tab) => {
-    tab.addEventListener("click", (event) => {
-      event.preventDefault();
-      const value = tab.getAttribute("data-store");
-      if (value === "public" || value === "private") {
-        setCreateStore(value);
-      }
-    });
-  });
-  createForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!auth) {
-      return;
-    }
-    clearCreateError();
-    const path = document.getElementById("create-path")?.value.trim() || "";
-    const orderRaw = document.getElementById("create-order")?.value.trim() || "";
-    const page = document.getElementById("create-page")?.value.trim() || "";
-    const name = document.getElementById("create-name")?.value.trim() || "";
-    const language = document.getElementById("create-language")?.value.trim() || "";
-    const modulesValue = readSelectedModules(document.getElementById("create-modules"));
-    const section = document.getElementById("create-section")?.value === "true";
-    const storeValue = document.getElementById("create-store")?.value === "private" ? "private" : "public";
-    const dataRaw = document.getElementById("create-data")?.value.trim() || "";
-    if (!path) {
-      showCreateError("Filename is required.");
-      return;
-    }
-    if (!path.endsWith(".json")) {
-      showCreateError("Filename must end with .json.");
-      return;
-    }
-    if (path.includes("/") || path.includes("\\") || path.includes("..")) {
-      showCreateError("Filename must not include path separators.");
-      return;
-    }
-    if (!page) {
-      showCreateError("Page is required.");
-      return;
-    }
-    if (!name) {
-      showCreateError("Name is required.");
-      return;
-    }
-    if (!orderRaw) {
-      showCreateError("Order is required.");
-      return;
-    }
-    const orderValue = Number(orderRaw);
-    if (!Number.isInteger(orderValue)) {
-      showCreateError("Order must be an integer.");
-      return;
-    }
-    if (!dataRaw) {
-      showCreateError("Data is required.");
-      return;
-    }
-    let data;
-    try {
-      data = JSON.parse(dataRaw);
-    } catch {
-      showCreateError("Data must be valid JSON.");
-      return;
-    }
-    const payloadToCreate = {
-      type: "page",
-      page,
-      name,
-      language: language || void 0,
-      order: orderValue,
-      section,
-      modules: modulesValue.length ? modulesValue : void 0,
-      data
-    };
-    try {
-      const created = await createDocument(auth, {
-        store: storeValue,
-        path,
-        payload: payloadToCreate
-      });
-      closeCreateModal();
-      await refreshNavigation();
-      await loadDocument(created.id);
-    } catch (err) {
-      showCreateError(err.message);
-    }
-  });
-  const agentModal = document.getElementById("agent-modal");
-  const agentError = document.getElementById("agent-error");
-  const agentForm = document.getElementById("agent-form");
-  const agentStoreInput = document.getElementById("agent-store");
-  const agentStoreTabs = Array.from(
-    agentModal?.querySelectorAll("[data-agent-store]") ?? []
-  );
-  const showAgentError = (message) => {
-    if (!agentError) {
-      alert(message);
-      return;
-    }
-    agentError.textContent = message;
-    agentError.classList.remove("is-hidden");
-  };
-  const clearAgentError = () => {
-    if (!agentError) {
-      return;
-    }
-    agentError.textContent = "";
-    agentError.classList.add("is-hidden");
-  };
-  const setAgentStore = (store) => {
-    if (agentStoreInput) {
-      agentStoreInput.value = store;
-    }
-    agentStoreTabs.forEach((tab) => {
-      const value = tab.getAttribute("data-agent-store");
-      tab.parentElement?.classList.toggle("is-active", value === store);
-    });
-  };
-  const openAgentModal = () => {
-    clearAgentError();
-    agentForm?.reset();
-    setAgentStore("public");
-    agentModal?.classList.add("is-active");
-  };
-  const closeAgentModal = () => {
-    agentModal?.classList.remove("is-active");
-    clearAgentError();
-  };
-  document.getElementById("agents-create-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    openAgentModal();
-    document.getElementById("agents-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("agent-cancel")?.addEventListener("click", closeAgentModal);
-  agentModal?.querySelectorAll("[data-close='agent']").forEach((el) => {
-    el.addEventListener("click", closeAgentModal);
-  });
-  agentStoreTabs.forEach((tab) => {
-    tab.addEventListener("click", (event) => {
-      event.preventDefault();
-      const value = tab.getAttribute("data-agent-store");
-      if (value === "public" || value === "private") {
-        setAgentStore(value);
-      }
-    });
-  });
-  agentForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!auth) {
-      return;
-    }
-    clearAgentError();
-    const name = document.getElementById("agent-name")?.value.trim() || "";
-    const provider = document.getElementById("agent-provider")?.value.trim() || "";
-    const model = document.getElementById("agent-model")?.value.trim() || "";
-    const systemPrompt = document.getElementById("agent-system")?.value.trim() || "";
-    const adminPrompt = document.getElementById("agent-admin")?.value.trim() || "";
-    const storeValue = document.getElementById("agent-store")?.value === "private" ? "private" : "public";
-    if (!name || !provider || !model || !systemPrompt || !adminPrompt) {
-      showAgentError("All fields are required.");
-      return;
-    }
-    try {
-      const created = await createAgent(auth, {
-        store: storeValue,
-        name,
-        provider,
-        model,
-        systemPrompt,
-        adminPrompt
-      });
-      closeAgentModal();
-      await loadAgents();
-      await renderAgentView(created);
-    } catch (err) {
-      showAgentError(err.message);
-    }
-  });
-};
-var determinePageStore = (page) => {
-  if (page.store === "private") {
-    return "private";
-  }
-  if (page.store === "public") {
-    return "public";
-  }
-  const hasPrivate = page.sections.some((section) => section.store === "private");
-  const hasPublic = page.sections.some((section) => section.store === "public");
-  if (hasPrivate && !hasPublic) {
-    return "private";
-  }
-  return "public";
-};
-var findAuthDocumentId = (pages) => {
-  for (const page of pages) {
-    if (page.store === "private" && page.path?.endsWith("auth.json") && page.documentId) {
-      return page.documentId;
-    }
-    for (const section of page.sections) {
-      if (section.store === "private" && section.path.endsWith("auth.json")) {
-        return section.id;
-      }
-    }
-  }
-  return null;
-};
-var renderNavList = (container, pages, mode) => {
-  container.innerHTML = "";
-  pages.filter((page) => determinePageStore(page) === mode).forEach((page) => {
-    const pageItem = document.createElement("li");
-    const pageLink = document.createElement("a");
-    pageLink.textContent = page.name;
-    if (page.documentId && currentDocument?.id === page.documentId) {
-      pageLink.classList.add("is-active");
-    }
-    pageLink.addEventListener("click", () => {
-      if (page.documentId) {
-        void loadDocument(page.documentId);
-      }
-    });
-    pageItem.append(pageLink);
-    if (page.sections.length > 0) {
-      const sectionList = document.createElement("ul");
-      page.sections.forEach((section) => {
-        const sectionItem = document.createElement("li");
-        const sectionLink = document.createElement("a");
-        sectionLink.textContent = section.name;
-        if (currentDocument?.id === section.id) {
-          sectionLink.classList.add("is-active");
-        }
-        sectionLink.addEventListener("click", () => {
-          void loadDocument(section.id);
-        });
-        sectionItem.append(sectionLink);
-        sectionList.append(sectionItem);
-      });
-      pageItem.append(sectionList);
-    }
-    container.append(pageItem);
-  });
-};
-var renderNavigation = (pages) => {
-  const navPublic = document.getElementById("nav-public");
-  const navPrivate = document.getElementById("nav-private");
-  if (!navPublic || !navPrivate) {
-    return;
-  }
-  authDocumentId = findAuthDocumentId(pages);
-  renderNavList(navPublic, pages, "public");
-  navPrivate.innerHTML = "";
-  pages.filter((page) => determinePageStore(page) === "private").forEach((page) => {
-    const pageItem = document.createElement("a");
-    pageItem.className = "navbar-item";
-    pageItem.textContent = page.name;
-    pageItem.addEventListener("click", () => {
-      if (page.documentId) {
-        void loadDocument(page.documentId);
-      }
-    });
-    navPrivate.append(pageItem);
-    page.sections.forEach((section) => {
-      const sectionItem = document.createElement("a");
-      sectionItem.className = "navbar-item is-size-7";
-      sectionItem.textContent = `\u21B3 ${section.name}`;
-      sectionItem.addEventListener("click", () => {
-        void loadDocument(section.id);
-      });
-      navPrivate.append(sectionItem);
-    });
-  });
-};
-var renderAgentsMenu = () => {
-  const container = document.getElementById("nav-agents");
-  if (!container) {
-    return;
-  }
-  container.innerHTML = "";
-  if (!agents.length) {
-    container.innerHTML = `<div class="navbar-item is-size-7 app-muted">No agents found.</div>`;
-    return;
-  }
-  agents.forEach((agent) => {
-    const link = document.createElement("a");
-    link.className = "navbar-item";
-    link.textContent = agent.name;
-    link.addEventListener("click", () => {
-      void loadAgent(agent.id);
-      document.getElementById("agents-dropdown")?.classList.remove("is-active");
-    });
-    container.append(link);
-  });
-};
-var renderModulePanel = async (doc) => {
-  const panel = document.getElementById("module-panel");
-  if (!panel) {
-    return;
-  }
-  panel.innerHTML = "";
-  const moduleNames = normalizeModuleList(doc.payload.modules, doc.payload.module ?? null);
-  if (!moduleNames.length) {
-    panel.classList.add("is-hidden");
-    return;
-  }
-  panel.classList.remove("is-hidden");
-  const moduleSettingsList = await Promise.all(
-    moduleNames.map(async (moduleName) => ({
-      name: moduleName,
-      settings: await fetchModuleSettings(moduleName, doc.payload)
-    }))
-  );
-  moduleSettingsList.forEach(({ name: moduleName, settings }) => {
-    const module = findModuleDefinition(moduleName);
-    if (!module) {
-      const notice = document.createElement("div");
-      notice.className = "notification is-warning is-light";
-      notice.textContent = `Module "${moduleName}" was not found.`;
-      panel.append(notice);
-      return;
-    }
-    const handled = renderModule(module.name, panel, {
-      auth,
-      module,
-      payload: doc.payload,
-      editor,
-      settings
-    });
-    if (!handled) {
-      const placeholder = document.createElement("div");
-      placeholder.className = "notification is-light";
-      placeholder.textContent = `${module.name} module is available but has no renderer yet.`;
-      panel.append(placeholder);
-    }
-  });
-};
-var renderModulesView = () => {
-  const content = document.getElementById("content");
+// web/src/views/documents.ts
+var renderDocument = ({
+  content,
+  auth,
+  doc,
+  clearAgentState: clearAgentState2,
+  moduleChecklistHtml: moduleChecklistHtml2,
+  readSelectedModules: readSelectedModules2,
+  normalizeModuleList: normalizeModuleList2,
+  buildJsonEditor: buildJsonEditor2,
+  editorRef: editorRef2,
+  updateDocument: updateDocument2,
+  downloadDocument: downloadDocument2,
+  refreshNavigation: refreshNavigation2,
+  renderModulePanel: renderModulePanel2,
+  renderLogDocument: renderLogDocument2,
+  onDocumentUpdated,
+  onModuleSettingsSaved,
+  rerender
+}) => {
   if (!content) {
     return;
   }
-  clearAgentState();
-  const intro = `
-    <div class="mb-4">
-      <h1 class="title is-4">Modules</h1>
-      <p class="app-muted">Available modules loaded from manage/src/Modules.</p>
-    </div>
-  `;
-  const list = modules.map((module) => {
-    const author = module.author ? ` \xB7 ${module.author}` : "";
-    const storage = describeStorage(module);
-    const storageLine = storage ? `<div class="app-module-row-meta">${storage}</div>` : "";
-    return `
-        <div class="app-module-row">
-          <div class="app-module-row-title">${module.name}</div>
-          <div class="app-module-row-meta">${module.description}${author}</div>
-          <div class="app-module-row-meta">Input: ${module.input} \xB7 Output: ${module.output}</div>
-          ${storageLine}
-        </div>
-      `;
-  }).join("");
-  const settingsDocs = navigationPages.filter((page) => page.page === "modules").flatMap((page) => page.sections).filter((section) => section.store === "private").map((section) => ({
-    id: section.id,
-    name: section.name,
-    path: section.path
-  }));
-  const settingsList = settingsDocs.map(
-    (doc) => `
-        <div class="app-module-row">
-          <div class="app-module-row-title">${doc.name}</div>
-          <div class="app-module-row-meta">${doc.path}</div>
-          <div class="buttons">
-            <button class="button app-button app-ghost" data-module-settings="${encodeURIComponent(
-      doc.id
-    )}">Edit settings</button>
-          </div>
-        </div>
-      `
-  ).join("");
-  const settingsSection = `
-    <div class="mb-4">
-      <h2 class="title is-5">Module Settings</h2>
-      <p class="app-muted">Edit per-page or per-section module settings saved in manage/store/modules.</p>
-    </div>
-    ${settingsDocs.length ? `<div class="app-module-list">${settingsList}</div>` : `<div class="notification is-light">No module settings found yet.</div>`}
-  `;
-  if (!modules.length) {
-    content.innerHTML = `${intro}<div class="notification is-light">No modules found.</div>${settingsSection}`;
-  } else {
-    content.innerHTML = `${intro}<div class="app-module-list">${list}</div>${settingsSection}`;
-  }
-  document.querySelectorAll("[data-module-settings]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const encoded = button.getAttribute("data-module-settings") || "";
-      const id = decodeURIComponent(encoded);
-      if (id) {
-        void loadDocument(id);
-      }
-    });
-  });
-};
-var renderAgentView = async (agentDoc) => {
-  const content = document.getElementById("content");
-  if (!content) {
-    return;
-  }
-  stopAgentPolling();
-  currentAgent = agentDoc;
-  currentConversation = null;
-  const data = isRecord2(agentDoc.payload.data) ? agentDoc.payload.data : {};
-  const provider = getAgentField(data, "provider");
-  const model = getAgentField(data, "model");
-  const systemPrompt = getAgentField(data, "systemPrompt");
-  const adminPrompt = getAgentField(data, "adminPrompt");
-  content.innerHTML = `
-    <div class="mb-4">
-      <h1 class="title is-4">${agentDoc.payload.name}</h1>
-      <p class="app-muted">Agent \xB7 ${agentDoc.store}/${agentDoc.path}</p>
-    </div>
-    <div class="columns is-variable is-4">
-      <div class="column is-one-third">
-        <div class="app-panel">
-          <div class="mb-3">
-            <h2 class="title is-6">Settings</h2>
-            <p class="app-muted">Provider, model, and prompts.</p>
-          </div>
-          <div class="field">
-            <label class="label">Name</label>
-            <div class="control">
-              <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Provider</label>
-            <div class="control">
-              <input id="agent-edit-provider" class="input" type="text" value="${provider}" />
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Model</label>
-            <div class="control">
-              <input id="agent-edit-model" class="input" type="text" value="${model}" />
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">System prompt</label>
-            <div class="control">
-              <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Admin prompt</label>
-            <div class="control">
-              <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
-            </div>
-          </div>
-          <div class="buttons">
-            <button id="agent-save" class="button app-button app-primary">Save</button>
-          </div>
-        </div>
-        <div class="app-panel mt-4">
-          <div class="app-panel-header">
-            <div>
-              <h2 class="title is-6 mb-1">Conversations</h2>
-              <p class="app-muted">Reuse context or start fresh.</p>
-            </div>
-            <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
-          </div>
-          <div id="agent-conversation-list" class="app-conversation-list"></div>
-        </div>
-      </div>
-      <div class="column">
-        <div class="app-panel app-chat">
-          <div class="app-chat-header">
-            <div>
-              <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
-              <div id="agent-chat-meta" class="app-chat-meta app-muted">Select or create a conversation.</div>
-            </div>
-          </div>
-          <div id="agent-chat-messages" class="app-chat-messages"></div>
-          <div class="app-chat-input">
-            <form id="agent-chat-form">
-              <div class="field">
-                <div class="control">
-                  <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
-                </div>
-              </div>
-              <div class="buttons">
-                <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  const renderMessages = (conversation) => {
-    const messagesContainer = document.getElementById("agent-chat-messages");
-    if (!messagesContainer) {
-      return;
-    }
-    const payloadData = isRecord2(conversation.payload.data) ? conversation.payload.data : {};
-    const messages = Array.isArray(payloadData.messages) ? payloadData.messages : [];
-    if (!messages.length) {
-      messagesContainer.innerHTML = `<p class="app-muted">No messages yet.</p>`;
-      return;
-    }
-    messagesContainer.innerHTML = messages.map((message) => {
-      const record = isRecord2(message) ? message : {};
-      const role = typeof record.role === "string" ? record.role : "user";
-      const content2 = typeof record.content === "string" ? record.content : "";
-      const label = role === "assistant" ? "Agent" : "You";
-      const roleClass = role === "assistant" ? "is-assistant" : "is-user";
-      return `
-          <div class="app-chat-message ${roleClass}">
-            <div class="app-chat-message-role">${label}</div>
-            <div class="app-chat-message-content">${content2}</div>
-          </div>
-        `;
-    }).join("");
-  };
-  const updateConversationHeader = (conversation) => {
-    const title = document.getElementById("agent-chat-title");
-    const meta = document.getElementById("agent-chat-meta");
-    if (!title || !meta) {
-      return;
-    }
-    if (!conversation) {
-      title.textContent = "No conversation selected";
-      meta.textContent = "Select or create a conversation.";
-      return;
-    }
-    const payloadData = isRecord2(conversation.payload.data) ? conversation.payload.data : {};
-    const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
-    title.textContent = conversation.payload.name || "Conversation";
-    meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
-  };
-  const updateChatInputState = (active) => {
-    const input = document.getElementById("agent-chat-text");
-    const send = document.getElementById("agent-chat-send");
-    if (input) {
-      input.disabled = !active;
-    }
-    if (send) {
-      send.disabled = !active;
-    }
-  };
-  const loadConversation = async (conversationId) => {
-    if (!auth) {
-      return;
-    }
-    try {
-      const conversation = await fetchAgentConversation(auth, conversationId);
-      currentConversation = conversation;
-      updateConversationHeader(conversation);
-      renderMessages(conversation);
-      updateChatInputState(true);
-      stopAgentPolling();
-      agentPoller = window.setInterval(async () => {
-        if (!auth || !currentConversation || currentConversation.id !== conversationId) {
-          return;
-        }
-        try {
-          const updated = await fetchAgentConversation(auth, conversationId);
-          const previous = currentConversation;
-          currentConversation = updated;
-          const prevData = isRecord2(previous.payload.data) ? previous.payload.data : {};
-          const nextData = isRecord2(updated.payload.data) ? updated.payload.data : {};
-          const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
-          const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
-          if (prevCount !== nextCount) {
-            renderMessages(updated);
-          }
-        } catch {
-        }
-      }, 3e3);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-  const renderConversationList = (items) => {
-    const list = document.getElementById("agent-conversation-list");
-    if (!list) {
-      return;
-    }
-    if (!items.length) {
-      list.innerHTML = `<p class="app-muted">No conversations yet.</p>`;
-      return;
-    }
-    list.innerHTML = items.map((item) => {
-      const active = currentConversation?.id === item.id ? "is-active" : "";
-      const meta = item.createdAt ? `<div class="app-conversation-meta">${item.createdAt}</div>` : "";
-      return `
-          <button class="button app-button app-ghost app-conversation-item ${active}" data-conversation-id="${item.id}">
-            <div class="app-conversation-title">${item.name}</div>
-            ${meta}
-          </button>
-        `;
-    }).join("");
-    list.querySelectorAll("[data-conversation-id]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const id = button.getAttribute("data-conversation-id");
-        if (id) {
-          void loadConversation(id);
-        }
-      });
-    });
-  };
-  const refreshConversations = async () => {
-    if (!auth) {
-      return;
-    }
-    try {
-      const response = await fetchAgentConversations(auth, agentDoc.id);
-      renderConversationList(response.conversations ?? []);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-  document.getElementById("agent-save")?.addEventListener("click", async () => {
-    if (!auth || !currentAgent) {
-      return;
-    }
-    const nameInput = document.getElementById("agent-edit-name");
-    const providerInput = document.getElementById("agent-edit-provider");
-    const modelInput = document.getElementById("agent-edit-model");
-    const systemInput = document.getElementById("agent-edit-system");
-    const adminInput = document.getElementById("agent-edit-admin");
-    const nameValue = nameInput?.value.trim() || "";
-    const providerValue = providerInput?.value.trim() || "";
-    const modelValue = modelInput?.value.trim() || "";
-    const systemValue = systemInput?.value.trim() || "";
-    const adminValue = adminInput?.value.trim() || "";
-    if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
-      alert("All agent fields are required.");
-      return;
-    }
-    try {
-      const updated = await updateAgent(auth, currentAgent.id, {
-        name: nameValue,
-        provider: providerValue,
-        model: modelValue,
-        systemPrompt: systemValue,
-        adminPrompt: adminValue
-      });
-      currentAgent = updated;
-      await loadAgents();
-      await renderAgentView(updated);
-    } catch (err) {
-      alert(err.message);
-    }
-  });
-  document.getElementById("agent-new-conversation")?.addEventListener("click", async () => {
-    if (!auth || !currentAgent) {
-      return;
-    }
-    try {
-      const created = await createAgentConversation(auth, currentAgent.id);
-      currentConversation = created;
-      await refreshConversations();
-      await loadConversation(created.id);
-    } catch (err) {
-      alert(err.message);
-    }
-  });
-  document.getElementById("agent-chat-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!auth || !currentConversation) {
-      return;
-    }
-    const input = document.getElementById("agent-chat-text");
-    const content2 = input?.value.trim() || "";
-    if (!content2) {
-      return;
-    }
-    try {
-      const updated = await appendAgentMessage(auth, currentConversation.id, content2);
-      currentConversation = updated;
-      input.value = "";
-      renderMessages(updated);
-    } catch (err) {
-      alert(err.message);
-    }
-  });
-  updateChatInputState(false);
-  updateConversationHeader(null);
-  await refreshConversations();
-};
-var renderDocument = (doc) => {
-  const content = document.getElementById("content");
-  if (!content) {
-    return;
-  }
-  clearAgentState();
+  clearAgentState2();
   const payload = doc.payload;
-  const selectedModules = normalizeModuleList(payload.modules, payload.module ?? null);
+  const selectedModules = normalizeModuleList2(payload.modules, payload.module ?? null);
   const isModuleSettings = payload.page === "modules" && doc.store === "private";
+  const isLogSettings = doc.store === "private" && doc.path === "logs/logger-settings.json";
+  const isLogDocument = doc.store === "private" && doc.path.startsWith("logs/") && !isLogSettings;
+  if (isLogDocument) {
+    renderLogDocument2(doc);
+    return;
+  }
   if (isModuleSettings) {
     content.innerHTML = `
       <div class="mb-4">
@@ -2425,45 +3489,35 @@ var renderDocument = (doc) => {
     `;
     const editorContainer2 = document.getElementById("json-editor");
     if (editorContainer2) {
-      editor = buildJsonEditor(editorContainer2, payload.data);
+      editorRef2.set(buildJsonEditor2(editorContainer2, payload.data));
     }
     document.getElementById("save")?.addEventListener("click", async () => {
-      if (!auth || !currentDocument) {
+      if (!auth) {
         return;
       }
       const payloadToSave = {
         ...payload,
         type: payload.type ?? "module",
-        data: editor?.getValue() ?? payload.data
+        data: editorRef2.get()?.getValue() ?? payload.data
       };
       try {
-        const updated = await updateDocument(auth, currentDocument.id, payloadToSave);
-        currentDocument = updated;
-        moduleSettingsCache.clear();
-        renderDocument(updated);
-        await refreshNavigation();
+        const updated = await updateDocument2(auth, doc.id, payloadToSave);
+        onDocumentUpdated(updated);
+        onModuleSettingsSaved();
+        rerender(updated);
+        await refreshNavigation2();
       } catch (err) {
         alert(err.message);
       }
     });
-    const triggerDownload2 = async (blob, filename) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1e3);
-    };
     document.getElementById("export-json")?.addEventListener("click", async () => {
-      if (!auth || !currentDocument) {
+      if (!auth) {
         return;
       }
       try {
-        const result = await downloadDocument(auth, currentDocument.id);
-        const filename = result.filename ?? `${currentDocument.path.split("/").pop() || "document"}.json`;
-        await triggerDownload2(result.blob, filename);
+        const result = await downloadDocument2(auth, doc.id);
+        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
+        triggerDownload(result.blob, filename);
       } catch (err) {
         alert(err.message);
       }
@@ -2524,7 +3578,7 @@ var renderDocument = (doc) => {
           <label class="label">Modules</label>
           <div class="control">
             <div id="field-modules" class="app-module-picker">
-              ${moduleChecklistHtml(selectedModules)}
+              ${moduleChecklistHtml2(selectedModules)}
             </div>
           </div>
         </div>
@@ -2551,16 +3605,16 @@ var renderDocument = (doc) => {
   `;
   const editorContainer = document.getElementById("json-editor");
   if (editorContainer) {
-    editor = buildJsonEditor(editorContainer, payload.data);
+    editorRef2.set(buildJsonEditor2(editorContainer, payload.data));
   }
-  void renderModulePanel(doc);
+  void renderModulePanel2(doc);
   const moduleInput = document.getElementById("field-modules");
   moduleInput?.addEventListener("change", () => {
-    payload.modules = readSelectedModules(moduleInput);
-    void renderModulePanel(doc);
+    payload.modules = readSelectedModules2(moduleInput);
+    void renderModulePanel2(doc);
   });
   document.getElementById("save")?.addEventListener("click", async () => {
-    if (!auth || !currentDocument) {
+    if (!auth) {
       return;
     }
     const pageInput = document.getElementById("field-page");
@@ -2587,269 +3641,681 @@ var renderDocument = (doc) => {
       language: languageInput?.value.trim() || void 0,
       order: orderValue,
       section: sectionInput?.value === "true",
-      modules: readSelectedModules(moduleInput2),
-      data: editor?.getValue() ?? payload.data
+      modules: readSelectedModules2(moduleInput2),
+      data: editorRef2.get()?.getValue() ?? payload.data
     };
     try {
-      const updated = await updateDocument(auth, currentDocument.id, payloadToSave);
-      currentDocument = updated;
-      renderDocument(updated);
-      await refreshNavigation();
+      const updated = await updateDocument2(auth, doc.id, payloadToSave);
+      onDocumentUpdated(updated);
+      rerender(updated);
+      await refreshNavigation2();
     } catch (err) {
       alert(err.message);
     }
   });
-  const triggerDownload = async (blob, filename) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1e3);
-  };
   document.getElementById("export-json")?.addEventListener("click", async () => {
-    if (!auth || !currentDocument) {
+    if (!auth) {
       return;
     }
     try {
-      const result = await downloadDocument(auth, currentDocument.id);
-      const filename = result.filename ?? `${currentDocument.path.split("/").pop() || "document"}.json`;
-      await triggerDownload(result.blob, filename);
+      const result = await downloadDocument2(auth, doc.id);
+      const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
+      triggerDownload(result.blob, filename);
     } catch (err) {
       alert(err.message);
     }
   });
 };
-var renderProfile = async () => {
-  const content = document.getElementById("content");
-  if (!content) {
-    return;
+
+// web/src/features/modules/settings.ts
+init_api();
+var fetchModuleSettings = async (auth, payload, moduleName, cache) => {
+  if (!auth) {
+    return null;
   }
-  clearAgentState();
-  if (!isTokenAuth(auth) || !auth.user) {
-    content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03C5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u03C0\u03C1\u03BF\u03C6\u03AF\u03BB \u03B3\u03B9\u03B1 API key \u03C3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7.</p>`;
-    return;
+  const key = moduleSettingsKey(payload, moduleName);
+  if (cache.has(key)) {
+    return cache.get(key) ?? null;
   }
-  const currentUser = auth.user;
-  if (!authDocumentId) {
-    content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03B2\u03C1\u03AD\u03B8\u03B7\u03BA\u03B5 auth.json.</p>`;
-    return;
-  }
-  let authDoc;
+  const path = `modules/${key}.json`;
+  const id = encodeDocumentId("private", path);
   try {
-    authDoc = await fetchDocument(auth, authDocumentId);
-  } catch (err) {
-    content.innerHTML = `<p class="app-muted">${err.message}</p>`;
-    return;
-  }
-  const data = authDoc.payload.data;
-  if (!isAuthData(data)) {
-    content.innerHTML = `<p class="app-muted">\u03A4\u03BF auth.json \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 users.</p>`;
-    return;
-  }
-  const users = data.users;
-  const index = users.findIndex((user) => {
-    if (user.email === currentUser.email)
-      return true;
-    if (user.id && user.id === currentUser.id)
-      return true;
-    if (user.uuid && user.uuid === currentUser.id)
-      return true;
-    return false;
-  });
-  if (index < 0) {
-    content.innerHTML = `<p class="app-muted">\u039F \u03C7\u03C1\u03AE\u03C3\u03C4\u03B7\u03C2 \u03B4\u03B5\u03BD \u03B2\u03C1\u03AD\u03B8\u03B7\u03BA\u03B5 \u03C3\u03C4\u03BF auth.json.</p>`;
-    return;
-  }
-  const current = users[index];
-  const profile = profileCopy();
-  content.innerHTML = `
-    <div class="mb-4">
-      <h1 class="title is-4">${profile.title}</h1>
-      <p class="app-muted">${profile.subtitle}</p>
-    </div>
-    <div class="columns is-variable is-4 is-multiline">
-      <div class="column is-half">
-        <div class="field">
-          <label class="label">First Name</label>
-          <div class="control">
-            <input id="profile-firstname" class="input" type="text" value="${current.firstname || ""}" />
-          </div>
-        </div>
-      </div>
-      <div class="column is-half">
-        <div class="field">
-          <label class="label">Last Name</label>
-          <div class="control">
-            <input id="profile-lastname" class="input" type="text" value="${current.lastname || ""}" />
-          </div>
-        </div>
-      </div>
-      <div class="column is-half">
-        <div class="field">
-          <label class="label">Email</label>
-          <div class="control">
-            <input id="profile-email" class="input" type="email" value="${current.email || ""}" />
-          </div>
-        </div>
-      </div>
-      <div class="column is-half">
-        <div class="field">
-          <label class="label">Password</label>
-          <div class="control">
-            <input id="profile-password" class="input" type="password" placeholder="Leave blank to keep" />
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="mt-4">
-      <button id="profile-save" class="button app-button app-primary">${profile.saveLabel}</button>
-    </div>
-  `;
-  document.getElementById("profile-save")?.addEventListener("click", async () => {
-    if (!isTokenAuth(auth) || !auth.user) {
-      return;
-    }
-    const activeUser = auth.user;
-    const firstname = document.getElementById("profile-firstname")?.value.trim();
-    const lastname = document.getElementById("profile-lastname")?.value.trim();
-    const email = document.getElementById("profile-email")?.value.trim();
-    const password = document.getElementById("profile-password")?.value.trim();
-    const updatedUser = {
-      ...current,
-      firstname: firstname ?? current.firstname,
-      lastname: lastname ?? current.lastname,
-      email: email ?? current.email
-    };
-    if (password) {
-      updatedUser.password = password;
-    }
-    const updatedUsers = [...users];
-    updatedUsers[index] = updatedUser;
-    const updatedPayload = {
-      ...authDoc.payload,
-      data: {
-        ...data,
-        users: updatedUsers
-      }
-    };
-    try {
-      await updateDocument(auth, authDoc.id, updatedPayload);
-      auth = {
-        ...auth,
-        user: {
-          ...activeUser,
-          firstname: updatedUser.firstname,
-          lastname: updatedUser.lastname,
-          email: updatedUser.email
+    const doc = await fetchDocument(auth, id);
+    const settings = isRecord(doc.payload.data) ? doc.payload.data : null;
+    cache.set(key, settings);
+    return settings;
+  } catch {
+    if (!payload.section) {
+      const legacyKey = legacyModuleSettingsKey(moduleName);
+      if (legacyKey) {
+        const legacyPath = `modules/${legacyKey}.json`;
+        const legacyId = encodeDocumentId("private", legacyPath);
+        try {
+          const legacyDoc = await fetchDocument(auth, legacyId);
+          const legacySettings = isRecord(legacyDoc.payload.data) ? legacyDoc.payload.data : null;
+          cache.set(key, legacySettings);
+          return legacySettings;
+        } catch {
         }
-      };
-      saveAuth(auth);
-      renderProfile();
-    } catch (err) {
-      alert(err.message);
+      }
+    }
+    cache.set(key, null);
+    return null;
+  }
+};
+
+// web/src/app/documents.ts
+var openLoggerSettings = () => {
+  if (!state.auth) {
+    return;
+  }
+  const id = encodeDocumentId("private", "logs/logger-settings.json");
+  void loadDocument(id);
+};
+var renderDocumentView = (doc) => {
+  const content = document.getElementById("content");
+  renderDocument({
+    content,
+    auth: state.auth,
+    doc,
+    clearAgentState,
+    moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected),
+    readSelectedModules,
+    normalizeModuleList,
+    buildJsonEditor,
+    editorRef,
+    updateDocument,
+    downloadDocument,
+    refreshNavigation: () => refreshNavigation(loadDocument),
+    renderModulePanel: (moduleDoc) => renderModulePanel({
+      auth: state.auth,
+      doc: moduleDoc,
+      editor: editorRef.get(),
+      normalizeModuleList,
+      fetchModuleSettings: (moduleName, payload) => fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
+      findModuleDefinition: (name) => findModuleDefinition(state.modules, name)
+    }),
+    renderLogDocument: (logDoc) => renderLogDocument({
+      content,
+      auth: state.auth,
+      doc: logDoc,
+      logs: state.logs,
+      loadDocument,
+      openLoggerSettings,
+      downloadDocument
+    }),
+    onDocumentUpdated: (updated) => {
+      state.currentDocument = updated;
+    },
+    onModuleSettingsSaved: () => {
+      state.moduleSettingsCache.clear();
+    },
+    rerender: (updated) => {
+      renderDocumentView(updated);
     }
   });
 };
 var loadDocument = async (id) => {
-  if (!auth) {
+  if (!state.auth) {
     return;
   }
   try {
-    currentDocument = await fetchDocument(auth, id);
-    renderDocument(currentDocument);
-  } catch (err) {
-    alert(err.message);
-  }
-};
-var loadAgent = async (id) => {
-  if (!auth) {
-    return;
-  }
-  try {
-    const agent = await fetchAgent(auth, id);
-    currentDocument = null;
-    await renderAgentView(agent);
-  } catch (err) {
-    alert(err.message);
-  }
-};
-var refreshNavigation = async () => {
-  if (!auth) {
-    return;
-  }
-  try {
-    const nav = await fetchNavigation(auth);
-    navigationPages = nav.pages;
-    renderNavigation(nav.pages);
-  } catch (err) {
-    alert(err.message);
-  }
-};
-var loadUiConfig = async () => {
-  if (!auth) {
-    return;
-  }
-  try {
-    const response = await fetchUiConfig(auth);
-    applyUiConfig(response.config);
-  } catch {
-    setTheme(currentTheme, false);
-  }
-};
-var loadLayoutConfig = async () => {
-  if (!auth) {
-    return;
-  }
-  try {
-    const response = await fetchLayoutConfig(auth);
-    layoutConfig = response.config ?? {};
-  } catch {
-    layoutConfig = {};
-  }
-};
-var loadAgents = async () => {
-  if (!auth) {
-    return;
-  }
-  try {
-    const response = await fetchAgents(auth);
-    agents = Array.isArray(response.agents) ? response.agents : [];
-  } catch {
-    agents = [];
-  }
-  renderAgentsMenu();
-};
-var loadModules = async () => {
-  if (!auth) {
-    return;
-  }
-  try {
-    const response = await fetchModules(auth);
-    if (Array.isArray(response.modules)) {
-      modules = response.modules;
-    } else if (response.modules && typeof response.modules === "object") {
-      modules = Object.values(response.modules);
-    } else {
-      modules = [];
+    const doc = await fetchDocument(state.auth, id);
+    state.currentDocument = doc;
+    if (doc.store === "private" && doc.path.startsWith("logs/") && !state.logs.length) {
+      try {
+        const { fetchLogs: fetchLogs2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        const response = await fetchLogs2(state.auth);
+        state.logs = Array.isArray(response.logs) ? response.logs : [];
+      } catch {
+      }
     }
-  } catch {
-    modules = [];
+    renderDocumentView(doc);
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+// web/src/app/screens.ts
+init_api();
+var showModulesView = () => {
+  renderModulesView({
+    content: document.getElementById("content"),
+    modules: state.modules,
+    navigationPages: state.navigationPages,
+    clearAgentState,
+    loadDocument
+  });
+};
+var showIntegrationsView = (onAfterLoad) => {
+  renderIntegrationsView({
+    content: document.getElementById("content"),
+    auth: state.auth,
+    integrations: state.integrations,
+    getIntegrations: () => state.integrations,
+    getIntegrationModels: (name) => getIntegrationModels(state.integrationSettings, name),
+    clearAgentState,
+    openIntegrationModal: (integration) => {
+      state.openIntegrationModalHandler?.(integration);
+    },
+    syncIntegrationModels,
+    reloadIntegrations: () => loadIntegrations({ onAfterLoad })
+  });
+};
+var showLogsView = () => renderLogsView({
+  content: document.getElementById("content"),
+  auth: state.auth,
+  logs: state.logs,
+  setLogs: (next) => {
+    state.logs = next;
+  },
+  fetchLogs,
+  loadDocument,
+  clearAgentState,
+  openLoggerSettings
+});
+
+// web/src/features/agents/controller.ts
+init_api();
+
+// web/src/features/agents/view.ts
+init_api();
+
+// web/src/features/agents/chat.ts
+var renderMessages = (conversation) => {
+  const messagesContainer = document.getElementById("agent-chat-messages");
+  if (!messagesContainer) {
+    return;
+  }
+  const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+  const messages = Array.isArray(payloadData.messages) ? payloadData.messages : [];
+  if (!messages.length) {
+    messagesContainer.innerHTML = `<p class="app-muted">No messages yet.</p>`;
+    return;
+  }
+  messagesContainer.innerHTML = messages.map((message) => {
+    const record = isRecord(message) ? message : {};
+    const role = typeof record.role === "string" ? record.role : "user";
+    const content = typeof record.content === "string" ? record.content : "";
+    const label = role === "assistant" ? "Agent" : "You";
+    const roleClass = role === "assistant" ? "is-assistant" : "is-user";
+    return `
+        <div class="app-chat-message ${roleClass}">
+          <div class="app-chat-message-role">${label}</div>
+          <div class="app-chat-message-content">${content}</div>
+        </div>
+      `;
+  }).join("");
+};
+var updateConversationHeader = (conversation) => {
+  const title = document.getElementById("agent-chat-title");
+  const meta = document.getElementById("agent-chat-meta");
+  if (!title || !meta) {
+    return;
+  }
+  if (!conversation) {
+    title.textContent = "No conversation selected";
+    meta.textContent = "Select or create a conversation.";
+    return;
+  }
+  const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+  const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
+  title.textContent = conversation.payload.name || "Conversation";
+  meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+};
+var updateChatInputState = (active) => {
+  const input = document.getElementById("agent-chat-text");
+  const send = document.getElementById("agent-chat-send");
+  if (input) {
+    input.disabled = !active;
+  }
+  if (send) {
+    send.disabled = !active;
+  }
+};
+var renderConversationList = (items, currentConversationId, onSelect) => {
+  const list = document.getElementById("agent-conversation-list");
+  if (!list) {
+    return;
+  }
+  if (!items.length) {
+    list.innerHTML = `<p class="app-muted">No conversations yet.</p>`;
+    return;
+  }
+  list.innerHTML = items.map((item) => {
+    const active = currentConversationId === item.id ? "is-active" : "";
+    const meta = item.createdAt ? `<div class="app-conversation-meta">${item.createdAt}</div>` : "";
+    return `
+        <button class="button app-button app-ghost app-conversation-item ${active}" data-conversation-id="${item.id}">
+          <div class="app-conversation-title">${item.name}</div>
+          ${meta}
+        </button>
+      `;
+  }).join("");
+  list.querySelectorAll("[data-conversation-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.getAttribute("data-conversation-id");
+      if (id) {
+        onSelect(id);
+      }
+    });
+  });
+};
+
+// web/src/features/agents/utils.ts
+var getAgentField = (data, key) => typeof data[key] === "string" ? data[key] : "";
+
+// web/src/features/agents/view.ts
+var refreshAgentEditControls = () => {
+  if (!state.currentAgent) {
+    return;
+  }
+  const providerSelect = document.getElementById("agent-edit-provider");
+  const modelSelect = document.getElementById("agent-edit-model");
+  const modelSearch = document.getElementById("agent-edit-model-search");
+  const providerHelp = document.getElementById("agent-edit-provider-help");
+  if (!providerSelect || !modelSelect) {
+    return;
+  }
+  const data = isRecord(state.currentAgent.payload.data) ? state.currentAgent.payload.data : {};
+  const provider = getAgentField(data, "provider");
+  const model = getAgentField(data, "model");
+  setupProviderModelControls(
+    providerSelect,
+    modelSelect,
+    modelSearch,
+    providerHelp,
+    state.integrations,
+    state.integrationSettings,
+    provider,
+    model,
+    true
+  );
+};
+var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
+  const content = document.getElementById("content");
+  if (!content) {
+    return;
+  }
+  stopAgentPolling();
+  state.currentAgent = agentDoc;
+  state.currentConversation = null;
+  const data = isRecord(agentDoc.payload.data) ? agentDoc.payload.data : {};
+  const provider = getAgentField(data, "provider");
+  const model = getAgentField(data, "model");
+  const systemPrompt = getAgentField(data, "systemPrompt");
+  const adminPrompt = getAgentField(data, "adminPrompt");
+  content.innerHTML = `
+    <div class="mb-4">
+      <h1 class="title is-4">${agentDoc.payload.name}</h1>
+      <p class="app-muted">Agent \xB7 ${agentDoc.store}/${agentDoc.path}</p>
+    </div>
+    <div class="columns is-variable is-4">
+      <div class="column is-one-third">
+        <div class="app-panel">
+          <div class="mb-3">
+            <h2 class="title is-6">Settings</h2>
+            <p class="app-muted">Provider, model, and prompts.</p>
+          </div>
+          <div class="field">
+            <label class="label">Name</label>
+            <div class="control">
+              <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Provider</label>
+            <div class="control">
+              <div class="select is-fullwidth">
+                <select id="agent-edit-provider"></select>
+              </div>
+            </div>
+            <p id="agent-edit-provider-help" class="help app-muted"></p>
+          </div>
+          <div class="field">
+            <label class="label">Model</label>
+            <div class="control">
+              <input
+                id="agent-edit-model-search"
+                class="input"
+                type="search"
+                placeholder="Search models"
+                autocomplete="off"
+              />
+            </div>
+            <div class="control mt-2">
+              <div class="select is-fullwidth">
+                <select id="agent-edit-model"></select>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">System prompt</label>
+            <div class="control">
+              <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Admin prompt</label>
+            <div class="control">
+              <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
+            </div>
+          </div>
+          <div class="buttons">
+            <button id="agent-save" class="button app-button app-primary">Save</button>
+          </div>
+        </div>
+        <div class="app-panel mt-4">
+          <div class="app-panel-header">
+            <div>
+              <h2 class="title is-6 mb-1">Conversations</h2>
+              <p class="app-muted">Reuse context or start fresh.</p>
+            </div>
+            <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
+          </div>
+          <div id="agent-conversation-list" class="app-conversation-list"></div>
+        </div>
+      </div>
+      <div class="column">
+        <div class="app-panel app-chat">
+          <div class="app-chat-header">
+            <div>
+              <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
+              <div id="agent-chat-meta" class="app-chat-meta app-muted">Select or create a conversation.</div>
+            </div>
+          </div>
+          <div id="agent-chat-messages" class="app-chat-messages"></div>
+          <div class="app-chat-input">
+            <form id="agent-chat-form">
+              <div class="field">
+                <div class="control">
+                  <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
+                </div>
+              </div>
+              <div class="buttons">
+                <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  const editProviderSelect = document.getElementById("agent-edit-provider");
+  const editModelSelect = document.getElementById("agent-edit-model");
+  const editModelSearch = document.getElementById("agent-edit-model-search");
+  const editProviderHelp = document.getElementById("agent-edit-provider-help");
+  const agentSaveButton = document.getElementById("agent-save");
+  if (editProviderSelect && editModelSelect) {
+    setupProviderModelControls(
+      editProviderSelect,
+      editModelSelect,
+      editModelSearch,
+      editProviderHelp,
+      state.integrations,
+      state.integrationSettings,
+      provider,
+      model,
+      true
+    );
+    if (agentSaveButton) {
+      agentSaveButton.disabled = editProviderSelect.disabled || editModelSelect.disabled;
+    }
+    const updateSaveState = () => {
+      if (agentSaveButton) {
+        agentSaveButton.disabled = editProviderSelect.disabled || editModelSelect.disabled;
+      }
+    };
+    editProviderSelect.addEventListener("change", updateSaveState);
+    editModelSelect.addEventListener("change", updateSaveState);
+  }
+  const loadConversation = async (conversationId) => {
+    if (!auth) {
+      return;
+    }
+    try {
+      const conversation = await fetchAgentConversation(auth, conversationId);
+      state.currentConversation = conversation;
+      updateConversationHeader(conversation);
+      renderMessages(conversation);
+      updateChatInputState(true);
+      stopAgentPolling();
+      state.agentPoller = window.setInterval(async () => {
+        if (!auth || !state.currentConversation || state.currentConversation.id !== conversationId) {
+          return;
+        }
+        try {
+          const updated = await fetchAgentConversation(auth, conversationId);
+          const previous = state.currentConversation;
+          state.currentConversation = updated;
+          const prevData = isRecord(previous.payload.data) ? previous.payload.data : {};
+          const nextData = isRecord(updated.payload.data) ? updated.payload.data : {};
+          const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
+          const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
+          if (prevCount !== nextCount) {
+            renderMessages(updated);
+          }
+        } catch {
+        }
+      }, 3e3);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+  const refreshConversations = async () => {
+    if (!auth) {
+      return;
+    }
+    try {
+      const response = await fetchAgentConversations(auth, agentDoc.id);
+      const items = Array.isArray(response.conversations) ? response.conversations : [];
+      renderConversationList(items, state.currentConversation?.id ?? null, loadConversation);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+  document.getElementById("agent-save")?.addEventListener("click", async () => {
+    if (!auth || !state.currentAgent) {
+      return;
+    }
+    const nameInput = document.getElementById("agent-edit-name");
+    const providerInput = document.getElementById("agent-edit-provider");
+    const modelInput = document.getElementById("agent-edit-model");
+    const systemInput = document.getElementById("agent-edit-system");
+    const adminInput = document.getElementById("agent-edit-admin");
+    const nameValue = nameInput?.value.trim() || "";
+    const providerValue = providerInput?.value.trim() || "";
+    const modelValue = modelInput?.value.trim() || "";
+    const systemValue = systemInput?.value.trim() || "";
+    const adminValue = adminInput?.value.trim() || "";
+    if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
+      alert("All agent fields are required.");
+      return;
+    }
+    if (providerInput?.disabled || modelInput?.disabled) {
+      alert("Enable an integration and sync models first.");
+      return;
+    }
+    try {
+      const updated = await updateAgent(auth, state.currentAgent.id, {
+        name: nameValue,
+        provider: providerValue,
+        model: modelValue,
+        systemPrompt: systemValue,
+        adminPrompt: adminValue
+      });
+      state.currentAgent = updated;
+      await reloadAgents();
+      await renderAgentView({ auth, agentDoc: updated, reloadAgents });
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  document.getElementById("agent-new-conversation")?.addEventListener("click", async () => {
+    if (!auth || !state.currentAgent) {
+      return;
+    }
+    try {
+      const created = await createAgentConversation(auth, state.currentAgent.id);
+      state.currentConversation = created;
+      await refreshConversations();
+      await loadConversation(created.id);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  document.getElementById("agent-chat-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!auth || !state.currentConversation) {
+      return;
+    }
+    const input = document.getElementById("agent-chat-text");
+    const content2 = input?.value.trim() || "";
+    if (!content2) {
+      return;
+    }
+    try {
+      const updated = await appendAgentMessage(auth, state.currentConversation.id, content2);
+      state.currentConversation = updated;
+      if (input) {
+        input.value = "";
+      }
+      renderMessages(updated);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  updateChatInputState(false);
+  updateConversationHeader(null);
+  await refreshConversations();
+};
+
+// web/src/features/agents/controller.ts
+var loadAgent = async (id, reloadAgents) => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const agent = await fetchAgent(state.auth, id);
+    state.currentDocument = null;
+    await renderAgentView({ auth: state.auth, agentDoc: agent, reloadAgents });
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+// web/src/app/bootstrap.ts
+var exportAll = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const result = await downloadArchive(state.auth);
+    const url = URL.createObjectURL(result.blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = result.filename ?? "manage-export.tar.gz";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1e3);
+  } catch (err) {
+    alert(err.message);
   }
 };
 var renderApp = async () => {
-  if (!auth) {
-    renderLogin();
+  const app = document.getElementById("app");
+  if (!app) {
+    throw new Error("Missing app container");
+  }
+  if (!state.auth) {
+    renderLogin({
+      container: app,
+      onAuth: (next) => {
+        state.auth = next;
+      },
+      onSuccess: renderApp,
+      onClearAgentState: clearAgentState
+    });
     return;
   }
   await loadUiConfig();
   await loadLayoutConfig();
   await loadModules();
-  renderAppShell();
-  await loadAgents();
-  await refreshNavigation();
+  renderAppShell({ moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected) });
+  initNotifications();
+  const reloadAgents = () => loadAgents((id) => loadAgent(id, reloadAgents));
+  const createModal = initCreateModal({
+    getAuth: () => state.auth,
+    onCreated: loadDocument,
+    refreshNavigation: () => refreshNavigation(loadDocument)
+  });
+  const agentModalControls = initAgentModal({
+    getAuth: () => state.auth,
+    reloadAgents,
+    onAgentCreated: (id) => loadAgent(id, reloadAgents)
+  });
+  const refreshIntegrationControls = () => {
+    refreshAgentEditControls();
+    agentModalControls.refreshControls();
+  };
+  const integrationModal = initIntegrationModal({
+    getAuth: () => state.auth,
+    reloadIntegrations: () => loadIntegrations({
+      onAfterLoad: refreshIntegrationControls
+    }),
+    onAfterSave: () => showIntegrationsView(refreshIntegrationControls)
+  });
+  state.openIntegrationModalHandler = integrationModal.openIntegrationModal;
+  initShellEvents({
+    onLogout: () => {
+      state.auth = null;
+      saveAuth(null);
+      renderLogin({
+        container: app,
+        onAuth: (next) => {
+          state.auth = next;
+        },
+        onSuccess: renderApp,
+        onClearAgentState: clearAgentState
+      });
+    },
+    onShowProfile: () => {
+      void renderProfile();
+    },
+    onShowModules: showModulesView,
+    onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
+    onShowLogs: () => {
+      void showLogsView();
+    },
+    onExportAll: exportAll,
+    onOpenCreate: createModal.openCreateModal,
+    onOpenAgentModal: agentModalControls.openAgentModal
+  });
+  await loadIntegrations({
+    onAfterLoad: refreshIntegrationControls
+  });
+  await reloadAgents();
+  await refreshNavigation(loadDocument);
 };
-renderApp().catch(() => renderLogin());
+var bootstrap = () => {
+  initTheme();
+  renderApp().catch(() => {
+    const app = document.getElementById("app");
+    if (!app) {
+      return;
+    }
+    renderLogin({
+      container: app,
+      onAuth: (next) => {
+        state.auth = next;
+      },
+      onSuccess: renderApp,
+      onClearAgentState: clearAgentState
+    });
+  });
+};
+
+// web/src/main.ts
+bootstrap();
 //# sourceMappingURL=app.js.map

@@ -17,13 +17,18 @@ use Manage\Application\UseCases\GetDocument;
 use Manage\Application\UseCases\GetLayoutConfig;
 use Manage\Application\UseCases\GetUiConfig;
 use Manage\Application\UseCases\EnsureModuleSettings;
+use Manage\Application\UseCases\GetIntegrationSettings;
 use Manage\Application\UseCases\ListAgents;
+use Manage\Application\UseCases\ListIntegrations;
 use Manage\Application\UseCases\ListAgentConversations;
 use Manage\Application\UseCases\ListModules;
 use Manage\Application\UseCases\ListNavigation;
+use Manage\Application\UseCases\ListLogs;
 use Manage\Application\UseCases\ReorderDocuments;
+use Manage\Application\UseCases\SyncIntegrationModels;
 use Manage\Application\UseCases\UpdateAgent;
 use Manage\Application\UseCases\UpdateDocument;
+use Manage\Application\UseCases\UpsertIntegrationSettings;
 use Manage\Infrastructure\Config\Env;
 use Manage\Infrastructure\FileSystem\JsonDocumentRepository;
 use Manage\Infrastructure\FileSystem\JsonUserRepository;
@@ -35,6 +40,8 @@ use Manage\Interface\Http\Controllers\AgentController;
 use Manage\Interface\Http\Controllers\AgentConversationController;
 use Manage\Interface\Http\Controllers\DocumentController;
 use Manage\Interface\Http\Controllers\ExportController;
+use Manage\Interface\Http\Controllers\LogController;
+use Manage\Interface\Http\Controllers\IntegrationController;
 use Manage\Interface\Http\Controllers\LayoutConfigController;
 use Manage\Interface\Http\Controllers\ModuleController;
 use Manage\Interface\Http\Controllers\ModuleRequestController;
@@ -44,6 +51,11 @@ use Manage\Interface\Http\Middleware\AuthMiddleware;
 use Manage\Interface\Http\Request;
 use Manage\Interface\Http\Response;
 use Manage\Interface\Http\Router;
+use Manage\Integrations\IntegrationContext;
+use Manage\Integrations\IntegrationRegistry;
+use Manage\Integrations\IntegrationSettingsStore;
+use Manage\Infrastructure\Logging\ErrorLogger;
+use Manage\Infrastructure\Logging\LogStore;
 use Manage\Modules\ModuleContext;
 use Manage\Modules\ModuleRegistry;
 use Manage\Modules\ModuleSettingsStore;
@@ -57,6 +69,7 @@ $projectRoot = dirname(__DIR__, 2);
 $privateStore = $manageRoot . '/store';
 $publicStore = $projectRoot . '/store';
 $modulesPath = $manageRoot . '/src/Modules';
+$integrationsPath = $manageRoot . '/src/Integrations';
 
 $documentRepository = new JsonDocumentRepository([
     'private' => $privateStore,
@@ -67,6 +80,11 @@ $userRepository = new JsonUserRepository($privateStore . '/auth.json');
 $moduleContext = new ModuleContext($projectRoot, $manageRoot);
 $moduleRegistry = new ModuleRegistry($modulesPath, $moduleContext);
 $moduleSettingsStore = new ModuleSettingsStore($moduleContext);
+$integrationContext = new IntegrationContext($projectRoot, $manageRoot);
+$integrationRegistry = new IntegrationRegistry($integrationsPath, $integrationContext);
+$integrationSettingsStore = new IntegrationSettingsStore($integrationContext);
+$logStore = new LogStore($manageRoot);
+$errorLogger = new ErrorLogger($manageRoot);
 $apiKeyProvider = new EnvApiKeyProvider($env);
 $tokenService = new HmacTokenService($env);
 $hasher = new BcryptPasswordHasher();
@@ -74,10 +92,15 @@ $hasher = new BcryptPasswordHasher();
 $ensureModuleSettings = new EnsureModuleSettings($moduleRegistry, $moduleSettingsStore);
 $listNavigation = new ListNavigation($documentRepository, $ensureModuleSettings);
 $listModules = new ListModules($moduleRegistry);
+$listIntegrations = new ListIntegrations($integrationRegistry, $integrationSettingsStore);
+$getIntegrationSettings = new GetIntegrationSettings($integrationRegistry, $integrationSettingsStore);
+$upsertIntegrationSettings = new UpsertIntegrationSettings($integrationRegistry, $integrationSettingsStore);
+$syncIntegrationModels = new SyncIntegrationModels($integrationRegistry, $integrationSettingsStore);
+$listLogs = new ListLogs($logStore);
 $listAgents = new ListAgents($documentRepository);
 $getAgent = new GetAgent($documentRepository);
-$createAgent = new CreateAgent($documentRepository);
-$updateAgent = new UpdateAgent($documentRepository);
+$createAgent = new CreateAgent($documentRepository, $integrationRegistry, $integrationSettingsStore);
+$updateAgent = new UpdateAgent($documentRepository, $integrationRegistry, $integrationSettingsStore);
 $listAgentConversations = new ListAgentConversations($documentRepository);
 $createAgentConversation = new CreateAgentConversation($documentRepository);
 $getAgentConversation = new GetAgentConversation($documentRepository);
@@ -97,6 +120,13 @@ $authenticateUser = new AuthenticateUser($userRepository, $hasher, $tokenService
 $navigationController = new NavigationController($listNavigation);
 $moduleController = new ModuleController($listModules);
 $moduleRequestController = new ModuleRequestController($moduleRegistry);
+$integrationController = new IntegrationController(
+    $listIntegrations,
+    $getIntegrationSettings,
+    $upsertIntegrationSettings,
+    $syncIntegrationModels
+);
+$logController = new LogController($listLogs);
 $agentController = new AgentController($listAgents, $getAgent, $createAgent, $updateAgent);
 $agentConversationController = new AgentConversationController(
     $listAgentConversations,
@@ -122,6 +152,11 @@ if (str_starts_with($request->path(), '/api/')) {
     $router->add('POST', '/api/modules/{name}', $moduleRequestController);
     $router->add('GET', '/api/modules/{name}/{action}', $moduleRequestController);
     $router->add('POST', '/api/modules/{name}/{action}', $moduleRequestController);
+    $router->add('GET', '/api/integrations', [$integrationController, 'index']);
+    $router->add('GET', '/api/integrations/{name}', [$integrationController, 'show']);
+    $router->add('PUT', '/api/integrations/{name}', [$integrationController, 'upsert']);
+    $router->add('POST', '/api/integrations/{name}/sync', [$integrationController, 'sync']);
+    $router->add('GET', '/api/logs', [$logController, 'index']);
     $router->add('GET', '/api/agents', [$agentController, 'index']);
     $router->add('POST', '/api/agents', [$agentController, 'create']);
     $router->add('GET', '/api/agents/{id}/conversations', [$agentConversationController, 'index']);
@@ -147,7 +182,34 @@ if (str_starts_with($request->path(), '/api/')) {
         exit;
     }
 
-    $router->dispatch($request)->send();
+    $errorLogger->ensureSettings();
+    $errorLogger->ensureLogFile();
+
+    try {
+        $response = $router->dispatch($request);
+    } catch (\Throwable $exception) {
+        $status = $exception instanceof \InvalidArgumentException ? 422 : 500;
+        $errorLogger->logException($request, $exception, $status);
+        Response::json(['ok' => false, 'message' => $exception->getMessage()], $status)->send();
+        exit;
+    }
+
+    if ($response->status() >= 400) {
+        $body = $response->body();
+        $message = 'Request failed.';
+        if (is_array($body)) {
+            if (isset($body['message'])) {
+                $message = (string) $body['message'];
+            } elseif (isset($body['error'])) {
+                $message = (string) $body['error'];
+            }
+        } elseif (is_string($body) && trim($body) !== '') {
+            $message = $body;
+        }
+        $errorLogger->logError($request, $message, $response->status(), ['body' => $body]);
+    }
+
+    $response->send();
     exit;
 }
 

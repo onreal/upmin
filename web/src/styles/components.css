@@ -1,0 +1,59 @@
+.button.app-button {
+  border-radius: 999px;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid transparent;
+}
+
+.button.app-primary {
+  background: var(--app-accent);
+  color: var(--app-accent-contrast);
+}
+
+.button.app-ghost {
+  background: transparent;
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.button.app-danger {
+  background: transparent;
+  border-color: var(--app-danger);
+  color: var(--app-danger);
+}
+
+.app-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--app-gap-sm);
+}
+
+.app-view-actions {
+  display: flex;
+  gap: var(--app-gap-xs);
+}
+
+.app-icon-button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-panel {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  padding: var(--app-gap-md);
+  background: var(--app-surface);
+}
+
+.app-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--app-gap-sm);
+  margin-bottom: var(--app-gap-sm);
+}

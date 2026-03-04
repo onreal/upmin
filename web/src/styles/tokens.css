@@ -1,0 +1,37 @@
+:root {
+  color-scheme: light;
+  font-family: "Noto Sans", "Inter", system-ui, sans-serif;
+  --app-gap-xs: 0.3rem;
+  --app-gap-sm: 0.5rem;
+  --app-gap-md: 0.8rem;
+  --app-gap-lg: 1.2rem;
+  --app-radius-sm: 6px;
+  --app-radius-md: 12px;
+  --app-radius-lg: 16px;
+  --app-shadow: 0 14px 30px rgba(16, 16, 16, 0.08);
+  --app-border: #e2e2e2;
+  --app-bg: #f6f6f3;
+  --app-surface: #ffffff;
+  --app-text: #1b1f22;
+  --app-muted: #5b6168;
+  --app-accent: #1f2a2e;
+  --app-accent-contrast: #ffffff;
+  --app-danger: #c23a3a;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-border: #2b2f36;
+  --app-bg: #0f1115;
+  --app-surface: #161a21;
+  --app-text: #f5f7fa;
+  --app-muted: #9aa3ad;
+  --app-accent: #5dd6b3;
+  --app-accent-contrast: #0a1112;
+  --app-danger: #ff7b7b;
+  --app-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}

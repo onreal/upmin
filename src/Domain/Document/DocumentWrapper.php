@@ -44,8 +44,8 @@ final class DocumentWrapper
             throw new \InvalidArgumentException('Document.type must be a non-empty string.');
         }
         $type = strtolower(trim($type));
-        if (!in_array($type, ['page', 'module', 'agent'], true)) {
-            throw new \InvalidArgumentException('Document.type must be one of: page, module, agent.');
+        if (!in_array($type, ['page', 'module', 'agent', 'log'], true)) {
+            throw new \InvalidArgumentException('Document.type must be one of: page, module, agent, log.');
         }
         if (!isset($payload['page']) || !is_string($payload['page']) || trim($payload['page']) === '') {
             throw new \InvalidArgumentException('Document.page is required.');
