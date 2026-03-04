@@ -1,0 +1,17 @@
+{
+    "page": "modules",
+    "name": "Projects · uploader",
+    "section": true,
+    "data": {
+        "storage": {
+            "visibility": "public",
+            "root": "media",
+            "folder": "gallery",
+            "maxSizeMb": 10
+        },
+        "output": {
+            "target": "uploader"
+        }
+    },
+    "order": 1
+}

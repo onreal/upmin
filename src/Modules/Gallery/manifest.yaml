@@ -1,0 +1,33 @@
+name: "gallery"
+description: "Browse uploaded images"
+author: "me"
+input: "media"
+output: "url"
+parameters:
+  source:
+    visibility: "all"
+    roots:
+      public: "media"
+      private: "media"
+    folder: ""
+    extensions:
+      - "jpg"
+      - "jpeg"
+      - "png"
+      - "webp"
+      - "gif"
+      - "svg"
+  output:
+    target: "gallery"
+schema:
+  type: object
+  properties:
+    url:
+      type: string
+      title: "Image"
+      format: "uri"
+    alt:
+      type: string
+      title: "Alt text"
+  required:
+    - url

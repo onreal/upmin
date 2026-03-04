@@ -1,0 +1,25 @@
+name: "uploader"
+description: "Uploads an image"
+author: "_onreal"
+input: "file"
+output: "url"
+parameters:
+  storage:
+    visibility: "public"
+    root: "media"
+    folder: ""
+    maxSizeMb: 10
+  output:
+    target: "uploader"
+schema:
+  type: object
+  properties:
+    url:
+      type: string
+      title: "Image"
+      format: "uri"
+    alt:
+      type: string
+      title: "Alt text"
+  required:
+    - url

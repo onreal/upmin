@@ -1,0 +1,14 @@
+{
+  "name": "manage-admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "node web/build.mjs",
+    "dev:web": "node web/build.mjs --watch",
+    "typecheck:web": "tsc -p web/tsconfig.json"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.2",
+    "typescript": "^5.5.4"
+  }
+}

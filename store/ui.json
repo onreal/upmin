@@ -1,0 +1,16 @@
+{
+    "page": "ui",
+    "name": "UI Rules",
+    "section": false,
+    "data": {
+        "theme": "light",
+        "tokens": {
+            "app-accent": "#1f2a2e"
+        },
+        "darkTokens": {
+            "app-accent": "#5dd6b3"
+        }
+    },
+    "language": "el",
+    "order": 3
+}
