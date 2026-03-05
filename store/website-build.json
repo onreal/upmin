@@ -1,0 +1,11 @@
+{
+  "type": "page",
+  "page": "website-build",
+  "name": "Website build",
+  "order": 1,
+  "section": false,
+  "modules": [
+    "chat"
+  ],
+  "data": {}
+}

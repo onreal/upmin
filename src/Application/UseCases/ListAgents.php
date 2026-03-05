@@ -44,7 +44,16 @@ final class ListAgents
     private function isAgentDefinition(Document $document): bool
     {
         $wrapper = $document->wrapper();
-        return $wrapper->type() === 'agent' && $wrapper->page() === 'agents' && !$wrapper->isSection();
+        if ($wrapper->type() !== 'agent' || $wrapper->page() !== 'agents' || $wrapper->isSection()) {
+            return false;
+        }
+        $data = $wrapper->data();
+        if (is_array($data) && isset($data['position']) && is_string($data['position'])) {
+            if (strtolower(trim($data['position'])) === 'system') {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** @param array<string, mixed> $a @param array<string, mixed> $b */

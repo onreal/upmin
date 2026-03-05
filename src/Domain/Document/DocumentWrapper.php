@@ -53,7 +53,11 @@ final class DocumentWrapper
         if (!isset($payload['name']) || !is_string($payload['name']) || trim($payload['name']) === '') {
             throw new \InvalidArgumentException('Document.name is required.');
         }
-        if (!array_key_exists('section', $payload) || !is_bool($payload['section'])) {
+        $sectionValue = $payload['section'] ?? null;
+        if ($sectionValue === null && in_array($type, ['agent', 'log'], true)) {
+            $sectionValue = false;
+        }
+        if (!is_bool($sectionValue)) {
             throw new \InvalidArgumentException('Document.section must be boolean.');
         }
         if (!array_key_exists('data', $payload)) {
@@ -105,7 +109,7 @@ final class DocumentWrapper
             trim($payload['name']),
             $language,
             $order,
-            $payload['section'],
+            $sectionValue,
             $modules,
             $payload['data']
         );
@@ -168,9 +172,12 @@ final class DocumentWrapper
             'type' => $this->type,
             'page' => $this->page,
             'name' => $this->name,
-            'section' => $this->section,
             'data' => $this->data,
         ];
+
+        if (in_array($this->type, ['page', 'module'], true)) {
+            $payload['section'] = $this->section;
+        }
 
         if ($this->language !== null) {
             $payload['language'] = $this->language;

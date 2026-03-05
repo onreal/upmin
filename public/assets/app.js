@@ -69,7 +69,7 @@ var init_client = __esm({
       }
       return headers;
     };
-    request = async (url, options, auth) => {
+    request = async (url, options, auth, config = {}) => {
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -80,12 +80,16 @@ var init_client = __esm({
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
         const message = error.message || error.error || response.statusText || "Request failed";
-        notify({ type: "error", message });
+        if (config.notify !== false) {
+          notify({ type: "error", message });
+        }
         throw new Error(message);
       }
       const data = await response.json();
       const method = (options.method || "GET").toUpperCase();
-      notify({ type: "success", message: successMessageFor(method) });
+      if (config.notify !== false) {
+        notify({ type: "success", message: successMessageFor(method) });
+      }
       return data;
     };
     requestBlob = async (url, options, auth) => {
@@ -199,7 +203,7 @@ var init_ui = __esm({
 });
 
 // web/src/api/modules.ts
-var fetchModules, uploadModuleFile, fetchModuleList, deleteModuleFile;
+var fetchModules, uploadModuleFile, fetchModuleList, deleteModuleFile, fetchChatConversations, startChatConversation, appendChatMessage, pullChatConversation, deleteChatConversation;
 var init_modules = __esm({
   "web/src/api/modules.ts"() {
     "use strict";
@@ -230,6 +234,42 @@ var init_modules = __esm({
       return request(url, { method: "GET" }, auth);
     };
     deleteModuleFile = (auth, moduleName, payload) => request(
+      `/api/modules/${moduleName}/delete`,
+      { method: "POST", body: JSON.stringify(payload) },
+      auth
+    );
+    fetchChatConversations = (auth, moduleName, params) => {
+      const search = new URLSearchParams();
+      search.set("settings", params.settings);
+      return request(
+        `/api/modules/${moduleName}/list?${search.toString()}`,
+        { method: "GET" },
+        auth
+      );
+    };
+    startChatConversation = (auth, moduleName, payload) => request(
+      `/api/modules/${moduleName}`,
+      { method: "POST", body: JSON.stringify(payload) },
+      auth
+    );
+    appendChatMessage = (auth, moduleName, payload) => request(
+      `/api/modules/${moduleName}/message`,
+      { method: "POST", body: JSON.stringify(payload) },
+      auth,
+      { notify: false }
+    );
+    pullChatConversation = (auth, moduleName, params) => {
+      const search = new URLSearchParams();
+      search.set("settings", params.settings);
+      search.set("id", params.id);
+      return request(
+        `/api/modules/${moduleName}/pull?${search.toString()}`,
+        { method: "GET" },
+        auth,
+        { notify: false }
+      );
+    };
+    deleteChatConversation = (auth, moduleName, payload) => request(
       `/api/modules/${moduleName}/delete`,
       { method: "POST", body: JSON.stringify(payload) },
       auth
@@ -313,9 +353,11 @@ var init_agents = __esm({
 var api_exports = {};
 __export(api_exports, {
   appendAgentMessage: () => appendAgentMessage,
+  appendChatMessage: () => appendChatMessage,
   createAgent: () => createAgent,
   createAgentConversation: () => createAgentConversation,
   createDocument: () => createDocument,
+  deleteChatConversation: () => deleteChatConversation,
   deleteModuleFile: () => deleteModuleFile,
   downloadArchive: () => downloadArchive,
   downloadDocument: () => downloadDocument,
@@ -323,6 +365,7 @@ __export(api_exports, {
   fetchAgentConversation: () => fetchAgentConversation,
   fetchAgentConversations: () => fetchAgentConversations,
   fetchAgents: () => fetchAgents,
+  fetchChatConversations: () => fetchChatConversations,
   fetchDocument: () => fetchDocument,
   fetchIntegrationSettings: () => fetchIntegrationSettings,
   fetchIntegrations: () => fetchIntegrations,
@@ -335,10 +378,12 @@ __export(api_exports, {
   loadAuth: () => loadAuth,
   loginWithApiKey: () => loginWithApiKey,
   loginWithPassword: () => loginWithPassword,
+  pullChatConversation: () => pullChatConversation,
   request: () => request,
   requestBlob: () => requestBlob,
   requestForm: () => requestForm,
   saveAuth: () => saveAuth,
+  startChatConversation: () => startChatConversation,
   syncIntegrationModels: () => syncIntegrationModels,
   updateAgent: () => updateAgent,
   updateDocument: () => updateDocument,
@@ -383,7 +428,8 @@ var state = {
   moduleSettingsCache: /* @__PURE__ */ new Map(),
   currentAgent: null,
   currentConversation: null,
-  agentPoller: null
+  agentPoller: null,
+  returnToDocumentId: null
 };
 var editorRef = {
   get: () => state.editor,
@@ -538,6 +584,8 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <a class="navbar-item" id="modules-link">Modules</a>
               <a class="navbar-item" id="integrations-link">Integrations</a>
               <a class="navbar-item" id="logs-link">Logs</a>
+              <hr class="navbar-divider" />
+              <a class="navbar-item" id="website-build-link">Website build</a>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="agents-dropdown">
@@ -1178,6 +1226,7 @@ var initShellEvents = ({
   onShowModules,
   onShowIntegrations,
   onShowLogs,
+  onShowWebsiteBuild,
   onExportAll,
   onOpenCreate,
   onOpenAgentModal
@@ -1229,6 +1278,11 @@ var initShellEvents = ({
   document.getElementById("logs-link")?.addEventListener("click", (event) => {
     event.preventDefault();
     onShowLogs();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+  document.getElementById("website-build-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowWebsiteBuild();
     document.getElementById("private-dropdown")?.classList.remove("is-active");
   });
   document.getElementById("export-zip-header")?.addEventListener("click", () => {
@@ -1698,6 +1752,21 @@ var initIntegrationModal = ({
     clearIntegrationError();
     currentIntegration = null;
   };
+  const getDefaultFieldValue = (integration, key) => {
+    if (integration.name === "codex-cli") {
+      switch (key) {
+        case "binary":
+          return "codex";
+        case "args":
+          return "--dangerously-bypass-approvals-and-sandbox exec --json --output-last-message {outputFile} --skip-git-repo-check --cd {workingDir} --model {model}";
+        case "workingDir":
+          return "/app";
+        default:
+          return "";
+      }
+    }
+    return "";
+  };
   const buildIntegrationFields = (integration) => {
     if (!integrationFields) {
       return;
@@ -1721,6 +1790,11 @@ var initIntegrationModal = ({
       const existingValue = existing?.[field.key];
       if (typeof existingValue === "string") {
         input.value = existingValue;
+      } else if (field.type !== "password") {
+        const fallback = getDefaultFieldValue(integration, field.key);
+        if (fallback) {
+          input.value = fallback;
+        }
       }
       wrapper.appendChild(label);
       if (field.type === "password") {
@@ -2454,7 +2528,7 @@ var renderLogDocument = ({
   });
 };
 
-// web/src/modules/gallery/index.ts
+// web/src/modules/chat/index.ts
 init_api();
 
 // web/src/modules/utils.ts
@@ -2469,6 +2543,597 @@ var moduleSettingsKey = (payload, moduleName) => {
   return `${sectionSlug}-${moduleSlug}`;
 };
 var legacyModuleSettingsKey = (moduleName) => slug(moduleName) || "module";
+
+// web/src/modules/chat/utils.ts
+var messageId = (conversationId, createdAt, index) => `${conversationId}:${createdAt ?? index}`;
+var extractMessages = (conversation) => {
+  if (!conversation) {
+    return [];
+  }
+  const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+  const rawMessages = Array.isArray(payloadData.messages) ? payloadData.messages : [];
+  if (!rawMessages.length) {
+    return [];
+  }
+  return rawMessages.map((message, index) => {
+    const record = isRecord(message) ? message : {};
+    const role = typeof record.role === "string" ? record.role : "user";
+    const content = typeof record.content === "string" ? record.content : "";
+    const createdAt = typeof record.createdAt === "string" ? record.createdAt : null;
+    return {
+      id: messageId(conversation.id, createdAt, index),
+      role,
+      content,
+      createdAt
+    };
+  });
+};
+var renderMessages = (container, messages, options = {}) => {
+  if (!messages.length) {
+    const label = options.emptyState ?? "Select or create a conversation.";
+    container.innerHTML = `<p class="app-muted">${label}</p>`;
+    return;
+  }
+  const enableActions = options.enableActions ?? false;
+  const messageMap = new Map(messages.map((message) => [message.id, message]));
+  container.innerHTML = messages.map((message) => {
+    const role = message.role === "assistant" ? "assistant" : "user";
+    const label = role === "assistant" ? "Agent" : "You";
+    const roleClass = role === "assistant" ? "is-assistant" : "is-user";
+    const selectable = enableActions && role === "assistant";
+    const selected = selectable && options.isSelected ? options.isSelected(message) : false;
+    const selectedClass = selected ? "is-selected" : "";
+    const toggleTitle = selected ? "Remove from data" : "Add to data";
+    const toggleIcon = selected ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>` : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
+    const actions = selectable ? `
+          <div class="app-chat-message-actions">
+            <button
+              type="button"
+              class="app-chat-action ${selected ? "is-active" : ""}"
+              data-chat-action="toggle"
+              data-message-id="${message.id}"
+              title="${toggleTitle}"
+              aria-label="${toggleTitle}"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                ${toggleIcon}
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="app-chat-action"
+              data-chat-action="copy"
+              data-message-id="${message.id}"
+              title="Copy"
+              aria-label="Copy"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                <path
+                  d="M9 9h9v10H9zM6 5h9v3"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </button>
+          </div>
+        ` : "";
+    return `
+        <div class="app-chat-message ${roleClass} ${selectedClass}" data-message-id="${message.id}">
+          <div class="app-chat-message-role">${label}</div>
+          ${actions}
+          <div class="app-chat-message-content">${message.content}</div>
+        </div>
+      `;
+  }).join("");
+  if (enableActions) {
+    container.querySelectorAll("[data-chat-action]").forEach((button) => {
+      const id = button.getAttribute("data-message-id");
+      if (!id) {
+        return;
+      }
+      const message = messageMap.get(id);
+      if (!message) {
+        return;
+      }
+      const action = button.getAttribute("data-chat-action");
+      if (action === "toggle") {
+        button.addEventListener("click", () => {
+          const selected = options.isSelected ? options.isSelected(message) : false;
+          options.onToggle?.(message, selected);
+        });
+      }
+      if (action === "copy") {
+        button.addEventListener("click", () => {
+          options.onCopy?.(message);
+        });
+      }
+    });
+  }
+};
+var updateConversationHeader = (titleEl, metaEl, conversation) => {
+  if (!conversation) {
+    titleEl.textContent = "No conversation selected";
+    metaEl.textContent = "Select or create a conversation.";
+    return;
+  }
+  const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+  const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
+  titleEl.textContent = conversation.payload.name || "Conversation";
+  metaEl.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+};
+var updateChatInputState = (input, send, active) => {
+  input.disabled = !active;
+  send.disabled = !active;
+};
+
+// web/src/modules/chat/index.ts
+var buildHeader = (module, agentName, openSettings) => {
+  const header = document.createElement("div");
+  header.className = "app-module-header";
+  const headerRow = document.createElement("div");
+  headerRow.className = "app-module-header-row";
+  const title = document.createElement("div");
+  title.className = "app-module-title";
+  title.textContent = module.name;
+  headerRow.append(title);
+  if (openSettings) {
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+    settingsButton.title = "Module settings";
+    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.innerHTML = `
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+          <path
+            d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+          <path
+            d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+        </svg>
+      </span>
+    `;
+    settingsButton.addEventListener("click", openSettings);
+    headerRow.append(settingsButton);
+  }
+  const meta = document.createElement("div");
+  meta.className = "app-module-meta";
+  meta.textContent = module.author ? `${module.description} \xB7 ${module.author}` : module.description;
+  header.append(headerRow, meta);
+  if (agentName) {
+    const agentMeta = document.createElement("div");
+    agentMeta.className = "app-module-meta";
+    agentMeta.textContent = `Agent: ${agentName}`;
+    header.append(agentMeta);
+  }
+  return header;
+};
+var renderChatModule = (panel, context) => {
+  const { module, payload, editor, auth } = context;
+  const settings = isRecord(context.settings) ? context.settings : null;
+  const agentSettings = settings && isRecord(settings.agent) ? settings.agent : null;
+  const agentName = typeof agentSettings?.name === "string" ? agentSettings.name.trim() : "";
+  const settingsKey = moduleSettingsKey(payload, module.name);
+  const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
+  const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : module.name;
+  const ensureDataObject = () => {
+    if (isRecord(payload.data)) {
+      return payload.data;
+    }
+    payload.data = {};
+    editor?.setValue(payload.data);
+    return payload.data;
+  };
+  const ensureOutputList = () => {
+    const data = ensureDataObject();
+    const existing = data[targetKey];
+    if (!Array.isArray(existing)) {
+      data[targetKey] = [];
+      return data[targetKey];
+    }
+    return existing;
+  };
+  const moduleCard = document.createElement("div");
+  moduleCard.className = "app-module";
+  moduleCard.append(buildHeader(module, agentName, context.openSettings));
+  if (!agentName) {
+    const notice = document.createElement("div");
+    notice.className = "notification is-warning is-light";
+    notice.textContent = "Set Chat.agent.name in module settings to start chatting.";
+    moduleCard.append(notice);
+    panel.append(moduleCard);
+    return;
+  }
+  const body = document.createElement("div");
+  body.className = "app-module-body";
+  body.innerHTML = `
+    <div class="app-chat-layout">
+      <div class="app-panel app-chat">
+        <div class="app-chat-header">
+          <div>
+            <div class="app-chat-title" data-role="chat-title">No conversation selected</div>
+            <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
+          </div>
+          <div class="app-chat-actions">
+            <div class="select is-small">
+              <select data-role="chat-select">
+                <option value="">Select chat</option>
+              </select>
+            </div>
+            <button class="button app-button app-ghost" data-action="new">New</button>
+            <button class="button app-button app-ghost app-icon-button" data-action="delete" title="Delete chat" aria-label="Delete chat" disabled>
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+                  <path
+                    d="M9 6h6M10 6V4h4v2M6 6h12M8 6v12m4-12v12m4-12v12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div class="app-chat-scroll" data-role="chat-scroll">
+          <div class="app-chat-messages" data-role="chat-messages"></div>
+          <button
+            type="button"
+            class="button app-button app-ghost app-chat-jump"
+            data-role="chat-jump"
+            aria-label="Jump to latest message"
+            title="Jump to latest message"
+          >
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+                <path
+                  d="M6 9l6 6 6-6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div class="app-chat-input">
+          <form data-role="chat-form">
+            <div class="field">
+              <div class="control">
+                <textarea class="textarea" rows="2" placeholder="Write a message" data-role="chat-input" disabled></textarea>
+              </div>
+            </div>
+            <div class="buttons">
+              <button class="button app-button app-primary" data-role="chat-send" disabled>Send</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <p class="help" data-role="chat-status"></p>
+  `;
+  moduleCard.append(body);
+  panel.append(moduleCard);
+  const titleEl = body.querySelector("[data-role='chat-title']");
+  const metaEl = body.querySelector("[data-role='chat-meta']");
+  const scrollEl = body.querySelector("[data-role='chat-scroll']");
+  const messagesEl = body.querySelector("[data-role='chat-messages']");
+  const statusEl = body.querySelector("[data-role='chat-status']");
+  const formEl = body.querySelector("[data-role='chat-form']");
+  const inputEl = body.querySelector("[data-role='chat-input']");
+  const sendEl = body.querySelector("[data-role='chat-send']");
+  const selectEl = body.querySelector("[data-role='chat-select']");
+  const jumpEl = body.querySelector("[data-role='chat-jump']");
+  const newButton = body.querySelector("[data-action='new']");
+  const deleteButton = body.querySelector("[data-action='delete']");
+  if (!titleEl || !metaEl || !scrollEl || !messagesEl || !statusEl || !formEl || !inputEl || !sendEl || !selectEl || !jumpEl) {
+    return;
+  }
+  let conversations = [];
+  let currentConversation = null;
+  let poller = null;
+  let pendingNew = false;
+  const isMessageSelected = (message) => {
+    const data = ensureDataObject();
+    const list = Array.isArray(data[targetKey]) ? data[targetKey] : [];
+    return list.some((entry) => isRecord(entry) && entry.id === message.id);
+  };
+  const buildMessageEntry = (message, conversationId) => ({
+    id: message.id,
+    conversationId,
+    agent: agentName,
+    content: message.content,
+    createdAt: message.createdAt ?? null,
+    role: message.role
+  });
+  const toggleMessageSelection = (message, selected) => {
+    const data = ensureDataObject();
+    const list = ensureOutputList();
+    if (selected) {
+      const next = list.filter((entry) => !(isRecord(entry) && entry.id === message.id));
+      data[targetKey] = next;
+    } else if (currentConversation) {
+      list.push(buildMessageEntry(message, currentConversation.id));
+    }
+    editor?.setValue(data);
+  };
+  const copyMessage = async (message) => {
+    const content = message.content;
+    if (!content) {
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = content;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.append(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+      setStatus("Copied.");
+      window.setTimeout(() => setStatus(""), 1200);
+    } catch {
+      setStatus("Copy failed.");
+    }
+  };
+  const renderCurrentMessages = () => {
+    const messages = extractMessages(currentConversation);
+    const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
+    renderMessages(messagesEl, messages, {
+      enableActions: true,
+      isSelected: (message) => isMessageSelected(message),
+      onToggle: (message, selected) => {
+        toggleMessageSelection(message, selected);
+        renderCurrentMessages();
+      },
+      onCopy: (message) => void copyMessage(message),
+      emptyState
+    });
+  };
+  const setStatus = (message) => {
+    statusEl.textContent = message;
+  };
+  const isNearBottom = () => {
+    const threshold = 48;
+    return scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight <= threshold;
+  };
+  const scrollToBottom = () => {
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+  };
+  const updateJumpVisibility = () => {
+    jumpEl.classList.toggle("is-visible", pendingNew);
+  };
+  const setConversation = (conversation, forceScroll = false) => {
+    currentConversation = conversation;
+    updateConversationHeader(titleEl, metaEl, conversation);
+    const wasAtBottom = forceScroll || isNearBottom();
+    renderCurrentMessages();
+    updateChatInputState(inputEl, sendEl, !!conversation);
+    if (conversation) {
+      selectEl.value = conversation.id;
+      if (deleteButton) {
+        deleteButton.disabled = false;
+      }
+    } else {
+      selectEl.value = "";
+      if (deleteButton) {
+        deleteButton.disabled = true;
+      }
+    }
+    if (wasAtBottom) {
+      scrollToBottom();
+      pendingNew = false;
+    }
+    updateJumpVisibility();
+  };
+  const appendLocalMessage = (role, content) => {
+    if (!currentConversation) {
+      return;
+    }
+    const data = isRecord(currentConversation.payload.data) ? currentConversation.payload.data : {};
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    const createdAt = (/* @__PURE__ */ new Date()).toISOString();
+    messages.push({ role, content, createdAt });
+    data.messages = messages;
+    currentConversation.payload.data = data;
+    const wasAtBottom = isNearBottom();
+    renderCurrentMessages();
+    if (wasAtBottom) {
+      scrollToBottom();
+      pendingNew = false;
+      updateJumpVisibility();
+    }
+  };
+  const updateSelectOptions = () => {
+    selectEl.innerHTML = `<option value="">Select chat</option>` + conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
+    if (currentConversation) {
+      selectEl.value = currentConversation.id;
+    }
+  };
+  const stopPolling = () => {
+    if (poller !== null) {
+      window.clearInterval(poller);
+      poller = null;
+    }
+  };
+  const startPolling = (conversationId) => {
+    stopPolling();
+    poller = window.setInterval(async () => {
+      if (!auth || !currentConversation || currentConversation.id !== conversationId) {
+        return;
+      }
+      try {
+        const updated = await pullChatConversation(auth, module.name, {
+          id: conversationId,
+          settings: settingsKey
+        });
+        const prevData = isRecord(currentConversation.payload.data) ? currentConversation.payload.data : {};
+        const nextData = isRecord(updated.payload.data) ? updated.payload.data : {};
+        const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
+        const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
+        if (prevCount !== nextCount) {
+          pendingNew = !isNearBottom();
+          setConversation(updated, !pendingNew);
+        }
+      } catch {
+      }
+    }, 2e3);
+  };
+  const loadConversation = async (conversationId) => {
+    if (!auth) {
+      setStatus("Login required.");
+      return;
+    }
+    setStatus("Loading conversation...");
+    try {
+      const conversation = await pullChatConversation(auth, module.name, {
+        id: conversationId,
+        settings: settingsKey
+      });
+      pendingNew = false;
+      setConversation(conversation, true);
+      updateSelectOptions();
+      startPolling(conversation.id);
+      setStatus("");
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+  const refreshList = async () => {
+    if (!auth) {
+      setStatus("Login required.");
+      return;
+    }
+    setStatus("Loading conversations...");
+    try {
+      const response = await fetchChatConversations(auth, module.name, { settings: settingsKey });
+      conversations = Array.isArray(response.items) ? response.items : [];
+      updateSelectOptions();
+      setStatus("");
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+  const startConversation = async () => {
+    if (!auth) {
+      setStatus("Login required.");
+      return;
+    }
+    setStatus("Starting conversation...");
+    try {
+      const conversation = await startChatConversation(auth, module.name, { settings: settingsKey });
+      pendingNew = false;
+      setConversation(conversation, true);
+      await refreshList();
+      startPolling(conversation.id);
+      setStatus("");
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+  const sendMessage = async (content) => {
+    if (!auth || !currentConversation) {
+      return;
+    }
+    appendLocalMessage("user", content);
+    setStatus("Sending message...");
+    try {
+      const updated = await appendChatMessage(auth, module.name, {
+        id: currentConversation.id,
+        content,
+        settings: settingsKey
+      });
+      pendingNew = false;
+      setConversation(updated, true);
+      startPolling(updated.id);
+      await refreshList();
+      setStatus("");
+    } catch (err) {
+      appendLocalMessage("assistant", "Agent couldn't reply. Please try again.");
+      setStatus(err.message);
+    }
+  };
+  newButton?.addEventListener("click", () => {
+    void startConversation();
+  });
+  deleteButton?.addEventListener("click", () => {
+    if (!auth || !currentConversation) {
+      return;
+    }
+    const conversationId = currentConversation.id;
+    setStatus("Deleting conversation...");
+    void deleteChatConversation(auth, module.name, {
+      id: conversationId,
+      settings: settingsKey
+    }).then(async () => {
+      stopPolling();
+      setConversation(null, true);
+      await refreshList();
+      setStatus("");
+    }).catch((err) => {
+      setStatus(err.message);
+    });
+  });
+  selectEl.addEventListener("change", () => {
+    const id = selectEl.value.trim();
+    if (!id) {
+      return;
+    }
+    void loadConversation(id);
+  });
+  scrollEl.addEventListener("scroll", () => {
+    if (isNearBottom()) {
+      pendingNew = false;
+      updateJumpVisibility();
+    }
+  });
+  jumpEl.addEventListener("click", () => {
+    scrollToBottom();
+    pendingNew = false;
+    updateJumpVisibility();
+  });
+  formEl.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const content = inputEl.value.trim();
+    if (!content) {
+      return;
+    }
+    inputEl.value = "";
+    void sendMessage(content);
+  });
+  inputEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      formEl.requestSubmit();
+    }
+  });
+  updateChatInputState(inputEl, sendEl, false);
+  renderCurrentMessages();
+  void refreshList();
+};
+
+// web/src/modules/gallery/index.ts
+init_api();
 
 // web/src/modules/uploader/utils.ts
 var isRecord2 = (value) => !!value && typeof value === "object" && !Array.isArray(value);
@@ -2547,13 +3212,43 @@ var renderGalleryModule = (panel, context) => {
   wrapper.className = "app-module";
   const header = document.createElement("div");
   header.className = "app-module-header";
+  const headerRow = document.createElement("div");
+  headerRow.className = "app-module-header-row";
   const title = document.createElement("div");
   title.className = "app-module-title";
   title.textContent = module.name;
+  headerRow.append(title);
+  if (context.openSettings) {
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+    settingsButton.title = "Module settings";
+    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.innerHTML = `
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+          <path
+            d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+          <path
+            d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+        </svg>
+      </span>
+    `;
+    settingsButton.addEventListener("click", context.openSettings);
+    headerRow.append(settingsButton);
+  }
   const meta = document.createElement("div");
   meta.className = "app-module-meta";
   meta.textContent = module.author ? `${module.description} \xB7 ${module.author}` : module.description;
-  header.append(title, meta);
+  header.append(headerRow, meta);
   const body = document.createElement("div");
   body.className = "app-module-body";
   const toggleField = document.createElement("div");
@@ -2810,16 +3505,46 @@ var coerceDataObject2 = (payload, editor) => {
   editor?.setValue(payload.data);
   return payload.data;
 };
-var buildHeader = (module) => {
+var buildHeader2 = (module, openSettings) => {
   const header = document.createElement("div");
   header.className = "app-module-header";
+  const headerRow = document.createElement("div");
+  headerRow.className = "app-module-header-row";
   const title = document.createElement("div");
   title.className = "app-module-title";
   title.textContent = module.name;
+  headerRow.append(title);
+  if (openSettings) {
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+    settingsButton.title = "Module settings";
+    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.innerHTML = `
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+          <path
+            d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+          <path
+            d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+        </svg>
+      </span>
+    `;
+    settingsButton.addEventListener("click", openSettings);
+    headerRow.append(settingsButton);
+  }
   const meta = document.createElement("div");
   meta.className = "app-module-meta";
   meta.textContent = module.author ? `${module.description} \xB7 ${module.author}` : module.description;
-  header.append(title, meta);
+  header.append(headerRow, meta);
   const storageHint = describeStorage(module);
   if (storageHint) {
     const storageMeta = document.createElement("div");
@@ -2997,12 +3722,13 @@ var renderUploaderModule = (panel, context) => {
     altField.append(altLabel, altControl);
     body.insertBefore(altField, actionsField);
   }
-  moduleCard.append(buildHeader(module), body);
+  moduleCard.append(buildHeader2(module, context.openSettings), body);
   panel.append(moduleCard);
 };
 
 // web/src/modules/registry.ts
 var registry = {
+  chat: renderChatModule,
   gallery: renderGalleryModule,
   uploader: renderUploaderModule
 };
@@ -3022,7 +3748,9 @@ var renderModulePanel = async ({
   editor,
   normalizeModuleList: normalizeModuleList2,
   fetchModuleSettings: fetchModuleSettings2,
-  findModuleDefinition: findModuleDefinition2
+  findModuleDefinition: findModuleDefinition2,
+  ensureModuleSettingsDocument: ensureModuleSettingsDocument2,
+  openModuleSettings
 }) => {
   const panel = document.getElementById("module-panel");
   if (!panel) {
@@ -3055,7 +3783,14 @@ var renderModulePanel = async ({
       module,
       payload: doc.payload,
       editor,
-      settings
+      settings,
+      openSettings: () => {
+        void ensureModuleSettingsDocument2(module, doc.payload).then((resolved) => {
+          openModuleSettings(resolved.id);
+        }).catch((err) => {
+          alert(err.message);
+        });
+      }
     });
     if (!handled) {
       const placeholder = document.createElement("div");
@@ -3439,10 +4174,252 @@ var buildJsonEditor = (container, initialValue) => {
   };
 };
 
+// web/src/features/modules/settings-form.ts
+var slugify = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+var resolveModuleForSettings = (modules, path) => {
+  const filename = path.split("/").pop() ?? "";
+  const base = filename.replace(/\.json$/i, "");
+  if (!base) {
+    return null;
+  }
+  const candidates = modules.map((module) => ({ module, slug: slugify(module.name) }));
+  const direct = candidates.find((entry) => entry.slug === base);
+  if (direct) {
+    return direct.module;
+  }
+  const matched = candidates.find((entry) => base.endsWith(`-${entry.slug}`));
+  return matched ? matched.module : null;
+};
+var humanizeKey = (value) => value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+var valueAtPath = (settings, key) => {
+  if (!isRecord(settings)) {
+    return void 0;
+  }
+  return settings[key];
+};
+var setValueAtPath = (target, path, value) => {
+  let current = target;
+  path.forEach((segment, index) => {
+    if (index === path.length - 1) {
+      current[segment] = value;
+      return;
+    }
+    if (!isRecord(current[segment])) {
+      current[segment] = {};
+    }
+    current = current[segment];
+  });
+};
+var cloneSettings = (settings) => settings ? JSON.parse(JSON.stringify(settings)) : {};
+var renderModuleSettingsForm = ({
+  container,
+  module,
+  settings,
+  agents
+}) => {
+  const parameters = isRecord(module.parameters) ? module.parameters : {};
+  const fields = [];
+  const form = document.createElement("div");
+  form.className = "app-module-settings-form";
+  container.append(form);
+  const agentsByName = new Map(agents.map((agent) => [agent.name, agent]));
+  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+  let agentNameSelect = null;
+  let agentIdInput = null;
+  let pendingAgentId = "";
+  const renderField = (parent, path, defaultValue, currentValue) => {
+    const field = document.createElement("div");
+    field.className = "field";
+    const labelText = humanizeKey(path[path.length - 1] ?? "");
+    if (typeof defaultValue === "boolean") {
+      const control2 = document.createElement("div");
+      control2.className = "control";
+      const checkboxLabel = document.createElement("label");
+      checkboxLabel.className = "checkbox";
+      const input2 = document.createElement("input");
+      input2.type = "checkbox";
+      input2.checked = Boolean(currentValue ?? defaultValue);
+      checkboxLabel.append(input2, document.createTextNode(` ${labelText}`));
+      control2.append(checkboxLabel);
+      field.append(control2);
+      fields.push({ path, type: "boolean", element: input2, defaultValue });
+      parent.append(field);
+      return;
+    }
+    const label = document.createElement("label");
+    label.className = "label";
+    label.textContent = labelText;
+    field.append(label);
+    const control = document.createElement("div");
+    control.className = "control";
+    if (module.name === "chat" && path.join(".") === "agent.name") {
+      const select = document.createElement("select");
+      const emptyOption = document.createElement("option");
+      emptyOption.value = "";
+      emptyOption.textContent = agents.length ? "Select agent" : "No agents available";
+      select.append(emptyOption);
+      if (!agents.length) {
+        select.disabled = true;
+      }
+      agents.forEach((agent) => {
+        const option = document.createElement("option");
+        option.value = agent.name;
+        option.textContent = agent.name;
+        select.append(option);
+      });
+      const currentName = typeof currentValue === "string" ? currentValue : "";
+      if (currentName && !agentsByName.has(currentName)) {
+        const option = document.createElement("option");
+        option.value = currentName;
+        option.textContent = currentName;
+        select.append(option);
+      }
+      select.value = currentName;
+      select.addEventListener("change", () => {
+        if (!agentIdInput) {
+          return;
+        }
+        const selected = agentsByName.get(select.value);
+        agentIdInput.value = selected?.id ?? "";
+      });
+      const selectWrapper = document.createElement("div");
+      selectWrapper.className = "select is-fullwidth";
+      selectWrapper.append(select);
+      control.append(selectWrapper);
+      agentNameSelect = select;
+      fields.push({ path, type: "select", element: select, defaultValue });
+      field.append(control);
+      parent.append(field);
+      return;
+    }
+    if (module.name === "chat" && path.join(".") === "agent.id") {
+      const input2 = document.createElement("input");
+      input2.type = "text";
+      input2.className = "input";
+      input2.value = typeof currentValue === "string" ? currentValue : "";
+      input2.readOnly = true;
+      pendingAgentId = input2.value;
+      agentIdInput = input2;
+      control.append(input2);
+      field.append(control);
+      parent.append(field);
+      fields.push({ path, type: "text", element: input2, defaultValue });
+      return;
+    }
+    if (Array.isArray(defaultValue)) {
+      const input2 = document.createElement("input");
+      input2.type = "text";
+      input2.className = "input";
+      const list = Array.isArray(currentValue) ? currentValue : defaultValue;
+      input2.value = list.map((entry) => String(entry)).join(", ");
+      control.append(input2);
+      const help = document.createElement("p");
+      help.className = "help";
+      help.textContent = "Comma separated values.";
+      field.append(control, help);
+      const itemType = defaultValue.length > 0 && typeof defaultValue[0] === "number" ? "number" : defaultValue.length > 0 && typeof defaultValue[0] === "boolean" ? "boolean" : "string";
+      fields.push({ path, type: "list", element: input2, defaultValue, itemType });
+      parent.append(field);
+      return;
+    }
+    if (typeof defaultValue === "number") {
+      const input2 = document.createElement("input");
+      input2.type = "number";
+      input2.step = Number.isInteger(defaultValue) ? "1" : "any";
+      input2.className = "input";
+      const numericValue = typeof currentValue === "number" || typeof currentValue === "string" ? String(currentValue) : String(defaultValue);
+      input2.value = numericValue;
+      control.append(input2);
+      field.append(control);
+      fields.push({ path, type: "number", element: input2, defaultValue });
+      parent.append(field);
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "input";
+    input.value = typeof currentValue === "string" ? currentValue : currentValue == null ? String(defaultValue ?? "") : String(currentValue);
+    control.append(input);
+    field.append(control);
+    fields.push({ path, type: "text", element: input, defaultValue });
+    parent.append(field);
+  };
+  const renderGroup = (parent, group, current, path) => {
+    Object.entries(group).forEach(([key, defaultValue]) => {
+      const nextPath = [...path, key];
+      const currentValue = valueAtPath(current, key);
+      if (isRecord(defaultValue)) {
+        const section = document.createElement("div");
+        section.className = "app-module-settings-group";
+        const heading = document.createElement("div");
+        heading.className = "app-module-settings-title";
+        heading.textContent = humanizeKey(key);
+        section.append(heading);
+        renderGroup(section, defaultValue, currentValue, nextPath);
+        parent.append(section);
+        return;
+      }
+      renderField(parent, nextPath, defaultValue, currentValue);
+    });
+  };
+  if (!Object.keys(parameters).length) {
+    const empty = document.createElement("p");
+    empty.className = "app-muted";
+    empty.textContent = "No module settings available.";
+    form.append(empty);
+  } else {
+    renderGroup(form, parameters, settings, []);
+  }
+  if (agentNameSelect && agentIdInput) {
+    if (!agentNameSelect.value && pendingAgentId) {
+      const match = agentsById.get(pendingAgentId);
+      if (match) {
+        agentNameSelect.value = match.name;
+      }
+    }
+    if (agentNameSelect.value) {
+      const match = agentsByName.get(agentNameSelect.value);
+      agentIdInput.value = match?.id ?? "";
+    } else {
+      agentIdInput.value = "";
+    }
+  }
+  const getValue = () => {
+    const output = cloneSettings(settings);
+    fields.forEach((field) => {
+      let value;
+      if (field.type === "boolean") {
+        value = field.element.checked;
+      } else if (field.type === "number") {
+        const raw = field.element.value.trim();
+        const parsed = raw === "" ? NaN : Number(raw);
+        value = Number.isFinite(parsed) ? parsed : field.defaultValue;
+      } else if (field.type === "list") {
+        const raw = field.element.value;
+        const parts = raw.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
+        if (field.itemType === "number") {
+          value = parts.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry));
+        } else if (field.itemType === "boolean") {
+          value = parts.map((entry) => entry === "true");
+        } else {
+          value = parts;
+        }
+      } else {
+        value = field.element.value.trim();
+      }
+      setValueAtPath(output, field.path, value);
+    });
+    return output;
+  };
+  return { getValue };
+};
+
 // web/src/views/documents.ts
 var renderDocument = ({
   content,
   auth,
+  modules,
+  agents,
   doc,
   clearAgentState: clearAgentState2,
   moduleChecklistHtml: moduleChecklistHtml2,
@@ -3457,6 +4434,8 @@ var renderDocument = ({
   renderLogDocument: renderLogDocument2,
   onDocumentUpdated,
   onModuleSettingsSaved,
+  returnToDocumentId,
+  onReturnToDocument,
   rerender
 }) => {
   if (!content) {
@@ -3473,24 +4452,38 @@ var renderDocument = ({
     return;
   }
   if (isModuleSettings) {
+    editorRef2.set(null);
+    const moduleDefinition = resolveModuleForSettings(modules, doc.path);
     content.innerHTML = `
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">Module settings \xB7 ${doc.store}/${doc.path}</p>
       </div>
       <div class="mb-4 buttons">
+        ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">Back</button>` : ""}
         <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
         <button id="export-json" class="button app-button app-ghost">Export JSON</button>
       </div>
       <div class="mt-4">
         <h2 class="title is-5">Settings</h2>
-        <div id="json-editor" class="json-editor"></div>
+        <div id="module-settings-form" class="app-module-settings-surface"></div>
       </div>
     `;
-    const editorContainer2 = document.getElementById("json-editor");
-    if (editorContainer2) {
-      editorRef2.set(buildJsonEditor2(editorContainer2, payload.data));
+    const formContainer = document.getElementById("module-settings-form");
+    const settingsForm = formContainer && moduleDefinition ? renderModuleSettingsForm({
+      container: formContainer,
+      module: moduleDefinition,
+      settings: typeof payload.data === "object" && payload.data !== null ? payload.data : null,
+      agents
+    }) : null;
+    if (!moduleDefinition && formContainer) {
+      formContainer.innerHTML = `<div class="notification is-light">Module definition not found.</div>`;
     }
+    document.getElementById("module-back")?.addEventListener("click", () => {
+      if (returnToDocumentId) {
+        onReturnToDocument(returnToDocumentId);
+      }
+    });
     document.getElementById("save")?.addEventListener("click", async () => {
       if (!auth) {
         return;
@@ -3498,7 +4491,7 @@ var renderDocument = ({
       const payloadToSave = {
         ...payload,
         type: payload.type ?? "module",
-        data: editorRef2.get()?.getValue() ?? payload.data
+        data: settingsForm?.getValue() ?? payload.data
       };
       try {
         const updated = await updateDocument2(auth, doc.id, payloadToSave);
@@ -3703,6 +4696,52 @@ var fetchModuleSettings = async (auth, payload, moduleName, cache) => {
     return null;
   }
 };
+var ensureModuleSettingsDocument = async (auth, payload, module, cache) => {
+  if (!auth) {
+    throw new Error("Authentication required.");
+  }
+  const key = moduleSettingsKey(payload, module.name);
+  const path = `modules/${key}.json`;
+  const id = encodeDocumentId("private", path);
+  try {
+    const doc = await fetchDocument(auth, id);
+    const settings = isRecord(doc.payload.data) ? doc.payload.data : null;
+    cache.set(key, settings);
+    return doc;
+  } catch {
+    if (!payload.section) {
+      const legacyKey = legacyModuleSettingsKey(module.name);
+      if (legacyKey) {
+        const legacyPath = `modules/${legacyKey}.json`;
+        const legacyId = encodeDocumentId("private", legacyPath);
+        try {
+          const legacyDoc = await fetchDocument(auth, legacyId);
+          const legacySettings = isRecord(legacyDoc.payload.data) ? legacyDoc.payload.data : null;
+          cache.set(key, legacySettings);
+          return legacyDoc;
+        } catch {
+        }
+      }
+    }
+    const defaults = isRecord(module.parameters) ? module.parameters : {};
+    const name = `${payload.name} \xB7 ${module.name}`;
+    const created = await createDocument(auth, {
+      store: "private",
+      path,
+      payload: {
+        type: "module",
+        page: "modules",
+        name,
+        order: 1,
+        section: true,
+        data: defaults
+      }
+    });
+    const createdSettings = isRecord(created.payload.data) ? created.payload.data : null;
+    cache.set(key, createdSettings);
+    return created;
+  }
+};
 
 // web/src/app/documents.ts
 var openLoggerSettings = () => {
@@ -3712,11 +4751,20 @@ var openLoggerSettings = () => {
   const id = encodeDocumentId("private", "logs/logger-settings.json");
   void loadDocument(id);
 };
+var openWebsiteBuild = () => {
+  if (!state.auth) {
+    return;
+  }
+  const id = encodeDocumentId("private", "website-build.json");
+  void loadDocument(id);
+};
 var renderDocumentView = (doc) => {
   const content = document.getElementById("content");
   renderDocument({
     content,
     auth: state.auth,
+    modules: state.modules,
+    agents: state.agents,
     doc,
     clearAgentState,
     moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected),
@@ -3733,7 +4781,15 @@ var renderDocumentView = (doc) => {
       editor: editorRef.get(),
       normalizeModuleList,
       fetchModuleSettings: (moduleName, payload) => fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
-      findModuleDefinition: (name) => findModuleDefinition(state.modules, name)
+      findModuleDefinition: (name) => findModuleDefinition(state.modules, name),
+      ensureModuleSettingsDocument: (module, payload) => ensureModuleSettingsDocument(state.auth, payload, module, state.moduleSettingsCache),
+      openModuleSettings: (settingsId) => {
+        if (!moduleDoc?.id) {
+          return;
+        }
+        state.returnToDocumentId = moduleDoc.id;
+        loadDocument(settingsId);
+      }
     }),
     renderLogDocument: (logDoc) => renderLogDocument({
       content,
@@ -3750,6 +4806,11 @@ var renderDocumentView = (doc) => {
     onModuleSettingsSaved: () => {
       state.moduleSettingsCache.clear();
     },
+    returnToDocumentId: state.returnToDocumentId,
+    onReturnToDocument: (id) => {
+      state.returnToDocumentId = null;
+      loadDocument(id);
+    },
     rerender: (updated) => {
       renderDocumentView(updated);
     }
@@ -3762,6 +4823,9 @@ var loadDocument = async (id) => {
   try {
     const doc = await fetchDocument(state.auth, id);
     state.currentDocument = doc;
+    if (!(doc.store === "private" && doc.payload.page === "modules")) {
+      state.returnToDocumentId = null;
+    }
     if (doc.store === "private" && doc.path.startsWith("logs/") && !state.logs.length) {
       try {
         const { fetchLogs: fetchLogs2 } = await Promise.resolve().then(() => (init_api(), api_exports));
@@ -3822,7 +4886,7 @@ init_api();
 init_api();
 
 // web/src/features/agents/chat.ts
-var renderMessages = (conversation) => {
+var renderMessages2 = (conversation) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
   if (!messagesContainer) {
     return;
@@ -3847,7 +4911,7 @@ var renderMessages = (conversation) => {
       `;
   }).join("");
 };
-var updateConversationHeader = (conversation) => {
+var updateConversationHeader2 = (conversation) => {
   const title = document.getElementById("agent-chat-title");
   const meta = document.getElementById("agent-chat-meta");
   if (!title || !meta) {
@@ -3863,7 +4927,7 @@ var updateConversationHeader = (conversation) => {
   title.textContent = conversation.payload.name || "Conversation";
   meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
 };
-var updateChatInputState = (active) => {
+var updateChatInputState2 = (active) => {
   const input = document.getElementById("agent-chat-text");
   const send = document.getElementById("agent-chat-send");
   if (input) {
@@ -4076,9 +5140,9 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     try {
       const conversation = await fetchAgentConversation(auth, conversationId);
       state.currentConversation = conversation;
-      updateConversationHeader(conversation);
-      renderMessages(conversation);
-      updateChatInputState(true);
+      updateConversationHeader2(conversation);
+      renderMessages2(conversation);
+      updateChatInputState2(true);
       stopAgentPolling();
       state.agentPoller = window.setInterval(async () => {
         if (!auth || !state.currentConversation || state.currentConversation.id !== conversationId) {
@@ -4093,7 +5157,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
           const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
           const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
           if (prevCount !== nextCount) {
-            renderMessages(updated);
+            renderMessages2(updated);
           }
         } catch {
         }
@@ -4180,13 +5244,13 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
       if (input) {
         input.value = "";
       }
-      renderMessages(updated);
+      renderMessages2(updated);
     } catch (err) {
       alert(err.message);
     }
   });
-  updateChatInputState(false);
-  updateConversationHeader(null);
+  updateChatInputState2(false);
+  updateConversationHeader2(null);
   await refreshConversations();
 };
 
@@ -4287,6 +5351,9 @@ var renderApp = async () => {
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
     onShowLogs: () => {
       void showLogsView();
+    },
+    onShowWebsiteBuild: () => {
+      openWebsiteBuild();
     },
     onExportAll: exportAll,
     onOpenCreate: createModal.openCreateModal,

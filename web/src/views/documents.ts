@@ -1,6 +1,7 @@
-import type { AuthState, DocumentPayload, RemoteDocument } from "../api";
+import type { AgentSummary, AuthState, DocumentPayload, ModuleDefinition, RemoteDocument } from "../api";
 import type { JsonEditorHandle } from "../json-editor";
 import { triggerDownload } from "../utils";
+import { renderModuleSettingsForm, resolveModuleForSettings } from "../features/modules/settings-form";
 
 export type DocumentEditorRef = {
   get: () => JsonEditorHandle | null;
@@ -10,6 +11,8 @@ export type DocumentEditorRef = {
 export type DocumentViewContext = {
   content: HTMLElement | null;
   auth: AuthState | null;
+  modules: ModuleDefinition[];
+  agents: AgentSummary[];
   doc: RemoteDocument;
   clearAgentState: () => void;
   moduleChecklistHtml: (selected?: string[]) => string;
@@ -24,12 +27,16 @@ export type DocumentViewContext = {
   renderLogDocument: (doc: RemoteDocument) => void;
   onDocumentUpdated: (doc: RemoteDocument) => void;
   onModuleSettingsSaved: () => void;
+  returnToDocumentId: string | null;
+  onReturnToDocument: (id: string) => void;
   rerender: (doc: RemoteDocument) => void;
 };
 
 export const renderDocument = ({
   content,
   auth,
+  modules,
+  agents,
   doc,
   clearAgentState,
   moduleChecklistHtml,
@@ -44,6 +51,8 @@ export const renderDocument = ({
   renderLogDocument,
   onDocumentUpdated,
   onModuleSettingsSaved,
+  returnToDocumentId,
+  onReturnToDocument,
   rerender,
 }: DocumentViewContext) => {
   if (!content) {
@@ -64,25 +73,47 @@ export const renderDocument = ({
   }
 
   if (isModuleSettings) {
+    editorRef.set(null);
+    const moduleDefinition = resolveModuleForSettings(modules, doc.path);
     content.innerHTML = `
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">Module settings · ${doc.store}/${doc.path}</p>
       </div>
       <div class="mb-4 buttons">
+        ${
+          returnToDocumentId
+            ? `<button id="module-back" class="button app-button app-ghost">Back</button>`
+            : ""
+        }
         <button id="save" class="button app-button app-primary">Αποθήκευση</button>
         <button id="export-json" class="button app-button app-ghost">Export JSON</button>
       </div>
       <div class="mt-4">
         <h2 class="title is-5">Settings</h2>
-        <div id="json-editor" class="json-editor"></div>
+        <div id="module-settings-form" class="app-module-settings-surface"></div>
       </div>
     `;
 
-    const editorContainer = document.getElementById("json-editor");
-    if (editorContainer) {
-      editorRef.set(buildJsonEditor(editorContainer, payload.data));
+    const formContainer = document.getElementById("module-settings-form");
+    const settingsForm = formContainer && moduleDefinition
+      ? renderModuleSettingsForm({
+          container: formContainer,
+          module: moduleDefinition,
+          settings: (typeof payload.data === "object" && payload.data !== null ? (payload.data as Record<string, unknown>) : null),
+          agents,
+        })
+      : null;
+
+    if (!moduleDefinition && formContainer) {
+      formContainer.innerHTML = `<div class="notification is-light">Module definition not found.</div>`;
     }
+
+    document.getElementById("module-back")?.addEventListener("click", () => {
+      if (returnToDocumentId) {
+        onReturnToDocument(returnToDocumentId);
+      }
+    });
 
     document.getElementById("save")?.addEventListener("click", async () => {
       if (!auth) {
@@ -92,7 +123,7 @@ export const renderDocument = ({
       const payloadToSave: DocumentPayload = {
         ...payload,
         type: payload.type ?? "module",
-        data: editorRef.get()?.getValue() ?? payload.data,
+        data: settingsForm?.getValue() ?? payload.data,
       };
 
       try {

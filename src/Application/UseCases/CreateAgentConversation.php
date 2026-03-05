@@ -53,7 +53,6 @@ final class CreateAgentConversation
             'page' => 'agent-conversations',
             'name' => $agentWrapper->name() . ' · ' . $labelDate,
             'order' => 1,
-            'section' => false,
             'data' => [
                 'agentId' => $agentId->encoded(),
                 'agentName' => $agentWrapper->name(),

@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Manage\Integrations\OpenAI;
 
 use Manage\Domain\Integration\IntegrationDefinition;
+use Manage\Integrations\Contracts\ChatIntegration;
 use Manage\Integrations\Contracts\IntegrationHandler;
 use Manage\Integrations\Infrastructure\HttpClient;
 use Manage\Integrations\IntegrationContext;
 
-final class Integration implements IntegrationHandler
+final class Integration implements IntegrationHandler, ChatIntegration
 {
     private IntegrationDefinition $definition;
     private HttpClient $http;
@@ -59,5 +60,80 @@ final class Integration implements IntegrationHandler
         }
 
         return $models;
+    }
+
+    public function chat(array $settings, array $payload): string
+    {
+        $apiKey = $settings['apiKey'] ?? null;
+        if (!is_string($apiKey) || trim($apiKey) === '') {
+            throw new \InvalidArgumentException('OpenAI apiKey is required.');
+        }
+
+        $model = $payload['model'] ?? null;
+        if (!is_string($model) || trim($model) === '') {
+            throw new \InvalidArgumentException('OpenAI model is required.');
+        }
+
+        $headers = [
+            'Authorization' => 'Bearer ' . trim($apiKey),
+        ];
+
+        $organization = $settings['organization'] ?? null;
+        if (is_string($organization) && trim($organization) !== '') {
+            $headers['OpenAI-Organization'] = trim($organization);
+        }
+
+        $messages = [];
+        $systemPrompt = $payload['systemPrompt'] ?? null;
+        if (is_string($systemPrompt) && trim($systemPrompt) !== '') {
+            $messages[] = ['role' => 'system', 'content' => trim($systemPrompt)];
+        }
+        $adminPrompt = $payload['adminPrompt'] ?? null;
+        if (is_string($adminPrompt) && trim($adminPrompt) !== '') {
+            $messages[] = ['role' => 'system', 'content' => trim($adminPrompt)];
+        }
+
+        $inputMessages = $payload['messages'] ?? [];
+        if (is_array($inputMessages)) {
+            foreach ($inputMessages as $message) {
+                if (!is_array($message)) {
+                    continue;
+                }
+                $role = $message['role'] ?? null;
+                $content = $message['content'] ?? null;
+                if (!is_string($role) || !is_string($content) || trim($content) === '') {
+                    continue;
+                }
+                $normalizedRole = strtolower(trim($role));
+                if (!in_array($normalizedRole, ['user', 'assistant'], true)) {
+                    $normalizedRole = 'user';
+                }
+                $messages[] = ['role' => $normalizedRole, 'content' => $content];
+            }
+        }
+
+        $response = $this->http->postJson('https://api.openai.com/v1/chat/completions', $headers, [
+            'model' => trim($model),
+            'messages' => $messages,
+        ]);
+
+        $choices = $response['choices'] ?? null;
+        if (!is_array($choices) || $choices === []) {
+            throw new \RuntimeException('OpenAI response missing choices.');
+        }
+        $first = $choices[0] ?? null;
+        if (!is_array($first)) {
+            throw new \RuntimeException('OpenAI response invalid.');
+        }
+        $message = $first['message'] ?? null;
+        if (!is_array($message)) {
+            throw new \RuntimeException('OpenAI response missing message.');
+        }
+        $content = $message['content'] ?? null;
+        if (!is_string($content) || trim($content) === '') {
+            throw new \RuntimeException('OpenAI response missing content.');
+        }
+
+        return trim($content);
     }
 }

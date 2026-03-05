@@ -7,6 +7,7 @@ export type ModuleRenderContext = {
   payload: DocumentPayload;
   editor: JsonEditorHandle | null;
   settings?: Record<string, unknown> | null;
+  openSettings?: () => void;
 };
 
 export type ModuleRenderer = (panel: HTMLElement, context: ModuleRenderContext) => void;

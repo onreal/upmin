@@ -35,7 +35,7 @@ export type DocumentPayload = {
   name: string;
   language?: string | null;
   order: number;
-  section: boolean;
+  section?: boolean;
   modules?: string[] | null;
   module?: string | null;
   data: unknown;
@@ -60,6 +60,15 @@ export type AgentConversationSummary = {
   id: string;
   name: string;
   createdAt?: string | null;
+  store: string;
+  path: string;
+};
+
+export type ChatConversationSummary = {
+  id: string;
+  name: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   store: string;
   path: string;
 };

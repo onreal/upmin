@@ -1,0 +1,77 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Manage\Modules\Chat;
+
+use Manage\Domain\Module\ModuleDefinition;
+use Manage\Infrastructure\Config\Env;
+use Manage\Infrastructure\FileSystem\JsonDocumentRepository;
+use Manage\Infrastructure\Security\HmacTokenService;
+use Manage\Integrations\IntegrationContext;
+use Manage\Integrations\IntegrationRegistry;
+use Manage\Integrations\IntegrationSettingsStore;
+use Manage\Modules\Chat\Application\AppendMessage;
+use Manage\Modules\Chat\Application\DeleteConversation;
+use Manage\Modules\Chat\Application\GetConversation;
+use Manage\Modules\Chat\Application\ListConversations;
+use Manage\Modules\Chat\Application\SendMessage;
+use Manage\Modules\Chat\Application\StartConversation;
+use Manage\Modules\Chat\Infrastructure\AgentResponder;
+use Manage\Modules\Chat\Infrastructure\ConversationStore;
+use Manage\Modules\Chat\Interface\ModuleController as ChatController;
+use Manage\Modules\Contracts\ModuleHandler;
+use Manage\Modules\ModuleContext;
+use Manage\Modules\ModuleSettingsStore;
+
+final class Module implements ModuleHandler
+{
+    private ModuleDefinition $definition;
+    private object $controller;
+
+    public function __construct(ModuleDefinition $definition, ModuleContext $context)
+    {
+        $this->definition = $definition;
+        $settingsStore = new ModuleSettingsStore($context);
+        $conversationStore = new ConversationStore($context);
+        $listConversations = new ListConversations($conversationStore);
+        $startConversation = new StartConversation($conversationStore);
+        $appendMessage = new AppendMessage($conversationStore);
+        $getConversation = new GetConversation($conversationStore);
+        $deleteConversation = new DeleteConversation($conversationStore);
+
+        $documentRepository = new JsonDocumentRepository([
+            'private' => rtrim($context->manageRoot(), '/') . '/store',
+            'public' => rtrim($context->projectRoot(), '/') . '/store',
+        ]);
+        $integrationContext = new IntegrationContext($context->projectRoot(), $context->manageRoot());
+        $integrationRegistry = new IntegrationRegistry($context->manageRoot() . '/src/Integrations', $integrationContext);
+        $integrationSettings = new IntegrationSettingsStore($integrationContext);
+        $responder = new AgentResponder($documentRepository, $integrationRegistry, $integrationSettings);
+        $sendMessage = new SendMessage($appendMessage, $responder);
+
+        $env = Env::load($context->manageRoot() . '/.env');
+        $tokenService = new HmacTokenService($env);
+
+        $this->controller = new ChatController(
+            $definition,
+            $listConversations,
+            $startConversation,
+            $sendMessage,
+            $getConversation,
+            $deleteConversation,
+            $settingsStore,
+            $tokenService
+        );
+    }
+
+    public function definition(): ModuleDefinition
+    {
+        return $this->definition;
+    }
+
+    public function controller(): object
+    {
+        return $this->controller;
+    }
+}

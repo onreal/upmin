@@ -53,10 +53,13 @@ const buildHeaders = (auth: AuthState, json: boolean) => {
   return headers;
 };
 
+type RequestConfig = { notify?: boolean };
+
 export const request = async <T>(
   url: string,
   options: RequestInit,
-  auth: AuthState
+  auth: AuthState,
+  config: RequestConfig = {}
 ): Promise<T> => {
   const response = await fetch(url, {
     ...options,
@@ -69,13 +72,17 @@ export const request = async <T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
-    notify({ type: "error", message });
+    if (config.notify !== false) {
+      notify({ type: "error", message });
+    }
     throw new Error(message);
   }
 
   const data = (await response.json()) as T;
   const method = (options.method || "GET").toUpperCase();
-  notify({ type: "success", message: successMessageFor(method) });
+  if (config.notify !== false) {
+    notify({ type: "success", message: successMessageFor(method) });
+  }
   return data;
 };
 

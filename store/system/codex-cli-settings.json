@@ -1,0 +1,14 @@
+{
+    "type": "module",
+    "page": "system",
+    "name": "Integration: codex-cli",
+    "section": true,
+    "order": 1,
+    "data": {
+        "binary": "codex",
+        "args": "--dangerously-bypass-approvals-and-sandbox exec --json --output-last-message {outputFile} --skip-git-repo-check --cd {workingDir} --model {model}",
+        "workingDir": "\/app",
+        "apiKey": null,
+        "models": []
+    }
+}

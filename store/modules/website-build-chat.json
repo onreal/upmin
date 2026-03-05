@@ -1,0 +1,21 @@
+{
+    "type": "module",
+    "page": "modules",
+    "name": "Website build · chat",
+    "data": {
+        "agent": {
+            "name": "Website Builder",
+            "id": ""
+        },
+        "conversation": {
+            "visibility": "private",
+            "root": "chats",
+            "suffix": "conversation"
+        },
+        "output": {
+            "target": "chat"
+        }
+    },
+    "section": true,
+    "order": 1
+}

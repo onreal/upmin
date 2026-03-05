@@ -1,8 +1,10 @@
 import type { ModuleRenderContext, ModuleRenderer } from "./types";
+import { renderChatModule } from "./chat";
 import { renderGalleryModule } from "./gallery";
 import { renderUploaderModule } from "./uploader";
 
 const registry: Record<string, ModuleRenderer> = {
+  chat: renderChatModule,
   gallery: renderGalleryModule,
   uploader: renderUploaderModule,
 };

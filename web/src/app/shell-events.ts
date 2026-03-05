@@ -6,6 +6,7 @@ export type ShellEventHandlers = {
   onShowModules: () => void;
   onShowIntegrations: () => void;
   onShowLogs: () => void;
+  onShowWebsiteBuild: () => void;
   onExportAll: () => void;
   onOpenCreate: () => void;
   onOpenAgentModal: () => void;
@@ -17,6 +18,7 @@ export const initShellEvents = ({
   onShowModules,
   onShowIntegrations,
   onShowLogs,
+  onShowWebsiteBuild,
   onExportAll,
   onOpenCreate,
   onOpenAgentModal,
@@ -76,6 +78,12 @@ export const initShellEvents = ({
   document.getElementById("logs-link")?.addEventListener("click", (event) => {
     event.preventDefault();
     onShowLogs();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+
+  document.getElementById("website-build-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowWebsiteBuild();
     document.getElementById("private-dropdown")?.classList.remove("is-active");
   });
 

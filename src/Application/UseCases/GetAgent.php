@@ -28,6 +28,12 @@ final class GetAgent
         if ($wrapper->type() !== 'agent' || $wrapper->page() !== 'agents' || $wrapper->isSection()) {
             return null;
         }
+        $data = $wrapper->data();
+        if (is_array($data) && isset($data['position']) && is_string($data['position'])) {
+            if (strtolower(trim($data['position'])) === 'system') {
+                return null;
+            }
+        }
 
         return [
             'id' => $document->id()->encoded(),

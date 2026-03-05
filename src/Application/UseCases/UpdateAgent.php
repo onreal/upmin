@@ -42,11 +42,21 @@ final class UpdateAgent
             return null;
         }
 
+        $existingData = $wrapper->data();
+        $existingPosition = null;
+        if (is_array($existingData) && isset($existingData['position']) && is_string($existingData['position'])) {
+            $existingPosition = strtolower(trim($existingData['position']));
+        }
+        if ($existingPosition === 'system') {
+            throw new \InvalidArgumentException('System agents are read-only.');
+        }
+
         $name = $this->requireString($payload, 'name', 'Agent.name is required.');
         $provider = strtolower($this->requireString($payload, 'provider', 'Agent.provider is required.'));
         $model = $this->requireString($payload, 'model', 'Agent.model is required.');
         $systemPrompt = $this->requireString($payload, 'systemPrompt', 'Agent.systemPrompt is required.');
         $adminPrompt = $this->requireString($payload, 'adminPrompt', 'Agent.adminPrompt is required.');
+        $position = $this->normalizePosition($payload, $existingPosition);
 
         $this->validateProviderModel($provider, $model);
 
@@ -69,19 +79,23 @@ final class UpdateAgent
             $order = $payload['order'];
         }
 
+        $data = [
+            'provider' => $provider,
+            'model' => $model,
+            'systemPrompt' => $systemPrompt,
+            'adminPrompt' => $adminPrompt,
+        ];
+        if ($position !== null) {
+            $data['position'] = $position;
+        }
+
         $updatedWrapper = DocumentWrapper::fromArray([
             'type' => 'agent',
             'page' => 'agents',
             'name' => $name,
             'language' => $language,
             'order' => $order,
-            'section' => false,
-            'data' => [
-                'provider' => $provider,
-                'model' => $model,
-                'systemPrompt' => $systemPrompt,
-                'adminPrompt' => $adminPrompt,
-            ],
+            'data' => $data,
         ]);
 
         $document = $document->withWrapper($updatedWrapper);
@@ -128,5 +142,30 @@ final class UpdateAgent
         if (!in_array($model, $models, true)) {
             throw new \InvalidArgumentException('Agent.model is not available for this provider.');
         }
+    }
+
+    private function normalizePosition(array $payload, ?string $existing): ?string
+    {
+        if (!array_key_exists('position', $payload)) {
+            return $existing;
+        }
+        $value = $payload['position'];
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('Agent.position must be a string.');
+        }
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return null;
+        }
+        if (!in_array($value, ['system', 'module', 'page'], true)) {
+            throw new \InvalidArgumentException('Agent.position must be system, module, or page.');
+        }
+        if ($value === 'system') {
+            throw new \InvalidArgumentException('Agent.position cannot be system.');
+        }
+        return $value;
     }
 }

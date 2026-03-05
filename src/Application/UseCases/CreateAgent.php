@@ -43,6 +43,7 @@ final class CreateAgent
         $model = $this->requireString($payload, 'model', 'Agent.model is required.');
         $systemPrompt = $this->requireString($payload, 'systemPrompt', 'Agent.systemPrompt is required.');
         $adminPrompt = $this->requireString($payload, 'adminPrompt', 'Agent.adminPrompt is required.');
+        $position = $this->normalizePosition($payload);
 
         $this->validateProviderModel($provider, $model);
 
@@ -70,19 +71,24 @@ final class CreateAgent
 
         $path = $this->uniquePath($store, $name);
 
+        $data = [
+            'provider' => $provider,
+            'model' => $model,
+            'systemPrompt' => $systemPrompt,
+            'adminPrompt' => $adminPrompt,
+        ];
+
+        if ($position !== null) {
+            $data['position'] = $position;
+        }
+
         $wrapper = DocumentWrapper::fromArray([
             'type' => 'agent',
             'page' => 'agents',
             'name' => $name,
             'language' => $language,
             'order' => $order,
-            'section' => false,
-            'data' => [
-                'provider' => $provider,
-                'model' => $model,
-                'systemPrompt' => $systemPrompt,
-                'adminPrompt' => $adminPrompt,
-            ],
+            'data' => $data,
         ]);
 
         $document = new Document(DocumentId::fromParts($store, $path), $wrapper, $store, $path);
@@ -167,6 +173,31 @@ final class CreateAgent
             $counter++;
             $suffix = '-' . $counter;
         }
+    }
+
+    private function normalizePosition(array $payload): ?string
+    {
+        if (!array_key_exists('position', $payload)) {
+            return null;
+        }
+        $value = $payload['position'];
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('Agent.position must be a string.');
+        }
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return null;
+        }
+        if (!in_array($value, ['system', 'module', 'page'], true)) {
+            throw new \InvalidArgumentException('Agent.position must be system, module, or page.');
+        }
+        if ($value === 'system') {
+            throw new \InvalidArgumentException('Agent.position cannot be system.');
+        }
+        return $value;
     }
 
     private function slug(string $value): string

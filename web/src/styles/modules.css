@@ -13,6 +13,17 @@
   gap: var(--app-gap-xs);
 }
 
+.app-module-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-gap-xs);
+}
+
+.app-module-settings-button {
+  flex-shrink: 0;
+}
+
 .app-module-title {
   font-weight: 600;
 }
@@ -133,4 +144,29 @@
 .app-module-row-meta {
   color: var(--app-muted);
   font-size: 0.85rem;
+}
+
+.app-module-settings-surface {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  padding: var(--app-gap-md);
+  background: var(--app-surface);
+}
+
+.app-module-settings-form {
+  display: grid;
+  gap: var(--app-gap-md);
+}
+
+.app-module-settings-group {
+  border: 1px dashed color-mix(in srgb, var(--app-border) 80%, transparent);
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-sm);
+  background: color-mix(in srgb, var(--app-bg) 65%, var(--app-surface));
+}
+
+.app-module-settings-title {
+  font-weight: 600;
+  color: var(--app-text);
+  font-size: 0.9rem;
 }

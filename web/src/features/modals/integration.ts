@@ -48,6 +48,22 @@ export const initIntegrationModal = ({
     currentIntegration = null;
   };
 
+  const getDefaultFieldValue = (integration: IntegrationSummary, key: string) => {
+    if (integration.name === "codex-cli") {
+      switch (key) {
+        case "binary":
+          return "codex";
+        case "args":
+          return "--dangerously-bypass-approvals-and-sandbox exec --json --output-last-message {outputFile} --skip-git-repo-check --cd {workingDir} --model {model}";
+        case "workingDir":
+          return "/app";
+        default:
+          return "";
+      }
+    }
+    return "";
+  };
+
   const buildIntegrationFields = (integration: IntegrationSummary) => {
     if (!integrationFields) {
       return;
@@ -76,6 +92,11 @@ export const initIntegrationModal = ({
       const existingValue = existing?.[field.key];
       if (typeof existingValue === "string") {
         input.value = existingValue;
+      } else if (field.type !== "password") {
+        const fallback = getDefaultFieldValue(integration, field.key);
+        if (fallback) {
+          input.value = fallback;
+        }
       }
 
       wrapper.appendChild(label);

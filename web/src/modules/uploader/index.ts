@@ -58,16 +58,46 @@ const coerceDataObject = (payload: DocumentPayload, editor: JsonEditorHandle | n
   return payload.data as Record<string, unknown>;
 };
 
-const buildHeader = (module: ModuleDefinition) => {
+const buildHeader = (module: ModuleDefinition, openSettings?: () => void) => {
   const header = document.createElement("div");
   header.className = "app-module-header";
+  const headerRow = document.createElement("div");
+  headerRow.className = "app-module-header-row";
   const title = document.createElement("div");
   title.className = "app-module-title";
   title.textContent = module.name;
+  headerRow.append(title);
+  if (openSettings) {
+    const settingsButton = document.createElement("button");
+    settingsButton.type = "button";
+    settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+    settingsButton.title = "Module settings";
+    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.innerHTML = `
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+          <path
+            d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+          <path
+            d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          ></path>
+        </svg>
+      </span>
+    `;
+    settingsButton.addEventListener("click", openSettings);
+    headerRow.append(settingsButton);
+  }
   const meta = document.createElement("div");
   meta.className = "app-module-meta";
   meta.textContent = module.author ? `${module.description} · ${module.author}` : module.description;
-  header.append(title, meta);
+  header.append(headerRow, meta);
   const storageHint = describeStorage(module);
   if (storageHint) {
     const storageMeta = document.createElement("div");
@@ -270,6 +300,6 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
     body.insertBefore(altField, actionsField);
   }
 
-  moduleCard.append(buildHeader(module), body);
+  moduleCard.append(buildHeader(module, context.openSettings), body);
   panel.append(moduleCard);
 };

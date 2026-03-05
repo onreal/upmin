@@ -1,0 +1,20 @@
+name: "codex-cli"
+description: "Codex CLI"
+supportsModels: true
+fields:
+  - key: "binary"
+    label: "CLI binary"
+    type: "text"
+    required: true
+  - key: "args"
+    label: "CLI arguments"
+    type: "text"
+    required: false
+  - key: "workingDir"
+    label: "Working directory"
+    type: "text"
+    required: false
+  - key: "apiKey"
+    label: "API key"
+    type: "password"
+    required: true

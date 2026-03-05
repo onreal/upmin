@@ -206,7 +206,6 @@ final class ErrorLogger
             'page' => 'logs',
             'name' => 'Errors ' . $labelTime,
             'order' => 1,
-            'section' => true,
             'data' => [
                 'createdAt' => $this->nowIso(),
                 'updatedAt' => $this->nowIso(),

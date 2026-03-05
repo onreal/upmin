@@ -31,6 +31,7 @@ export type AppState = {
   currentAgent: RemoteDocument | null;
   currentConversation: RemoteDocument | null;
   agentPoller: number | null;
+  returnToDocumentId: string | null;
 };
 
 export const state: AppState = {
@@ -51,6 +52,7 @@ export const state: AppState = {
   currentAgent: null,
   currentConversation: null,
   agentPoller: null,
+  returnToDocumentId: null,
 };
 
 export const editorRef: DocumentEditorRef = {

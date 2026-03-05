@@ -10,7 +10,7 @@ import {
   readSelectedModules,
   findModuleDefinition as findDefinition,
 } from "../features/modules/helpers";
-import { fetchModuleSettings } from "../features/modules/settings";
+import { ensureModuleSettingsDocument, fetchModuleSettings } from "../features/modules/settings";
 import { clearAgentState } from "../features/agents/state";
 import { encodeDocumentId } from "../utils";
 import { refreshNavigation } from "./loaders";
@@ -23,11 +23,21 @@ export const openLoggerSettings = () => {
   void loadDocument(id);
 };
 
+export const openWebsiteBuild = () => {
+  if (!state.auth) {
+    return;
+  }
+  const id = encodeDocumentId("private", "website-build.json");
+  void loadDocument(id);
+};
+
 export const renderDocumentView = (doc: RemoteDocument) => {
   const content = document.getElementById("content");
   renderDocument({
     content,
     auth: state.auth,
+    modules: state.modules,
+    agents: state.agents,
     doc,
     clearAgentState,
     moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected),
@@ -47,6 +57,15 @@ export const renderDocumentView = (doc: RemoteDocument) => {
         fetchModuleSettings: (moduleName, payload) =>
           fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
         findModuleDefinition: (name) => findDefinition(state.modules, name),
+        ensureModuleSettingsDocument: (module, payload) =>
+          ensureModuleSettingsDocument(state.auth, payload, module, state.moduleSettingsCache),
+        openModuleSettings: (settingsId) => {
+          if (!moduleDoc?.id) {
+            return;
+          }
+          state.returnToDocumentId = moduleDoc.id;
+          loadDocument(settingsId);
+        },
       }),
     renderLogDocument: (logDoc) =>
       renderLogDocument({
@@ -64,6 +83,11 @@ export const renderDocumentView = (doc: RemoteDocument) => {
     onModuleSettingsSaved: () => {
       state.moduleSettingsCache.clear();
     },
+    returnToDocumentId: state.returnToDocumentId,
+    onReturnToDocument: (id) => {
+      state.returnToDocumentId = null;
+      loadDocument(id);
+    },
     rerender: (updated) => {
       renderDocumentView(updated);
     },
@@ -77,6 +101,9 @@ export const loadDocument = async (id: string) => {
   try {
     const doc = await fetchDocument(state.auth, id);
     state.currentDocument = doc;
+    if (!(doc.store === "private" && doc.payload.page === "modules")) {
+      state.returnToDocumentId = null;
+    }
     if (doc.store === "private" && doc.path.startsWith("logs/") && !state.logs.length) {
       try {
         const { fetchLogs } = await import("../api");

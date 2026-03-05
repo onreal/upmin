@@ -10,6 +10,11 @@ export type ModulePanelContext = {
   normalizeModuleList: (modulesValue?: string[] | null, fallback?: string | null) => string[];
   fetchModuleSettings: (moduleName: string, payload: DocumentPayload) => Promise<Record<string, unknown> | null>;
   findModuleDefinition: (name: string | null | undefined) => ModuleDefinition | null;
+  ensureModuleSettingsDocument: (
+    module: ModuleDefinition,
+    payload: DocumentPayload
+  ) => Promise<RemoteDocument>;
+  openModuleSettings: (settingsId: string) => void;
 };
 
 export const renderModulePanel = async ({
@@ -19,6 +24,8 @@ export const renderModulePanel = async ({
   normalizeModuleList,
   fetchModuleSettings,
   findModuleDefinition,
+  ensureModuleSettingsDocument,
+  openModuleSettings,
 }: ModulePanelContext) => {
   const panel = document.getElementById("module-panel");
   if (!panel) {
@@ -56,6 +63,15 @@ export const renderModulePanel = async ({
       payload: doc.payload,
       editor,
       settings,
+      openSettings: () => {
+        void ensureModuleSettingsDocument(module, doc.payload)
+          .then((resolved) => {
+            openModuleSettings(resolved.id);
+          })
+          .catch((err) => {
+            alert((err as Error).message);
+          });
+      },
     });
 
     if (!handled) {

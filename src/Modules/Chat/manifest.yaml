@@ -1,0 +1,36 @@
+name: "chat"
+description: "Chat with an agent and store conversations"
+author: "me"
+input: "message"
+output: "conversation"
+parameters:
+  agent:
+    name: ""
+    id: ""
+  conversation:
+    visibility: "public"
+    root: "chats"
+    suffix: "conversation"
+  output:
+    target: "chat"
+schema:
+  type: object
+  properties:
+    id:
+      type: string
+      title: "Message Id"
+    conversationId:
+      type: string
+      title: "Conversation Id"
+    agent:
+      type: string
+      title: "Agent"
+    content:
+      type: string
+      title: "Response"
+    createdAt:
+      type: string
+      title: "Created at"
+  required:
+    - id
+    - content

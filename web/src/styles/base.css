@@ -36,6 +36,15 @@ body {
   color: var(--app-muted);
 }
 
+.input[disabled],
+.textarea[disabled],
+.select select[disabled] {
+  background: color-mix(in srgb, var(--app-surface) 65%, var(--app-bg));
+  border-color: var(--app-border);
+  color: var(--app-muted);
+  opacity: 1;
+}
+
 .box {
   background: var(--app-surface);
   color: var(--app-text);
