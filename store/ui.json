@@ -2,7 +2,6 @@
     "type": "page",
     "page": "ui",
     "name": "UI Rules",
-    "section": false,
     "data": {
         "theme": "light",
         "tokens": {
@@ -12,6 +11,7 @@
             "app-accent": "#5dd6b3"
         }
     },
+    "section": false,
     "language": "el",
-    "order": 3
+    "order": 5
 }

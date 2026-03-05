@@ -2,11 +2,10 @@
     "type": "page",
     "page": "layout",
     "name": "Layout",
-    "section": false,
     "data": {
         "header": {
             "title": "UpMin",
-            "subtitle": "Stateless Admin",
+            "subtitle": "The AI Admin",
             "createLabel": "Create",
             "settingsLabel": "Settings",
             "themeLabel": "Theme",
@@ -18,10 +17,11 @@
         },
         "profile": {
             "title": "Profile",
-            "subtitle": "Ενημερώστε τα στοιχεία σας.",
+            "subtitle": "Update your profile info",
             "saveLabel": "Save Profile"
         }
     },
+    "section": false,
     "language": "el",
     "order": 2
 }

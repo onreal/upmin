@@ -585,7 +585,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <a class="navbar-item" id="integrations-link">Integrations</a>
               <a class="navbar-item" id="logs-link">Logs</a>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="website-build-link">Website build</a>
+              <div id="nav-system-pages"></div>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="agents-dropdown">
@@ -1226,7 +1226,6 @@ var initShellEvents = ({
   onShowModules,
   onShowIntegrations,
   onShowLogs,
-  onShowWebsiteBuild,
   onExportAll,
   onOpenCreate,
   onOpenAgentModal
@@ -1278,11 +1277,6 @@ var initShellEvents = ({
   document.getElementById("logs-link")?.addEventListener("click", (event) => {
     event.preventDefault();
     onShowLogs();
-    document.getElementById("private-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("website-build-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    onShowWebsiteBuild();
     document.getElementById("private-dropdown")?.classList.remove("is-active");
   });
   document.getElementById("export-zip-header")?.addEventListener("click", () => {
@@ -1910,7 +1904,7 @@ var findAuthDocumentId = (pages) => {
 };
 var renderNavList = (container, pages, mode, onSelectDocument) => {
   container.innerHTML = "";
-  pages.filter((page) => page.store === mode).forEach((page) => {
+  pages.filter((page) => page.store === mode && page.position !== "system").forEach((page) => {
     const pageItem = document.createElement("li");
     const pageLink = document.createElement("a");
     pageLink.textContent = page.name;
@@ -1923,7 +1917,9 @@ var renderNavList = (container, pages, mode, onSelectDocument) => {
       }
     });
     pageItem.append(pageLink);
-    const sections = page.sections.filter((section) => section.store === mode);
+    const sections = page.sections.filter(
+      (section) => section.store === mode && section.position !== "system"
+    );
     if (sections.length > 0) {
       const sectionList = document.createElement("ul");
       sections.forEach((section) => {
@@ -1947,12 +1943,48 @@ var renderNavList = (container, pages, mode, onSelectDocument) => {
 var renderNavigation = (pages, onSelectDocument) => {
   const navPublic = document.getElementById("nav-public");
   const navPrivate = document.getElementById("nav-private");
-  if (!navPublic || !navPrivate) {
+  const navSystem = document.getElementById("nav-system-pages");
+  if (!navPublic || !navPrivate || !navSystem) {
     return;
   }
   state.authDocumentId = findAuthDocumentId(pages);
   renderNavList(navPublic, pages, "public", onSelectDocument);
   renderNavList(navPrivate, pages, "private", onSelectDocument);
+  renderSystemPages(navSystem, pages, onSelectDocument);
+};
+var renderSystemPages = (container, pages, onSelectDocument) => {
+  container.innerHTML = "";
+  const systemPages = pages.filter((page) => page.store === "private" && page.position === "system").sort((a, b) => {
+    const orderA = typeof a.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
+    const orderB = typeof b.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return (a.name || "").localeCompare(b.name || "");
+  });
+  if (systemPages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "navbar-item is-size-7 app-muted";
+    empty.textContent = "No system pages.";
+    container.append(empty);
+    return;
+  }
+  systemPages.forEach((page) => {
+    if (!page.documentId) {
+      return;
+    }
+    const link = document.createElement("a");
+    link.className = "navbar-item";
+    link.textContent = page.name;
+    if (state.currentDocument?.id === page.documentId) {
+      link.classList.add("is-active");
+    }
+    link.addEventListener("click", () => {
+      onSelectDocument(page.documentId);
+      document.getElementById("private-dropdown")?.classList.remove("is-active");
+    });
+    container.append(link);
+  });
 };
 
 // web/src/features/agents/menu.ts
@@ -4447,6 +4479,8 @@ var renderDocument = ({
   const isModuleSettings = payload.page === "modules" && doc.store === "private";
   const isLogSettings = doc.store === "private" && doc.path === "logs/logger-settings.json";
   const isLogDocument = doc.store === "private" && doc.path.startsWith("logs/") && !isLogSettings;
+  const isSystemPage = doc.store === "private" && payload.position === "system";
+  const isConfigurationPage = doc.store === "private" && doc.path === "system/configuration.json";
   if (isLogDocument) {
     renderLogDocument2(doc);
     return;
@@ -4497,6 +4531,64 @@ var renderDocument = ({
         const updated = await updateDocument2(auth, doc.id, payloadToSave);
         onDocumentUpdated(updated);
         onModuleSettingsSaved();
+        rerender(updated);
+        await refreshNavigation2();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+    document.getElementById("export-json")?.addEventListener("click", async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const result = await downloadDocument2(auth, doc.id);
+        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
+        triggerDownload(result.blob, filename);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+    return;
+  }
+  if (isSystemPage) {
+    const adminPath = typeof payload.data === "object" && payload.data !== null && "adminPath" in payload.data && typeof payload.data.adminPath === "string" ? payload.data.adminPath ?? "" : "";
+    content.innerHTML = `
+      <div class="mb-4">
+        <h1 class="title is-4">${payload.name}</h1>
+        <p class="app-muted">${payload.page} \xB7 ${doc.store}/${doc.path}</p>
+      </div>
+      ${isConfigurationPage ? `<div class="notification is-light app-muted">After saving, open <strong>/${adminPath || "manage"}/</strong>.</div>` : ""}
+      <div class="mb-4 buttons">
+        <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
+        <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+      </div>
+      <div class="mt-4">
+        <div id="module-panel" class="mb-4"></div>
+        <h2 class="title is-5">Data</h2>
+        <div id="json-editor" class="json-editor"></div>
+      </div>
+    `;
+    const editorContainer2 = document.getElementById("json-editor");
+    if (editorContainer2) {
+      editorRef2.set(buildJsonEditor2(editorContainer2, payload.data));
+    }
+    const modulePanel = document.getElementById("module-panel");
+    if (modulePanel && selectedModules.length > 0) {
+      void renderModulePanel2(doc);
+    }
+    document.getElementById("save")?.addEventListener("click", async () => {
+      if (!auth) {
+        return;
+      }
+      const editor = editorRef2.get();
+      const payloadToSave = {
+        ...payload,
+        data: editor ? editor.getValue() : payload.data
+      };
+      try {
+        const updated = await updateDocument2(auth, doc.id, payloadToSave);
+        onDocumentUpdated(updated);
         rerender(updated);
         await refreshNavigation2();
       } catch (err) {
@@ -4749,13 +4841,6 @@ var openLoggerSettings = () => {
     return;
   }
   const id = encodeDocumentId("private", "logs/logger-settings.json");
-  void loadDocument(id);
-};
-var openWebsiteBuild = () => {
-  if (!state.auth) {
-    return;
-  }
-  const id = encodeDocumentId("private", "website-build.json");
   void loadDocument(id);
 };
 var renderDocumentView = (doc) => {
@@ -5351,9 +5436,6 @@ var renderApp = async () => {
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
     onShowLogs: () => {
       void showLogsView();
-    },
-    onShowWebsiteBuild: () => {
-      openWebsiteBuild();
     },
     onExportAll: exportAll,
     onOpenCreate: createModal.openCreateModal,

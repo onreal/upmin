@@ -23,14 +23,6 @@ export const openLoggerSettings = () => {
   void loadDocument(id);
 };
 
-export const openWebsiteBuild = () => {
-  if (!state.auth) {
-    return;
-  }
-  const id = encodeDocumentId("private", "website-build.json");
-  void loadDocument(id);
-};
-
 export const renderDocumentView = (doc: RemoteDocument) => {
   const content = document.getElementById("content");
   renderDocument({

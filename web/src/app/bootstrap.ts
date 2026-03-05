@@ -12,7 +12,7 @@ import { initIntegrationModal } from "../features/modals/integration";
 import { moduleChecklistHtml as buildModuleChecklistHtml } from "../features/modules/helpers";
 import { refreshNavigation, loadAgents, loadIntegrations, loadLayoutConfig, loadModules, loadUiConfig } from "./loaders";
 import { showIntegrationsView, showLogsView, showModulesView } from "./screens";
-import { loadDocument, openWebsiteBuild } from "./documents";
+import { loadDocument } from "./documents";
 import { loadAgent } from "../features/agents/controller";
 import { clearAgentState } from "../features/agents/state";
 import { refreshAgentEditControls } from "../features/agents/view";
@@ -111,9 +111,6 @@ const renderApp = async () => {
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
     onShowLogs: () => {
       void showLogsView();
-    },
-    onShowWebsiteBuild: () => {
-      openWebsiteBuild();
     },
     onExportAll: exportAll,
     onOpenCreate: createModal.openCreateModal,

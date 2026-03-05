@@ -39,7 +39,27 @@ final class UpdateDocument
             throw new \InvalidArgumentException('Logs are read-only.');
         }
 
+        if ($document->wrapper()->position() === 'system') {
+            if (!array_key_exists('data', $payload)) {
+                throw new \InvalidArgumentException('Document.data is required.');
+            }
+            $wrapper = $document->wrapper()->withData($payload['data']);
+            $updated = $document->withWrapper($wrapper);
+            $this->documents->save($updated);
+            $this->ensureModuleSettings->handle($updated->wrapper());
+
+            return [
+                'id' => $updated->id()->encoded(),
+                'store' => $updated->store(),
+                'path' => $updated->path(),
+                'payload' => $updated->wrapper()->toArray(),
+            ];
+        }
+
         $wrapper = DocumentWrapper::fromArray($payload);
+        if ($wrapper->position() === 'system') {
+            throw new \InvalidArgumentException('System pages cannot be created via the admin.');
+        }
         if (
             $document->store() === 'private'
             && $wrapper->page() === 'logs'

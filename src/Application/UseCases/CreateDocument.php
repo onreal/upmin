@@ -53,6 +53,9 @@ final class CreateDocument
         }
 
         $wrapper = DocumentWrapper::fromArray($payload);
+        if ($wrapper->position() === 'system') {
+            throw new \InvalidArgumentException('System pages cannot be created via the admin.');
+        }
         if (
             $store === 'private'
             && $wrapper->page() === 'logs'

@@ -66,6 +66,8 @@ export const renderDocument = ({
   const isModuleSettings = payload.page === "modules" && doc.store === "private";
   const isLogSettings = doc.store === "private" && doc.path === "logs/logger-settings.json";
   const isLogDocument = doc.store === "private" && doc.path.startsWith("logs/") && !isLogSettings;
+  const isSystemPage = doc.store === "private" && payload.position === "system";
+  const isConfigurationPage = doc.store === "private" && doc.path === "system/configuration.json";
 
   if (isLogDocument) {
     renderLogDocument(doc);
@@ -130,6 +132,80 @@ export const renderDocument = ({
         const updated = await updateDocument(auth, doc.id, payloadToSave);
         onDocumentUpdated(updated);
         onModuleSettingsSaved();
+        rerender(updated);
+        await refreshNavigation();
+      } catch (err) {
+        alert((err as Error).message);
+      }
+    });
+
+    document.getElementById("export-json")?.addEventListener("click", async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const result = await downloadDocument(auth, doc.id);
+        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
+        triggerDownload(result.blob, filename);
+      } catch (err) {
+        alert((err as Error).message);
+      }
+    });
+
+    return;
+  }
+
+  if (isSystemPage) {
+    const adminPath =
+      typeof payload.data === "object" &&
+      payload.data !== null &&
+      "adminPath" in payload.data &&
+      typeof (payload.data as { adminPath?: unknown }).adminPath === "string"
+        ? ((payload.data as { adminPath?: string }).adminPath ?? "")
+        : "";
+    content.innerHTML = `
+      <div class="mb-4">
+        <h1 class="title is-4">${payload.name}</h1>
+        <p class="app-muted">${payload.page} · ${doc.store}/${doc.path}</p>
+      </div>
+      ${
+        isConfigurationPage
+          ? `<div class="notification is-light app-muted">After saving, open <strong>/${adminPath || "manage"}/</strong>.</div>`
+          : ""
+      }
+      <div class="mb-4 buttons">
+        <button id="save" class="button app-button app-primary">Αποθήκευση</button>
+        <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+      </div>
+      <div class="mt-4">
+        <div id="module-panel" class="mb-4"></div>
+        <h2 class="title is-5">Data</h2>
+        <div id="json-editor" class="json-editor"></div>
+      </div>
+    `;
+
+    const editorContainer = document.getElementById("json-editor");
+    if (editorContainer) {
+      editorRef.set(buildJsonEditor(editorContainer, payload.data));
+    }
+
+    const modulePanel = document.getElementById("module-panel");
+    if (modulePanel && selectedModules.length > 0) {
+      void renderModulePanel(doc);
+    }
+
+    document.getElementById("save")?.addEventListener("click", async () => {
+      if (!auth) {
+        return;
+      }
+      const editor = editorRef.get();
+      const payloadToSave: DocumentPayload = {
+        ...payload,
+        data: editor ? editor.getValue() : payload.data,
+      };
+      try {
+        const updated = await updateDocument(auth, doc.id, payloadToSave);
+        onDocumentUpdated(updated);
         rerender(updated);
         await refreshNavigation();
       } catch (err) {

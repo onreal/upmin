@@ -14,6 +14,7 @@ final class DocumentWrapper
     private bool $section;
     /** @var string[] */
     private array $modules;
+    private ?string $position;
     private mixed $data;
 
     private function __construct(
@@ -24,6 +25,7 @@ final class DocumentWrapper
         int $order,
         bool $section,
         array $modules,
+        ?string $position,
         mixed $data
     )
     {
@@ -34,6 +36,7 @@ final class DocumentWrapper
         $this->order = $order;
         $this->section = $section;
         $this->modules = $modules;
+        $this->position = $position;
         $this->data = $data;
     }
 
@@ -103,6 +106,19 @@ final class DocumentWrapper
         }
         $modules = array_values(array_unique($modules));
 
+        $position = null;
+        if (array_key_exists('position', $payload) && $payload['position'] !== null) {
+            if (!is_string($payload['position'])) {
+                throw new \InvalidArgumentException('Document.position must be a string.');
+            }
+            $position = strtolower(trim($payload['position']));
+            if ($position === '') {
+                $position = null;
+            } elseif ($position !== 'system') {
+                throw new \InvalidArgumentException('Document.position must be system.');
+            }
+        }
+
         return new self(
             $type,
             trim($payload['page']),
@@ -111,6 +127,7 @@ final class DocumentWrapper
             $order,
             $sectionValue,
             $modules,
+            $position,
             $payload['data']
         );
     }
@@ -151,6 +168,11 @@ final class DocumentWrapper
         return $this->modules;
     }
 
+    public function position(): ?string
+    {
+        return $this->position;
+    }
+
     public function data(): mixed
     {
         return $this->data;
@@ -158,12 +180,12 @@ final class DocumentWrapper
 
     public function withData(mixed $data): self
     {
-        return new self($this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $data);
+        return new self($this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $data);
     }
 
     public function withOrder(int $order): self
     {
-        return new self($this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->data);
+        return new self($this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->data);
     }
 
     public function toArray(): array
@@ -184,6 +206,9 @@ final class DocumentWrapper
         }
         if ($this->modules !== []) {
             $payload['modules'] = $this->modules;
+        }
+        if ($this->position !== null) {
+            $payload['position'] = $this->position;
         }
         $payload['order'] = $this->order;
 

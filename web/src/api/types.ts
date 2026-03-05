@@ -19,6 +19,7 @@ export type NavigationPage = {
   documentId?: string | null;
   store?: string | null;
   path?: string | null;
+  position?: string | null;
   sections: Array<{
     id: string;
     name: string;
@@ -26,6 +27,7 @@ export type NavigationPage = {
     order?: number | null;
     store: string;
     path: string;
+    position?: string | null;
   }>;
 };
 
@@ -38,6 +40,7 @@ export type DocumentPayload = {
   section?: boolean;
   modules?: string[] | null;
   module?: string | null;
+  position?: string | null;
   data: unknown;
 };
 

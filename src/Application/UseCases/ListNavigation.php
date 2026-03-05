@@ -65,6 +65,7 @@ final class ListNavigation
             'documentId' => $pageDoc?->id()->encoded(),
             'store' => $pageDoc?->store(),
             'path' => $pageDoc?->path(),
+            'position' => $pageDoc?->wrapper()->position(),
             'sections' => [],
         ];
 
@@ -76,6 +77,7 @@ final class ListNavigation
                 'order' => $section->wrapper()->order(),
                 'store' => $section->store(),
                 'path' => $section->path(),
+                'position' => $section->wrapper()->position(),
             ];
         }
 

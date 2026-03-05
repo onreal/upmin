@@ -1,11 +1,12 @@
 {
-  "type": "page",
-  "page": "website-build",
-  "name": "Website build",
-  "order": 1,
-  "section": false,
-  "modules": [
-    "chat"
-  ],
-  "data": {}
+    "type": "page",
+    "page": "website-build",
+    "name": "Website build",
+    "data": [],
+    "section": false,
+    "modules": [
+        "chat"
+    ],
+    "order": 3,
+    "position": "system"
 }
