@@ -51,6 +51,20 @@ export type RemoteDocument = {
   payload: DocumentPayload;
 };
 
+export type CreationRecord = {
+  id: string;
+  createdAt: string;
+  reason?: string | null;
+  snapshotPath: string;
+  snapshotMimeType?: string | null;
+  backupPath: string;
+};
+
+export type CreationActionResponse = {
+  document: RemoteDocument;
+  creation?: CreationRecord;
+};
+
 export type AgentSummary = {
   id: string;
   name: string;

@@ -331,19 +331,19 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
         if (!isRecord(item) || typeof item.url !== "string" || typeof item.path !== "string") {
           return;
         }
+        const url = item.url;
+        const path = item.path;
         const card = document.createElement("button");
         card.type = "button";
         card.className = "app-gallery-item";
-        card.setAttribute("data-url", item.url);
-        card.setAttribute("data-path", item.path);
+        card.setAttribute("data-url", url);
+        card.setAttribute("data-path", path);
         const img = document.createElement("img");
-        img.src = item.url;
+        img.src = url;
         img.alt = typeof item.filename === "string" ? item.filename : "";
         card.append(img);
         const itemVisibility = typeof item.visibility === "string" ? item.visibility : currentVisibility;
-        card.addEventListener("click", () =>
-          openModal({ url: item.url, path: item.path, visibility: itemVisibility })
-        );
+        card.addEventListener("click", () => openModal({ url, path, visibility: itemVisibility }));
         grid.append(card);
       });
       renderGrid();

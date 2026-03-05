@@ -12,6 +12,7 @@ import {
 } from "../features/modules/helpers";
 import { ensureModuleSettingsDocument, fetchModuleSettings } from "../features/modules/settings";
 import { clearAgentState } from "../features/agents/state";
+import { isCreationsDocument, renderCreationsPage } from "../features/creations/controller";
 import { encodeDocumentId } from "../utils";
 import { refreshNavigation } from "./loaders";
 
@@ -25,6 +26,24 @@ export const openLoggerSettings = () => {
 
 export const renderDocumentView = (doc: RemoteDocument) => {
   const content = document.getElementById("content");
+
+  if (isCreationsDocument(doc)) {
+    clearAgentState();
+    renderCreationsPage({
+      content,
+      auth: state.auth,
+      doc,
+      onDocumentUpdated: (updated) => {
+        state.currentDocument = updated;
+      },
+      refreshNavigation: () => refreshNavigation(loadDocument),
+      rerender: (updated) => {
+        renderDocumentView(updated);
+      },
+    });
+    return;
+  }
+
   renderDocument({
     content,
     auth: state.auth,

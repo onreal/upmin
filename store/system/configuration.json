@@ -1,0 +1,11 @@
+{
+    "type": "page",
+    "page": "system",
+    "name": "Configuration",
+    "data": {
+        "adminPath": "manage"
+    },
+    "section": false,
+    "position": "system",
+    "order": 1
+}

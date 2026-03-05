@@ -90,7 +90,7 @@ export const requestBlob = async (
   url: string,
   options: RequestInit,
   auth: AuthState
-): Promise<{ blob: Blob; filename: string | null }> => {
+): Promise<{ blob: Blob; filename?: string }> => {
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -120,9 +120,44 @@ export const requestBlob = async (
   const blob = await response.blob();
   const disposition = response.headers.get("Content-Disposition") || "";
   const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-  const filename = match ? match[1] : null;
+  const filename = match ? match[1] : undefined;
 
   notify({ type: "success", message: "Download ready." });
+  return { blob, filename };
+};
+
+export const requestAsset = async (
+  url: string,
+  options: RequestInit,
+  auth: AuthState,
+  config: RequestConfig = {}
+): Promise<{ blob: Blob; filename?: string }> => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...buildHeaders(auth, false),
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    const message = error.message || error.error || response.statusText || "Request failed";
+    if (config.notify !== false) {
+      notify({ type: "error", message });
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+  const filename = match ? match[1] : undefined;
+
+  if (config.notify !== false) {
+    notify({ type: "success", message: "Download ready." });
+  }
+
   return { blob, filename };
 };
 

@@ -270,18 +270,20 @@ export const renderModuleSettingsForm = ({
     renderGroup(form, parameters, settings, []);
   }
 
-  if (agentNameSelect && agentIdInput) {
-    if (!agentNameSelect.value && pendingAgentId) {
+  const linkedAgentNameSelect = agentNameSelect as HTMLSelectElement | null;
+  const linkedAgentIdInput = agentIdInput as HTMLInputElement | null;
+  if (linkedAgentNameSelect && linkedAgentIdInput) {
+    if (!linkedAgentNameSelect.value && pendingAgentId) {
       const match = agentsById.get(pendingAgentId);
       if (match) {
-        agentNameSelect.value = match.name;
+        linkedAgentNameSelect.value = match.name;
       }
     }
-    if (agentNameSelect.value) {
-      const match = agentsByName.get(agentNameSelect.value);
-      agentIdInput.value = match?.id ?? "";
+    if (linkedAgentNameSelect.value) {
+      const match = agentsByName.get(linkedAgentNameSelect.value);
+      linkedAgentIdInput.value = match?.id ?? "";
     } else {
-      agentIdInput.value = "";
+      linkedAgentIdInput.value = "";
     }
   }
 

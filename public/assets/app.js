@@ -16,7 +16,7 @@ var init_types = __esm({
 });
 
 // web/src/api/client.ts
-var STORAGE_KEY, notify, successMessageFor, loadAuth, saveAuth, buildHeaders, request, requestBlob, requestForm;
+var STORAGE_KEY, notify, successMessageFor, loadAuth, saveAuth, buildHeaders, request, requestBlob, requestAsset, requestForm;
 var init_client = __esm({
   "web/src/api/client.ts"() {
     "use strict";
@@ -113,8 +113,33 @@ var init_client = __esm({
       const blob = await response.blob();
       const disposition = response.headers.get("Content-Disposition") || "";
       const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
-      const filename = match ? match[1] : null;
+      const filename = match ? match[1] : void 0;
       notify({ type: "success", message: "Download ready." });
+      return { blob, filename };
+    };
+    requestAsset = async (url, options, auth, config = {}) => {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...buildHeaders(auth, false),
+          ...options.headers || {}
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }));
+        const message = error.message || error.error || response.statusText || "Request failed";
+        if (config.notify !== false) {
+          notify({ type: "error", message });
+        }
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+      const filename = match ? match[1] : void 0;
+      if (config.notify !== false) {
+        notify({ type: "success", message: "Download ready." });
+      }
       return { blob, filename };
     };
     requestForm = async (url, body, auth) => {
@@ -349,23 +374,51 @@ var init_agents = __esm({
   }
 });
 
+// web/src/api/creations.ts
+var createCreationSnapshot, clearWebsiteWithSnapshot, restoreCreationSnapshot, deleteCreationSnapshot, downloadCreationSnapshot, fetchCreationSnapshotImage;
+var init_creations = __esm({
+  "web/src/api/creations.ts"() {
+    "use strict";
+    init_client();
+    createCreationSnapshot = (auth, snapshot) => request(
+      "/api/creations/snapshot",
+      { method: "POST", body: JSON.stringify({ snapshot }) },
+      auth
+    );
+    clearWebsiteWithSnapshot = (auth, snapshot) => request(
+      "/api/creations/clear",
+      { method: "POST", body: JSON.stringify({ snapshot }) },
+      auth
+    );
+    restoreCreationSnapshot = (auth, id) => request(`/api/creations/${id}/restore`, { method: "POST" }, auth);
+    deleteCreationSnapshot = (auth, id) => request(`/api/creations/${id}`, { method: "DELETE" }, auth);
+    downloadCreationSnapshot = (auth, id) => requestAsset(`/api/creations/${id}/download`, { method: "GET" }, auth);
+    fetchCreationSnapshotImage = (auth, id) => requestAsset(`/api/creations/${id}/image`, { method: "GET" }, auth, { notify: false });
+  }
+});
+
 // web/src/api/index.ts
 var api_exports = {};
 __export(api_exports, {
   appendAgentMessage: () => appendAgentMessage,
   appendChatMessage: () => appendChatMessage,
+  clearWebsiteWithSnapshot: () => clearWebsiteWithSnapshot,
   createAgent: () => createAgent,
   createAgentConversation: () => createAgentConversation,
+  createCreationSnapshot: () => createCreationSnapshot,
   createDocument: () => createDocument,
   deleteChatConversation: () => deleteChatConversation,
+  deleteCreationSnapshot: () => deleteCreationSnapshot,
   deleteModuleFile: () => deleteModuleFile,
   downloadArchive: () => downloadArchive,
+  downloadCreationSnapshot: () => downloadCreationSnapshot,
   downloadDocument: () => downloadDocument,
   fetchAgent: () => fetchAgent,
   fetchAgentConversation: () => fetchAgentConversation,
   fetchAgentConversations: () => fetchAgentConversations,
   fetchAgents: () => fetchAgents,
   fetchChatConversations: () => fetchChatConversations,
+  fetchCreationSnapshotImage: () => fetchCreationSnapshotImage,
   fetchDocument: () => fetchDocument,
   fetchIntegrationSettings: () => fetchIntegrationSettings,
   fetchIntegrations: () => fetchIntegrations,
@@ -380,8 +433,10 @@ __export(api_exports, {
   loginWithPassword: () => loginWithPassword,
   pullChatConversation: () => pullChatConversation,
   request: () => request,
+  requestAsset: () => requestAsset,
   requestBlob: () => requestBlob,
   requestForm: () => requestForm,
+  restoreCreationSnapshot: () => restoreCreationSnapshot,
   saveAuth: () => saveAuth,
   startChatConversation: () => startChatConversation,
   syncIntegrationModels: () => syncIntegrationModels,
@@ -403,6 +458,7 @@ var init_api = __esm({
     init_integrations();
     init_logs();
     init_agents();
+    init_creations();
   }
 });
 
@@ -3465,20 +3521,19 @@ var renderGalleryModule = (panel, context) => {
         if (!isRecord2(item) || typeof item.url !== "string" || typeof item.path !== "string") {
           return;
         }
+        const url = item.url;
+        const path = item.path;
         const card = document.createElement("button");
         card.type = "button";
         card.className = "app-gallery-item";
-        card.setAttribute("data-url", item.url);
-        card.setAttribute("data-path", item.path);
+        card.setAttribute("data-url", url);
+        card.setAttribute("data-path", path);
         const img = document.createElement("img");
-        img.src = item.url;
+        img.src = url;
         img.alt = typeof item.filename === "string" ? item.filename : "";
         card.append(img);
         const itemVisibility = typeof item.visibility === "string" ? item.visibility : currentVisibility;
-        card.addEventListener(
-          "click",
-          () => openModal({ url: item.url, path: item.path, visibility: itemVisibility })
-        );
+        card.addEventListener("click", () => openModal({ url, path, visibility: itemVisibility }));
         grid.append(card);
       });
       renderGrid();
@@ -3749,7 +3804,8 @@ var renderUploaderModule = (panel, context) => {
     altInput.type = "text";
     altInput.className = "input";
     altInput.value = pendingAlt;
-    altInput.addEventListener("input", () => setPendingAlt(altInput.value));
+    const linkedAltInput = altInput;
+    linkedAltInput.addEventListener("input", () => setPendingAlt(linkedAltInput.value));
     altControl.append(altInput);
     altField.append(altLabel, altControl);
     body.insertBefore(altField, actionsField);
@@ -4402,18 +4458,20 @@ var renderModuleSettingsForm = ({
   } else {
     renderGroup(form, parameters, settings, []);
   }
-  if (agentNameSelect && agentIdInput) {
-    if (!agentNameSelect.value && pendingAgentId) {
+  const linkedAgentNameSelect = agentNameSelect;
+  const linkedAgentIdInput = agentIdInput;
+  if (linkedAgentNameSelect && linkedAgentIdInput) {
+    if (!linkedAgentNameSelect.value && pendingAgentId) {
       const match = agentsById.get(pendingAgentId);
       if (match) {
-        agentNameSelect.value = match.name;
+        linkedAgentNameSelect.value = match.name;
       }
     }
-    if (agentNameSelect.value) {
-      const match = agentsByName.get(agentNameSelect.value);
-      agentIdInput.value = match?.id ?? "";
+    if (linkedAgentNameSelect.value) {
+      const match = agentsByName.get(linkedAgentNameSelect.value);
+      linkedAgentIdInput.value = match?.id ?? "";
     } else {
-      agentIdInput.value = "";
+      linkedAgentIdInput.value = "";
     }
   }
   const getValue = () => {
@@ -4835,6 +4893,529 @@ var ensureModuleSettingsDocument = async (auth, payload, module, cache) => {
   }
 };
 
+// web/src/features/creations/controller.ts
+init_api();
+
+// web/src/views/creations.ts
+var timestampFormatter = new Intl.DateTimeFormat(void 0, {
+  dateStyle: "medium",
+  timeStyle: "short"
+});
+var escapeHtml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var reasonLabel = (reason) => {
+  if (reason === "before-clear") {
+    return "Pre-clear snapshot";
+  }
+  return "Manual snapshot";
+};
+var formatTimestamp = (value) => {
+  if (!value) {
+    return "Unknown time";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return timestampFormatter.format(date);
+};
+var runButtonAction = async (button, pendingLabel, action) => {
+  const originalLabel = button.textContent ?? pendingLabel;
+  button.disabled = true;
+  button.textContent = pendingLabel;
+  try {
+    await action();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+};
+var buildCard = (creation) => {
+  const article = document.createElement("article");
+  article.className = "app-creation-card app-surface";
+  article.innerHTML = `
+    <div class="app-creation-preview is-loading">
+      <div class="app-creation-preview-glow"></div>
+      <img alt="${escapeHtml(creation.id)}" loading="lazy" />
+    </div>
+    <div class="app-creation-copy">
+      <div class="app-creation-copy-top">
+        <span class="app-creation-badge">${escapeHtml(reasonLabel(creation.reason))}</span>
+        <span class="app-creation-date">${escapeHtml(formatTimestamp(creation.createdAt))}</span>
+      </div>
+      <h2 class="app-creation-title">${escapeHtml(creation.id)}</h2>
+      <div class="app-creation-paths">
+        <div>
+          <span class="app-creation-label">Backup</span>
+          <code>manage/store/${escapeHtml(creation.backupPath)}</code>
+        </div>
+        <div>
+          <span class="app-creation-label">Preview</span>
+          <code>manage/store/${escapeHtml(creation.snapshotPath)}</code>
+        </div>
+      </div>
+    </div>
+    <div class="app-creation-actions">
+      <button data-action="download" class="button app-button app-primary">Download</button>
+      <button data-action="restore" class="button app-button app-ghost">Restore</button>
+      <button data-action="delete" class="button app-button app-danger">Delete</button>
+    </div>
+  `;
+  return article;
+};
+var renderCreationsView = ({
+  content,
+  doc,
+  creations,
+  onSnapshot,
+  onClearAll,
+  onDelete,
+  onRestore,
+  onDownload,
+  onExportJson,
+  loadPreview
+}) => {
+  if (!content) {
+    return;
+  }
+  content.innerHTML = `
+    <section class="app-creations-shell">
+      <div class="app-creations-hero app-surface">
+        <div>
+          <p class="app-creations-kicker">System page</p>
+          <h1 class="title is-4">${escapeHtml(doc.payload.name)}</h1>
+          <p class="app-muted app-creations-subtitle">
+            Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.
+          </p>
+        </div>
+        <div class="app-creations-stats">
+          <div>
+            <span class="app-creations-stat-value">${creations.length}</span>
+            <span class="app-creations-stat-label">Snapshots</span>
+          </div>
+          <div>
+            <span class="app-creations-stat-value">${escapeHtml(doc.store)}</span>
+            <span class="app-creations-stat-label">Store</span>
+          </div>
+        </div>
+      </div>
+      <div class="app-creations-toolbar">
+        <div class="buttons">
+          <button id="creation-snapshot" class="button app-button app-primary">Get Snapshot</button>
+          <button id="creation-clear" class="button app-button app-danger">Clear All</button>
+          <button id="creation-export" class="button app-button app-ghost">Export JSON</button>
+        </div>
+        <p class="app-muted app-creations-note">
+          Clear All always creates a fresh snapshot first. Hidden development folders are left untouched.
+        </p>
+      </div>
+      <div id="creation-grid" class="app-creation-grid"></div>
+    </section>
+  `;
+  const grid = document.getElementById("creation-grid");
+  if (!grid) {
+    return;
+  }
+  if (creations.length === 0) {
+    grid.innerHTML = `
+      <div class="app-creation-empty app-surface">
+        <h2 class="title is-5">No snapshots yet</h2>
+        <p class="app-muted">Use Get Snapshot to capture the current public website and save its backup archive.</p>
+      </div>
+    `;
+  } else {
+    creations.forEach((creation) => {
+      const card = buildCard(creation);
+      const preview = card.querySelector(".app-creation-preview");
+      const image = card.querySelector("img");
+      const downloadButton = card.querySelector('[data-action="download"]');
+      const restoreButton = card.querySelector('[data-action="restore"]');
+      const deleteButton = card.querySelector('[data-action="delete"]');
+      void loadPreview(creation.id).then((url) => {
+        if (!image || !preview) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        image.addEventListener(
+          "load",
+          () => {
+            preview.classList.remove("is-loading");
+            URL.revokeObjectURL(url);
+          },
+          { once: true }
+        );
+        image.addEventListener(
+          "error",
+          () => {
+            preview.classList.remove("is-loading");
+            preview.classList.add("is-error");
+            URL.revokeObjectURL(url);
+          },
+          { once: true }
+        );
+        image.src = url;
+      }).catch(() => {
+        preview?.classList.remove("is-loading");
+        preview?.classList.add("is-error");
+      });
+      downloadButton?.addEventListener("click", () => {
+        void runButtonAction(downloadButton, "Downloading...", () => onDownload(creation.id));
+      });
+      restoreButton?.addEventListener("click", () => {
+        if (!window.confirm(`Restore ${creation.id}? This will clean the public website first.`)) {
+          return;
+        }
+        void runButtonAction(restoreButton, "Restoring...", () => onRestore(creation.id));
+      });
+      deleteButton?.addEventListener("click", () => {
+        if (!window.confirm(`Delete ${creation.id}? This removes the preview and backup archive.`)) {
+          return;
+        }
+        void runButtonAction(deleteButton, "Deleting...", () => onDelete(creation.id));
+      });
+      grid.append(card);
+    });
+  }
+  const snapshotButton = document.getElementById("creation-snapshot");
+  const clearButton = document.getElementById("creation-clear");
+  const exportButton = document.getElementById("creation-export");
+  snapshotButton?.addEventListener("click", () => {
+    void runButtonAction(snapshotButton, "Capturing...", onSnapshot);
+  });
+  clearButton?.addEventListener("click", () => {
+    if (!window.confirm("Clear the public website? A fresh snapshot will be created first.")) {
+      return;
+    }
+    void runButtonAction(clearButton, "Clearing...", onClearAll);
+  });
+  exportButton?.addEventListener("click", () => {
+    void runButtonAction(exportButton, "Preparing...", onExportJson);
+  });
+};
+
+// web/src/features/creations/capture.ts
+var CAPTURE_WIDTH = 1440;
+var CAPTURE_HEIGHT = 900;
+var CAPTURE_TIMEOUT_MS = 15e3;
+var wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+var loadIframe = (iframe) => new Promise((resolve, reject) => {
+  const timer = window.setTimeout(() => {
+    cleanup();
+    reject(new Error("Snapshot timed out while loading the website."));
+  }, CAPTURE_TIMEOUT_MS);
+  const cleanup = () => {
+    window.clearTimeout(timer);
+    iframe.removeEventListener("load", handleLoad);
+    iframe.removeEventListener("error", handleError);
+  };
+  const handleLoad = () => {
+    cleanup();
+    const doc = iframe.contentDocument;
+    if (!doc) {
+      reject(new Error("Snapshot failed because the website document is unavailable."));
+      return;
+    }
+    resolve(doc);
+  };
+  const handleError = () => {
+    cleanup();
+    reject(new Error("Snapshot failed while loading the website."));
+  };
+  iframe.addEventListener("load", handleLoad, { once: true });
+  iframe.addEventListener("error", handleError, { once: true });
+});
+var waitForImages = async (doc) => {
+  const images = Array.from(doc.images);
+  await Promise.all(
+    images.map(
+      (image) => new Promise((resolve) => {
+        if (image.complete) {
+          resolve();
+          return;
+        }
+        image.loading = "eager";
+        image.addEventListener("load", () => resolve(), { once: true });
+        image.addEventListener("error", () => resolve(), { once: true });
+      })
+    )
+  );
+};
+var rewriteCssUrls = (cssText, baseUrl) => cssText.replace(/url\((["']?)(.*?)\1\)/gi, (_match, quote, rawUrl) => {
+  const url = rawUrl.trim();
+  if (!url || url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("#") || /^[a-z]+:/i.test(url) || url.startsWith("//")) {
+    return `url(${quote}${url}${quote})`;
+  }
+  try {
+    return `url(${quote}${new URL(url, baseUrl).href}${quote})`;
+  } catch {
+    return `url(${quote}${url}${quote})`;
+  }
+});
+var collectStyles = (doc) => {
+  let css = "";
+  for (const sheet of Array.from(doc.styleSheets)) {
+    try {
+      const rules = Array.from(sheet.cssRules);
+      const baseUrl = sheet.href ?? doc.baseURI;
+      css += `${rules.map((rule) => rewriteCssUrls(rule.cssText, baseUrl)).join("\n")}
+`;
+    } catch {
+    }
+  }
+  return css;
+};
+var absolutizeAttribute = (value, baseUrl) => {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("data:") || trimmed.startsWith("blob:") || trimmed.startsWith("#") || /^[a-z]+:/i.test(trimmed) || trimmed.startsWith("//")) {
+    return trimmed;
+  }
+  try {
+    return new URL(trimmed, baseUrl).href;
+  } catch {
+    return trimmed;
+  }
+};
+var inlineCanvasSnapshots = (sourceDoc, clonedRoot) => {
+  const sourceCanvases = Array.from(sourceDoc.querySelectorAll("canvas"));
+  const clonedCanvases = Array.from(clonedRoot.querySelectorAll("canvas"));
+  sourceCanvases.forEach((canvas, index) => {
+    const clone2 = clonedCanvases[index];
+    if (!clone2) {
+      return;
+    }
+    try {
+      const image = sourceDoc.createElement("img");
+      image.setAttribute("src", canvas.toDataURL("image/png"));
+      image.setAttribute("alt", "");
+      clone2.replaceWith(image);
+    } catch {
+    }
+  });
+};
+var cloneWebsiteDocument = (doc) => {
+  const clonedRoot = doc.documentElement.cloneNode(true);
+  clonedRoot.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  clonedRoot.querySelectorAll("script").forEach((script) => script.remove());
+  const head = clonedRoot.querySelector("head");
+  if (head) {
+    const base = doc.createElement("base");
+    base.setAttribute("href", doc.baseURI);
+    head.prepend(base);
+    const style = doc.createElement("style");
+    style.textContent = collectStyles(doc);
+    head.append(style);
+  }
+  inlineCanvasSnapshots(doc, clonedRoot);
+  clonedRoot.querySelectorAll("*").forEach((element) => {
+    ["src", "href", "poster"].forEach((attribute) => {
+      const current = element.getAttribute(attribute);
+      if (!current) {
+        return;
+      }
+      element.setAttribute(attribute, absolutizeAttribute(current, doc.baseURI));
+    });
+    const inlineStyle = element.getAttribute("style");
+    if (inlineStyle) {
+      element.setAttribute("style", rewriteCssUrls(inlineStyle, doc.baseURI));
+    }
+  });
+  return clonedRoot;
+};
+var svgMarkup = (root) => {
+  const serialized = new XMLSerializer().serializeToString(root);
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${CAPTURE_WIDTH}" height="${CAPTURE_HEIGHT}" viewBox="0 0 ${CAPTURE_WIDTH} ${CAPTURE_HEIGHT}">
+      <foreignObject width="100%" height="100%">${serialized}</foreignObject>
+    </svg>
+  `;
+};
+var drawSvgToCanvas = async (svg) => {
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = "sync";
+      img.addEventListener("load", () => resolve(img), { once: true });
+      img.addEventListener("error", () => reject(new Error("Snapshot image could not be rendered.")), {
+        once: true
+      });
+      img.src = url;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = CAPTURE_WIDTH;
+    canvas.height = CAPTURE_HEIGHT;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Snapshot capture is not supported in this browser.");
+    }
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, CAPTURE_WIDTH, CAPTURE_HEIGHT);
+    context.drawImage(image, 0, 0, CAPTURE_WIDTH, CAPTURE_HEIGHT);
+    try {
+      return canvas.toDataURL("image/png");
+    } catch {
+      throw new Error("Snapshot capture failed because the website uses blocked external assets.");
+    }
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+var svgToDataUrl = (svg) => {
+  const bytes = new TextEncoder().encode(svg);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return `data:image/svg+xml;base64,${btoa(binary)}`;
+};
+var captureWebsiteSnapshot = async () => {
+  const iframe = document.createElement("iframe");
+  iframe.src = "/";
+  iframe.width = String(CAPTURE_WIDTH);
+  iframe.height = String(CAPTURE_HEIGHT);
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-200vw";
+  iframe.style.top = "0";
+  iframe.style.width = `${CAPTURE_WIDTH}px`;
+  iframe.style.height = `${CAPTURE_HEIGHT}px`;
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  iframe.style.border = "0";
+  document.body.append(iframe);
+  try {
+    const doc = await loadIframe(iframe);
+    iframe.contentWindow?.scrollTo(0, 0);
+    await doc.fonts?.ready;
+    await waitForImages(doc);
+    await wait(450);
+    const cloned = cloneWebsiteDocument(doc);
+    const svg = svgMarkup(cloned);
+    try {
+      return await drawSvgToCanvas(svg);
+    } catch {
+      return svgToDataUrl(svg);
+    }
+  } finally {
+    iframe.remove();
+  }
+};
+
+// web/src/features/creations/controller.ts
+var readCreations = (value) => {
+  const records = isRecord(value) && Array.isArray(value.creations) ? value.creations : Array.isArray(value) ? value : [];
+  return records.filter((record) => {
+    if (!isRecord(record)) {
+      return false;
+    }
+    return typeof record.id === "string" && typeof record.createdAt === "string" && typeof record.snapshotPath === "string" && typeof record.backupPath === "string";
+  }).map((record) => ({
+    id: record.id,
+    createdAt: record.createdAt,
+    reason: typeof record.reason === "string" ? record.reason : null,
+    snapshotPath: record.snapshotPath,
+    snapshotMimeType: typeof record.snapshotMimeType === "string" ? record.snapshotMimeType : null,
+    backupPath: record.backupPath
+  }));
+};
+var applyResult = async (result, onDocumentUpdated, rerender, refreshNavigation2) => {
+  onDocumentUpdated(result.document);
+  rerender(result.document);
+  await refreshNavigation2();
+};
+var isCreationsDocument = (doc) => doc.store === "private" && doc.path === "creations.json";
+var renderCreationsPage = ({
+  content,
+  auth,
+  doc,
+  onDocumentUpdated,
+  refreshNavigation: refreshNavigation2,
+  rerender
+}) => {
+  const creations = readCreations(doc.payload.data);
+  renderCreationsView({
+    content,
+    doc,
+    creations,
+    onSnapshot: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const snapshot = await captureWebsiteSnapshot();
+        const result = await createCreationSnapshot(auth, snapshot);
+        await applyResult(result, onDocumentUpdated, rerender, refreshNavigation2);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onClearAll: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const snapshot = await captureWebsiteSnapshot();
+        const result = await clearWebsiteWithSnapshot(auth, snapshot);
+        await applyResult(result, onDocumentUpdated, rerender, refreshNavigation2);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onDelete: async (id) => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const result = await deleteCreationSnapshot(auth, id);
+        await applyResult(result, onDocumentUpdated, rerender, refreshNavigation2);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onRestore: async (id) => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const result = await restoreCreationSnapshot(auth, id);
+        await applyResult(result, onDocumentUpdated, rerender, refreshNavigation2);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onDownload: async (id) => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const result = await downloadCreationSnapshot(auth, id);
+        triggerDownload(result.blob, result.filename ?? `${id}.tar.gz`);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onExportJson: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const result = await downloadDocument(auth, doc.id);
+        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
+        triggerDownload(result.blob, filename);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    loadPreview: async (id) => {
+      if (!auth) {
+        throw new Error("Unauthorized");
+      }
+      const result = await fetchCreationSnapshotImage(auth, id);
+      return URL.createObjectURL(result.blob);
+    }
+  });
+};
+
 // web/src/app/documents.ts
 var openLoggerSettings = () => {
   if (!state.auth) {
@@ -4845,6 +5426,22 @@ var openLoggerSettings = () => {
 };
 var renderDocumentView = (doc) => {
   const content = document.getElementById("content");
+  if (isCreationsDocument(doc)) {
+    clearAgentState();
+    renderCreationsPage({
+      content,
+      auth: state.auth,
+      doc,
+      onDocumentUpdated: (updated) => {
+        state.currentDocument = updated;
+      },
+      refreshNavigation: () => refreshNavigation(loadDocument),
+      rerender: (updated) => {
+        renderDocumentView(updated);
+      }
+    });
+    return;
+  }
   renderDocument({
     content,
     auth: state.auth,
@@ -4947,7 +5544,9 @@ var showIntegrationsView = (onAfterLoad) => {
     openIntegrationModal: (integration) => {
       state.openIntegrationModalHandler?.(integration);
     },
-    syncIntegrationModels,
+    syncIntegrationModels: async (auth, name) => {
+      await syncIntegrationModels(auth, name);
+    },
     reloadIntegrations: () => loadIntegrations({ onAfterLoad })
   });
 };

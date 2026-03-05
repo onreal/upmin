@@ -1,0 +1,36 @@
+{
+    "type": "page",
+    "page": "creations",
+    "name": "Creations",
+    "data": {
+        "creations": [
+            {
+                "id": "creation-20260305-213656",
+                "createdAt": "2026-03-05T21:36:56+00:00",
+                "reason": "manual",
+                "snapshotPath": "creations\/creation-20260305-213656.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260305-213656.tar.gz"
+            },
+            {
+                "id": "creation-20260305-200532",
+                "createdAt": "2026-03-05T20:05:32+00:00",
+                "reason": "before-clear",
+                "snapshotPath": "creations\/creation-20260305-200532.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260305-200532.tar.gz"
+            },
+            {
+                "id": "creation-20260305-194817",
+                "createdAt": "2026-03-05T19:48:17+00:00",
+                "reason": "before-clear",
+                "snapshotPath": "creations\/creation-20260305-194817.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260305-194817.tar.gz"
+            }
+        ]
+    },
+    "section": false,
+    "position": "system",
+    "order": 4
+}

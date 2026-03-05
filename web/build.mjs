@@ -18,6 +18,7 @@ const styleFiles = [
   "web/src/styles/logs.css",
   "web/src/styles/editor.css",
   "web/src/styles/chat.css",
+  "web/src/styles/creations.css",
   "web/src/styles/notifications.css",
 ];
 

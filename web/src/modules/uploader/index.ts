@@ -294,7 +294,8 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
     altInput.type = "text";
     altInput.className = "input";
     altInput.value = pendingAlt;
-    altInput.addEventListener("input", () => setPendingAlt(altInput.value));
+    const linkedAltInput = altInput;
+    linkedAltInput.addEventListener("input", () => setPendingAlt(linkedAltInput.value));
     altControl.append(altInput);
     altField.append(altLabel, altControl);
     body.insertBefore(altField, actionsField);

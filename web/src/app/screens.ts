@@ -29,7 +29,9 @@ export const showIntegrationsView = (onAfterLoad?: () => void) => {
     openIntegrationModal: (integration) => {
       state.openIntegrationModalHandler?.(integration);
     },
-    syncIntegrationModels,
+    syncIntegrationModels: async (auth, name) => {
+      await syncIntegrationModels(auth, name);
+    },
     reloadIntegrations: () => loadIntegrations({ onAfterLoad }),
   });
 };

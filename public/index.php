@@ -15,6 +15,7 @@ use Manage\Application\UseCases\GetAgent;
 use Manage\Application\UseCases\GetAgentConversation;
 use Manage\Application\UseCases\GetDocument;
 use Manage\Application\UseCases\GetLayoutConfig;
+use Manage\Application\UseCases\ManageCreations;
 use Manage\Application\UseCases\GetUiConfig;
 use Manage\Application\UseCases\EnsureModuleSettings;
 use Manage\Application\UseCases\GetIntegrationSettings;
@@ -38,6 +39,7 @@ use Manage\Infrastructure\Security\HmacTokenService;
 use Manage\Interface\Http\Controllers\AuthController;
 use Manage\Interface\Http\Controllers\AgentController;
 use Manage\Interface\Http\Controllers\AgentConversationController;
+use Manage\Interface\Http\Controllers\CreationController;
 use Manage\Interface\Http\Controllers\DocumentController;
 use Manage\Interface\Http\Controllers\ExportController;
 use Manage\Interface\Http\Controllers\LogController;
@@ -54,6 +56,7 @@ use Manage\Interface\Http\Router;
 use Manage\Integrations\IntegrationContext;
 use Manage\Integrations\IntegrationRegistry;
 use Manage\Integrations\IntegrationSettingsStore;
+use Manage\Infrastructure\Creations\CreationStore;
 use Manage\Infrastructure\Logging\ErrorLogger;
 use Manage\Infrastructure\Logging\LogStore;
 use Manage\Modules\ModuleContext;
@@ -85,6 +88,7 @@ $integrationRegistry = new IntegrationRegistry($integrationsPath, $integrationCo
 $integrationSettingsStore = new IntegrationSettingsStore($integrationContext);
 $logStore = new LogStore($manageRoot);
 $errorLogger = new ErrorLogger($manageRoot);
+$creationStore = new CreationStore($documentRepository, $projectRoot, $manageRoot);
 $apiKeyProvider = new EnvApiKeyProvider($env);
 $tokenService = new HmacTokenService($env);
 $hasher = new BcryptPasswordHasher();
@@ -113,6 +117,7 @@ $exportDocument = new ExportDocument($documentRepository);
 $exportAllDocuments = new ExportAllDocuments($documentRepository);
 $exportAllPayloads = new ExportAllPayloads($documentRepository);
 $getLayoutConfig = new GetLayoutConfig($documentRepository);
+$manageCreations = new ManageCreations($creationStore);
 $getUiConfig = new GetUiConfig($documentRepository);
 $authenticateApiKey = new AuthenticateApiKey($apiKeyProvider);
 $authenticateUser = new AuthenticateUser($userRepository, $hasher, $tokenService);
@@ -135,6 +140,7 @@ $agentConversationController = new AgentConversationController(
     $appendAgentMessage,
     $tokenService
 );
+$creationController = new CreationController($manageCreations);
 $documentController = new DocumentController($getDocument, $updateDocument, $createDocument, $exportDocument);
 $exportController = new ExportController($exportAllDocuments, $exportAllPayloads);
 $authController = new AuthController($authenticateUser, $authenticateApiKey);
@@ -159,6 +165,12 @@ if (str_starts_with($request->path(), '/api/')) {
     $router->add('GET', '/api/logs', [$logController, 'index']);
     $router->add('GET', '/api/agents', [$agentController, 'index']);
     $router->add('POST', '/api/agents', [$agentController, 'create']);
+    $router->add('POST', '/api/creations/snapshot', [$creationController, 'snapshot']);
+    $router->add('POST', '/api/creations/clear', [$creationController, 'clear']);
+    $router->add('POST', '/api/creations/{id}/restore', [$creationController, 'restore']);
+    $router->add('DELETE', '/api/creations/{id}', [$creationController, 'delete']);
+    $router->add('GET', '/api/creations/{id}/download', [$creationController, 'download']);
+    $router->add('GET', '/api/creations/{id}/image', [$creationController, 'image']);
     $router->add('GET', '/api/agents/{id}/conversations', [$agentConversationController, 'index']);
     $router->add('POST', '/api/agents/{id}/conversations', [$agentConversationController, 'create']);
     $router->add('GET', '/api/agents/conversations/{id}', [$agentConversationController, 'show']);
@@ -184,6 +196,7 @@ if (str_starts_with($request->path(), '/api/')) {
 
     $errorLogger->ensureSettings();
     $errorLogger->ensureLogFile();
+    $manageCreations->ensurePage();
 
     try {
         $response = $router->dispatch($request);
