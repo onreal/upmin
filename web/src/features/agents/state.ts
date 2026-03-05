@@ -1,14 +1,8 @@
 import { state } from "../../app/state";
-
-export const stopAgentPolling = () => {
-  if (state.agentPoller !== null) {
-    window.clearInterval(state.agentPoller);
-    state.agentPoller = null;
-  }
-};
+import { clearRegisteredChatCleanups } from "../chat/runtime";
 
 export const clearAgentState = () => {
-  stopAgentPolling();
+  clearRegisteredChatCleanups();
   state.currentAgent = null;
   state.currentConversation = null;
 };

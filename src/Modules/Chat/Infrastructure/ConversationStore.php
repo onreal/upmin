@@ -127,6 +127,7 @@ final class ConversationStore
             'userId' => $userId,
             'createdAt' => $createdAt,
             'updatedAt' => $createdAt,
+            'pendingResponse' => false,
             'messages' => [],
         ];
 
@@ -216,6 +217,9 @@ final class ConversationStore
         if (!in_array($role, ['user', 'assistant'], true)) {
             $role = 'user';
         }
+        if ($role === 'user' && ($data['pendingResponse'] ?? false) === true) {
+            throw new \InvalidArgumentException('Wait for the current reply before sending another message.');
+        }
 
         $messages = $data['messages'] ?? [];
         if (!is_array($messages)) {
@@ -230,6 +234,7 @@ final class ConversationStore
 
         $data['messages'] = $messages;
         $data['updatedAt'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
+        $data['pendingResponse'] = $role === 'user';
 
         $updated = $wrapper->withData($data);
         $payload = $updated->toArray();

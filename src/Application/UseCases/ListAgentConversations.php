@@ -40,17 +40,19 @@ final class ListAgentConversations
             }
 
             $createdAt = is_string($data['createdAt'] ?? null) ? $data['createdAt'] : null;
+            $updatedAt = is_string($data['updatedAt'] ?? null) ? $data['updatedAt'] : null;
 
             $conversations[] = [
                 'id' => $document->id()->encoded(),
                 'name' => $document->wrapper()->name(),
                 'createdAt' => $createdAt,
+                'updatedAt' => $updatedAt,
                 'store' => $document->store(),
                 'path' => $document->path(),
             ];
         }
 
-        usort($conversations, [self::class, 'compareByCreatedAt']);
+        usort($conversations, [self::class, 'compareByUpdatedAt']);
 
         return $conversations;
     }
@@ -62,10 +64,16 @@ final class ListAgentConversations
     }
 
     /** @param array<string, mixed> $a @param array<string, mixed> $b */
-    private static function compareByCreatedAt(array $a, array $b): int
+    private static function compareByUpdatedAt(array $a, array $b): int
     {
-        $timeA = is_string($a['createdAt'] ?? null) ? strtotime($a['createdAt']) : false;
-        $timeB = is_string($b['createdAt'] ?? null) ? strtotime($b['createdAt']) : false;
+        $timeA = is_string($a['updatedAt'] ?? null) ? strtotime($a['updatedAt']) : false;
+        $timeB = is_string($b['updatedAt'] ?? null) ? strtotime($b['updatedAt']) : false;
+        if ($timeA === false) {
+            $timeA = is_string($a['createdAt'] ?? null) ? strtotime($a['createdAt']) : false;
+        }
+        if ($timeB === false) {
+            $timeB = is_string($b['createdAt'] ?? null) ? strtotime($b['createdAt']) : false;
+        }
         $timeA = $timeA === false ? 0 : $timeA;
         $timeB = $timeB === false ? 0 : $timeB;
 

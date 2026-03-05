@@ -77,6 +77,7 @@ export type AgentConversationSummary = {
   id: string;
   name: string;
   createdAt?: string | null;
+  updatedAt?: string | null;
   store: string;
   path: string;
 };

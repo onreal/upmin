@@ -30,7 +30,6 @@ export type AppState = {
   moduleSettingsCache: Map<string, Record<string, unknown> | null>;
   currentAgent: RemoteDocument | null;
   currentConversation: RemoteDocument | null;
-  agentPoller: number | null;
   returnToDocumentId: string | null;
 };
 
@@ -51,7 +50,6 @@ export const state: AppState = {
   moduleSettingsCache: new Map<string, Record<string, unknown> | null>(),
   currentAgent: null,
   currentConversation: null,
-  agentPoller: null,
   returnToDocumentId: null,
 };
 

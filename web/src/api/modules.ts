@@ -60,7 +60,8 @@ export const fetchChatConversations = (
   return request<{ items: ChatConversationSummary[] }>(
     `/api/modules/${moduleName}/list?${search.toString()}`,
     { method: "GET" },
-    auth
+    auth,
+    { notify: false }
   );
 };
 
@@ -72,7 +73,8 @@ export const startChatConversation = (
   request<RemoteDocument>(
     `/api/modules/${moduleName}`,
     { method: "POST", body: JSON.stringify(payload) },
-    auth
+    auth,
+    { notify: false }
   );
 
 export const appendChatMessage = (
@@ -87,7 +89,7 @@ export const appendChatMessage = (
     { notify: false }
   );
 
-export const pullChatConversation = (
+export const fetchChatConversation = (
   auth: AuthState,
   moduleName: string,
   params: { id: string; settings: string }
@@ -96,7 +98,7 @@ export const pullChatConversation = (
   search.set("settings", params.settings);
   search.set("id", params.id);
   return request<RemoteDocument>(
-    `/api/modules/${moduleName}/pull?${search.toString()}`,
+    `/api/modules/${moduleName}/conversation?${search.toString()}`,
     { method: "GET" },
     auth,
     { notify: false }

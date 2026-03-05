@@ -1,9 +1,13 @@
 import type { AgentConversationSummary, RemoteDocument } from "../../api";
 import { isRecord } from "../../utils";
 
-export const renderMessages = (conversation: RemoteDocument) => {
+export const renderMessages = (conversation: RemoteDocument | null) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
   if (!messagesContainer) {
+    return;
+  }
+  if (!conversation) {
+    messagesContainer.innerHTML = `<p class="app-muted">Start a conversation with your next message.</p>`;
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};

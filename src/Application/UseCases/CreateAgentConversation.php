@@ -58,6 +58,8 @@ final class CreateAgentConversation
                 'agentName' => $agentWrapper->name(),
                 'userId' => $userId,
                 'createdAt' => $createdAt,
+                'updatedAt' => $createdAt,
+                'pendingResponse' => false,
                 'messages' => [],
             ],
         ]);

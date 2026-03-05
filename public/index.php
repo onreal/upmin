@@ -26,16 +26,21 @@ use Manage\Application\UseCases\ListModules;
 use Manage\Application\UseCases\ListNavigation;
 use Manage\Application\UseCases\ListLogs;
 use Manage\Application\UseCases\ReorderDocuments;
+use Manage\Application\UseCases\SendAgentMessage;
 use Manage\Application\UseCases\SyncIntegrationModels;
 use Manage\Application\UseCases\UpdateAgent;
 use Manage\Application\UseCases\UpdateDocument;
 use Manage\Application\UseCases\UpsertIntegrationSettings;
+use Manage\Infrastructure\Agents\AgentResponder;
 use Manage\Infrastructure\Config\Env;
 use Manage\Infrastructure\FileSystem\JsonDocumentRepository;
 use Manage\Infrastructure\FileSystem\JsonUserRepository;
 use Manage\Infrastructure\Security\BcryptPasswordHasher;
 use Manage\Infrastructure\Security\EnvApiKeyProvider;
 use Manage\Infrastructure\Security\HmacTokenService;
+use Manage\Infrastructure\Realtime\RealtimeConfig;
+use Manage\Infrastructure\Realtime\RealtimeTicketService;
+use Manage\Infrastructure\Realtime\SocketRealtimePublisher;
 use Manage\Interface\Http\Controllers\AuthController;
 use Manage\Interface\Http\Controllers\AgentController;
 use Manage\Interface\Http\Controllers\AgentConversationController;
@@ -48,6 +53,7 @@ use Manage\Interface\Http\Controllers\LayoutConfigController;
 use Manage\Interface\Http\Controllers\ModuleController;
 use Manage\Interface\Http\Controllers\ModuleRequestController;
 use Manage\Interface\Http\Controllers\NavigationController;
+use Manage\Interface\Http\Controllers\RealtimeController;
 use Manage\Interface\Http\Controllers\UiConfigController;
 use Manage\Interface\Http\Middleware\AuthMiddleware;
 use Manage\Interface\Http\Request;
@@ -59,6 +65,7 @@ use Manage\Integrations\IntegrationSettingsStore;
 use Manage\Infrastructure\Creations\CreationStore;
 use Manage\Infrastructure\Logging\ErrorLogger;
 use Manage\Infrastructure\Logging\LogStore;
+use Manage\Infrastructure\Workers\ReplyWorkerLauncher;
 use Manage\Modules\ModuleContext;
 use Manage\Modules\ModuleRegistry;
 use Manage\Modules\ModuleSettingsStore;
@@ -91,6 +98,8 @@ $errorLogger = new ErrorLogger($manageRoot);
 $creationStore = new CreationStore($documentRepository, $projectRoot, $manageRoot);
 $apiKeyProvider = new EnvApiKeyProvider($env);
 $tokenService = new HmacTokenService($env);
+$realtimeConfig = new RealtimeConfig($env);
+$realtimeTicketService = new RealtimeTicketService($realtimeConfig->secret());
 $hasher = new BcryptPasswordHasher();
 
 $ensureModuleSettings = new EnsureModuleSettings($moduleRegistry, $moduleSettingsStore);
@@ -109,6 +118,10 @@ $listAgentConversations = new ListAgentConversations($documentRepository);
 $createAgentConversation = new CreateAgentConversation($documentRepository);
 $getAgentConversation = new GetAgentConversation($documentRepository);
 $appendAgentMessage = new AppendAgentMessage($documentRepository);
+$agentResponder = new AgentResponder($documentRepository, $integrationRegistry, $integrationSettingsStore);
+$realtimePublisher = new SocketRealtimePublisher($realtimeConfig);
+$agentWorker = new ReplyWorkerLauncher($projectRoot, $projectRoot . '/manage/bin/agent-worker.php');
+$sendAgentMessage = new SendAgentMessage($appendAgentMessage, $realtimePublisher, $agentWorker);
 $getDocument = new GetDocument($documentRepository);
 $reorderDocuments = new ReorderDocuments($documentRepository);
 $updateDocument = new UpdateDocument($documentRepository, $reorderDocuments, $ensureModuleSettings);
@@ -137,7 +150,7 @@ $agentConversationController = new AgentConversationController(
     $listAgentConversations,
     $createAgentConversation,
     $getAgentConversation,
-    $appendAgentMessage,
+    $sendAgentMessage,
     $tokenService
 );
 $creationController = new CreationController($manageCreations);
@@ -145,6 +158,7 @@ $documentController = new DocumentController($getDocument, $updateDocument, $cre
 $exportController = new ExportController($exportAllDocuments, $exportAllPayloads);
 $authController = new AuthController($authenticateUser, $authenticateApiKey);
 $layoutConfigController = new LayoutConfigController($getLayoutConfig);
+$realtimeController = new RealtimeController($authenticateApiKey, $tokenService, $realtimeTicketService, $realtimeConfig);
 $uiConfigController = new UiConfigController($getUiConfig);
 $authMiddleware = new AuthMiddleware($authenticateApiKey, $tokenService);
 
@@ -178,6 +192,7 @@ if (str_starts_with($request->path(), '/api/')) {
     $router->add('GET', '/api/agents/{id}', [$agentController, 'show']);
     $router->add('PUT', '/api/agents/{id}', [$agentController, 'update']);
     $router->add('GET', '/api/layout-config', $layoutConfigController);
+    $router->add('GET', '/api/realtime/ticket', [$realtimeController, 'ticket']);
     $router->add('GET', '/api/ui-config', $uiConfigController);
     $router->add('GET', '/api/documents/{id}', [$documentController, 'show']);
     $router->add('PUT', '/api/documents/{id}', [$documentController, 'update']);

@@ -43,6 +43,15 @@ final class AppendAgentMessage
             throw new \InvalidArgumentException('Message.content is required.');
         }
 
+        $role = strtolower(trim($role));
+        if (!in_array($role, ['user', 'assistant'], true)) {
+            $role = 'user';
+        }
+
+        if ($role === 'user' && ($data['pendingResponse'] ?? false) === true) {
+            throw new \InvalidArgumentException('Wait for the current reply before sending another message.');
+        }
+
         $messages = $data['messages'] ?? [];
         if (!is_array($messages)) {
             $messages = [];
@@ -55,16 +64,10 @@ final class AppendAgentMessage
         ];
 
         $data['messages'] = $messages;
+        $data['updatedAt'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
+        $data['pendingResponse'] = $role === 'user';
 
-        $updatedWrapper = DocumentWrapper::fromArray([
-            'type' => $wrapper->type(),
-            'page' => $wrapper->page(),
-            'name' => $wrapper->name(),
-            'language' => $wrapper->language(),
-            'order' => $wrapper->order(),
-            'section' => $wrapper->isSection(),
-            'data' => $data,
-        ]);
+        $updatedWrapper = $wrapper->withData($data);
 
         $document = $document->withWrapper($updatedWrapper);
         $this->documents->save($document);

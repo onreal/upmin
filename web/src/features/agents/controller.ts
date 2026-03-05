@@ -1,5 +1,6 @@
 import { fetchAgent } from "../../api";
 import { state } from "../../app/state";
+import { pushNotice } from "../../ui/notice";
 import { clearAgentState } from "./state";
 import { renderAgentView } from "./view";
 
@@ -12,7 +13,7 @@ export const loadAgent = async (id: string, reloadAgents: () => Promise<void>) =
     state.currentDocument = null;
     await renderAgentView({ auth: state.auth, agentDoc: agent, reloadAgents });
   } catch (err) {
-    alert((err as Error).message);
+    pushNotice("error", (err as Error).message);
   }
 };
 

@@ -68,6 +68,8 @@ final class CreateAgentConversationTest extends TestCase
         $this->assertSame('agent', $result['payload']['type']);
         $this->assertSame($agentId->encoded(), $result['payload']['data']['agentId']);
         $this->assertSame('user-1', $result['payload']['data']['userId']);
+        $this->assertSame($result['payload']['data']['createdAt'], $result['payload']['data']['updatedAt']);
+        $this->assertFalse($result['payload']['data']['pendingResponse']);
         $this->assertSame([], $result['payload']['data']['messages']);
     }
 }

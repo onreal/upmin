@@ -10,6 +10,7 @@ import { initCreateModal } from "../features/modals/create-document";
 import { initAgentModal } from "../features/modals/create-agent";
 import { initIntegrationModal } from "../features/modals/integration";
 import { moduleChecklistHtml as buildModuleChecklistHtml } from "../features/modules/helpers";
+import { startRealtime, stopRealtime } from "../features/realtime/client";
 import { refreshNavigation, loadAgents, loadIntegrations, loadLayoutConfig, loadModules, loadUiConfig } from "./loaders";
 import { showIntegrationsView, showLogsView, showModulesView } from "./screens";
 import { loadDocument } from "./documents";
@@ -60,6 +61,7 @@ const renderApp = async () => {
 
   renderAppShell({ moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected) });
   initNotifications();
+  startRealtime(() => state.auth);
 
   const reloadAgents = () => loadAgents((id) => loadAgent(id, reloadAgents));
 
@@ -93,6 +95,7 @@ const renderApp = async () => {
 
   initShellEvents({
     onLogout: () => {
+      stopRealtime();
       state.auth = null;
       saveAuth(null);
       renderLogin({
@@ -128,6 +131,7 @@ const renderApp = async () => {
 export const bootstrap = () => {
   initTheme();
   renderApp().catch(() => {
+    stopRealtime();
     const app = document.getElementById("app");
     if (!app) {
       return;

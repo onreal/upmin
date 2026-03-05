@@ -228,7 +228,7 @@ var init_ui = __esm({
 });
 
 // web/src/api/modules.ts
-var fetchModules, uploadModuleFile, fetchModuleList, deleteModuleFile, fetchChatConversations, startChatConversation, appendChatMessage, pullChatConversation, deleteChatConversation;
+var fetchModules, uploadModuleFile, fetchModuleList, deleteModuleFile, fetchChatConversations, startChatConversation, appendChatMessage, fetchChatConversation, deleteChatConversation;
 var init_modules = __esm({
   "web/src/api/modules.ts"() {
     "use strict";
@@ -269,13 +269,15 @@ var init_modules = __esm({
       return request(
         `/api/modules/${moduleName}/list?${search.toString()}`,
         { method: "GET" },
-        auth
+        auth,
+        { notify: false }
       );
     };
     startChatConversation = (auth, moduleName, payload) => request(
       `/api/modules/${moduleName}`,
       { method: "POST", body: JSON.stringify(payload) },
-      auth
+      auth,
+      { notify: false }
     );
     appendChatMessage = (auth, moduleName, payload) => request(
       `/api/modules/${moduleName}/message`,
@@ -283,12 +285,12 @@ var init_modules = __esm({
       auth,
       { notify: false }
     );
-    pullChatConversation = (auth, moduleName, params) => {
+    fetchChatConversation = (auth, moduleName, params) => {
       const search = new URLSearchParams();
       search.set("settings", params.settings);
       search.set("id", params.id);
       return request(
-        `/api/modules/${moduleName}/pull?${search.toString()}`,
+        `/api/modules/${moduleName}/conversation?${search.toString()}`,
         { method: "GET" },
         auth,
         { notify: false }
@@ -347,8 +349,8 @@ var init_agents = __esm({
   "web/src/api/agents.ts"() {
     "use strict";
     init_client();
-    fetchAgents = (auth) => request(`/api/agents`, { method: "GET" }, auth);
-    fetchAgent = (auth, id) => request(`/api/agents/${id}`, { method: "GET" }, auth);
+    fetchAgents = (auth) => request(`/api/agents`, { method: "GET" }, auth, { notify: false });
+    fetchAgent = (auth, id) => request(`/api/agents/${id}`, { method: "GET" }, auth, { notify: false });
     createAgent = (auth, payload) => request(`/api/agents`, { method: "POST", body: JSON.stringify(payload) }, auth);
     updateAgent = (auth, id, payload) => request(
       `/api/agents/${id}`,
@@ -358,18 +360,23 @@ var init_agents = __esm({
     fetchAgentConversations = (auth, id) => request(
       `/api/agents/${id}/conversations`,
       { method: "GET" },
-      auth
+      auth,
+      { notify: false }
     );
     createAgentConversation = (auth, id) => request(
       `/api/agents/${id}/conversations`,
       { method: "POST", body: JSON.stringify({}) },
-      auth
+      auth,
+      { notify: false }
     );
-    fetchAgentConversation = (auth, id) => request(`/api/agents/conversations/${id}`, { method: "GET" }, auth);
+    fetchAgentConversation = (auth, id) => request(`/api/agents/conversations/${id}`, { method: "GET" }, auth, {
+      notify: false
+    });
     appendAgentMessage = (auth, id, content) => request(
       `/api/agents/conversations/${id}/messages`,
       { method: "POST", body: JSON.stringify({ content }) },
-      auth
+      auth,
+      { notify: false }
     );
   }
 });
@@ -397,6 +404,16 @@ var init_creations = __esm({
   }
 });
 
+// web/src/api/realtime.ts
+var fetchRealtimeTicket;
+var init_realtime = __esm({
+  "web/src/api/realtime.ts"() {
+    "use strict";
+    init_client();
+    fetchRealtimeTicket = (auth) => request("/api/realtime/ticket", { method: "GET" }, auth, { notify: false });
+  }
+});
+
 // web/src/api/index.ts
 var api_exports = {};
 __export(api_exports, {
@@ -417,6 +434,7 @@ __export(api_exports, {
   fetchAgentConversation: () => fetchAgentConversation,
   fetchAgentConversations: () => fetchAgentConversations,
   fetchAgents: () => fetchAgents,
+  fetchChatConversation: () => fetchChatConversation,
   fetchChatConversations: () => fetchChatConversations,
   fetchCreationSnapshotImage: () => fetchCreationSnapshotImage,
   fetchDocument: () => fetchDocument,
@@ -427,11 +445,11 @@ __export(api_exports, {
   fetchModuleList: () => fetchModuleList,
   fetchModules: () => fetchModules,
   fetchNavigation: () => fetchNavigation,
+  fetchRealtimeTicket: () => fetchRealtimeTicket,
   fetchUiConfig: () => fetchUiConfig,
   loadAuth: () => loadAuth,
   loginWithApiKey: () => loginWithApiKey,
   loginWithPassword: () => loginWithPassword,
-  pullChatConversation: () => pullChatConversation,
   request: () => request,
   requestAsset: () => requestAsset,
   requestBlob: () => requestBlob,
@@ -459,6 +477,7 @@ var init_api = __esm({
     init_logs();
     init_agents();
     init_creations();
+    init_realtime();
   }
 });
 
@@ -484,7 +503,6 @@ var state = {
   moduleSettingsCache: /* @__PURE__ */ new Map(),
   currentAgent: null,
   currentConversation: null,
-  agentPoller: null,
   returnToDocumentId: null
 };
 var editorRef = {
@@ -1129,15 +1147,39 @@ var renderLogin = (context, error) => {
 // web/src/features/auth/profile.ts
 init_api();
 
-// web/src/features/agents/state.ts
-var stopAgentPolling = () => {
-  if (state.agentPoller !== null) {
-    window.clearInterval(state.agentPoller);
-    state.agentPoller = null;
+// web/src/features/chat/runtime.ts
+var agentChatCleanup = null;
+var moduleChatCleanup = null;
+var runCleanup = (cleanup) => {
+  if (!cleanup) {
+    return;
   }
+  cleanup();
 };
+var registerAgentChatCleanup = (cleanup) => {
+  const previous = agentChatCleanup;
+  agentChatCleanup = null;
+  runCleanup(previous);
+  agentChatCleanup = cleanup;
+};
+var registerModuleChatCleanup = (cleanup) => {
+  const previous = moduleChatCleanup;
+  moduleChatCleanup = null;
+  runCleanup(previous);
+  moduleChatCleanup = cleanup;
+};
+var clearRegisteredChatCleanups = () => {
+  const agentCleanup = agentChatCleanup;
+  const moduleCleanup = moduleChatCleanup;
+  agentChatCleanup = null;
+  moduleChatCleanup = null;
+  runCleanup(agentCleanup);
+  runCleanup(moduleCleanup);
+};
+
+// web/src/features/agents/state.ts
 var clearAgentState = () => {
-  stopAgentPolling();
+  clearRegisteredChatCleanups();
   state.currentAgent = null;
   state.currentConversation = null;
 };
@@ -1941,6 +1983,140 @@ var initIntegrationModal = ({
   return { openIntegrationModal };
 };
 
+// web/src/features/realtime/client.ts
+init_api();
+var socket = null;
+var authProvider = null;
+var reconnectTimer = null;
+var reconnectAttempt = 0;
+var active = false;
+var status = "idle";
+var eventListeners = /* @__PURE__ */ new Set();
+var statusListeners = /* @__PURE__ */ new Set();
+var hasSubscribers = () => eventListeners.size > 0 || statusListeners.size > 0;
+var setStatus = (next) => {
+  status = next;
+  statusListeners.forEach((listener) => listener(next));
+};
+var clearReconnectTimer = () => {
+  if (reconnectTimer !== null) {
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+};
+var closeSocket = () => {
+  if (!socket) {
+    return;
+  }
+  const current = socket;
+  socket = null;
+  current.close();
+};
+var scheduleReconnect = () => {
+  if (!active || reconnectTimer !== null || !hasSubscribers()) {
+    return;
+  }
+  const delay = Math.min(1e3 * 2 ** reconnectAttempt, 15e3);
+  reconnectAttempt += 1;
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    void connect();
+  }, delay);
+};
+var currentAuth = () => authProvider ? authProvider() : null;
+var connect = async () => {
+  if (!active || socket !== null || !hasSubscribers()) {
+    return;
+  }
+  const auth = currentAuth();
+  if (!auth) {
+    setStatus("idle");
+    return;
+  }
+  setStatus("connecting");
+  try {
+    const ticket = await fetchRealtimeTicket(auth);
+    const url = new URL(ticket.url);
+    url.searchParams.set("ticket", ticket.ticket);
+    socket = new WebSocket(url.toString());
+    socket.addEventListener("open", () => {
+      reconnectAttempt = 0;
+      setStatus("open");
+    });
+    socket.addEventListener("message", (event) => {
+      try {
+        const payload = JSON.parse(String(event.data));
+        eventListeners.forEach((listener) => listener(payload));
+      } catch {
+      }
+    });
+    socket.addEventListener("close", () => {
+      socket = null;
+      if (!active || !hasSubscribers()) {
+        setStatus("idle");
+        return;
+      }
+      setStatus("closed");
+      scheduleReconnect();
+    });
+    socket.addEventListener("error", () => {
+      socket?.close();
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Realtime connection failed.";
+    if (message.toLowerCase() === "unauthorized") {
+      active = false;
+      setStatus("unauthorized");
+      return;
+    }
+    setStatus("closed");
+    scheduleReconnect();
+  }
+};
+var startRealtime = (getAuth) => {
+  authProvider = getAuth;
+  active = true;
+  clearReconnectTimer();
+};
+var stopRealtime = () => {
+  active = false;
+  reconnectAttempt = 0;
+  clearReconnectTimer();
+  setStatus("idle");
+  closeSocket();
+};
+var subscribeRealtime = (listener) => {
+  eventListeners.add(listener);
+  if (active) {
+    void connect();
+  }
+  return () => {
+    eventListeners.delete(listener);
+    if (!hasSubscribers()) {
+      reconnectAttempt = 0;
+      clearReconnectTimer();
+      setStatus("idle");
+      closeSocket();
+    }
+  };
+};
+var subscribeRealtimeStatus = (listener) => {
+  statusListeners.add(listener);
+  listener(status);
+  if (active) {
+    void connect();
+  }
+  return () => {
+    statusListeners.delete(listener);
+    if (!hasSubscribers()) {
+      reconnectAttempt = 0;
+      clearReconnectTimer();
+      setStatus("idle");
+      closeSocket();
+    }
+  };
+};
+
 // web/src/app/loaders.ts
 init_api();
 
@@ -2530,8 +2706,8 @@ var renderLogDocument = ({
     const endpoint = typeof record.endpoint === "string" ? record.endpoint : "";
     const message = typeof record.message === "string" ? record.message : "";
     const type = typeof record.type === "string" ? record.type : "";
-    const status = typeof record.status === "number" ? record.status : null;
-    const statusLabel = status !== null ? `${status}` : "";
+    const status2 = typeof record.status === "number" ? record.status : null;
+    const statusLabel = status2 !== null ? `${status2}` : "";
     return `
             <div class="app-log-item">
               <div class="app-log-header">
@@ -2616,9 +2792,6 @@ var renderLogDocument = ({
   });
 };
 
-// web/src/modules/chat/index.ts
-init_api();
-
 // web/src/modules/utils.ts
 var slug = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 var moduleSettingsKey = (payload, moduleName) => {
@@ -2631,6 +2804,213 @@ var moduleSettingsKey = (payload, moduleName) => {
   return `${sectionSlug}-${moduleSlug}`;
 };
 var legacyModuleSettingsKey = (moduleName) => slug(moduleName) || "module";
+
+// web/src/modules/chat/layout.ts
+var buildHeader = (module, agentName, openSettings) => {
+  const header = document.createElement("div");
+  header.className = "app-module-header";
+  const headerRow = document.createElement("div");
+  headerRow.className = "app-module-header-row";
+  const title = document.createElement("div");
+  title.className = "app-module-title";
+  title.textContent = module.name;
+  headerRow.append(title);
+  if (openSettings) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+    button.title = "Module settings";
+    button.setAttribute("aria-label", "Module settings");
+    button.innerHTML = `
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+          <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+        </svg>
+      </span>
+    `;
+    button.addEventListener("click", openSettings);
+    headerRow.append(button);
+  }
+  const meta = document.createElement("div");
+  meta.className = "app-module-meta";
+  meta.textContent = module.author ? `${module.description} \xB7 ${module.author}` : module.description;
+  header.append(headerRow, meta);
+  if (agentName) {
+    const agentMeta = document.createElement("div");
+    agentMeta.className = "app-module-meta";
+    agentMeta.textContent = `Agent: ${agentName}`;
+    header.append(agentMeta);
+  }
+  return header;
+};
+var renderChatLayout = (panel, module, agentName, openSettings) => {
+  const card = document.createElement("div");
+  card.className = "app-module";
+  card.append(buildHeader(module, agentName, openSettings));
+  const body = document.createElement("div");
+  body.className = "app-module-body";
+  body.innerHTML = `
+    <div class="app-chat-layout">
+      <div class="app-panel app-chat">
+        <div class="app-chat-header">
+          <div>
+            <div class="app-chat-title" data-role="chat-title">No conversation selected</div>
+            <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
+          </div>
+          <div class="app-chat-actions">
+            <div class="select is-small">
+              <select data-role="chat-select">
+                <option value="">Select chat</option>
+              </select>
+            </div>
+            <button class="button app-button app-ghost" data-action="new">New</button>
+            <button class="button app-button app-ghost app-icon-button" data-action="delete" title="Delete chat" aria-label="Delete chat" disabled>
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+                  <path d="M9 6h6M10 6V4h4v2M6 6h12M8 6v12m4-12v12m4-12v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div class="app-chat-scroll" data-role="chat-scroll">
+          <div class="app-chat-messages" data-role="chat-messages"></div>
+          <button type="button" class="button app-button app-ghost app-chat-jump" data-role="chat-jump" aria-label="Jump to latest message" title="Jump to latest message">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div class="app-chat-input">
+          <form data-role="chat-form">
+            <div class="field">
+              <div class="control">
+                <textarea class="textarea" rows="2" placeholder="Write a message" data-role="chat-input" disabled></textarea>
+              </div>
+            </div>
+            <div class="buttons">
+              <button class="button app-button app-primary" data-role="chat-send" disabled>Send</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <p class="help" data-role="chat-status"></p>
+  `;
+  card.append(body);
+  panel.append(card);
+  const title = body.querySelector("[data-role='chat-title']");
+  const meta = body.querySelector("[data-role='chat-meta']");
+  const scroll = body.querySelector("[data-role='chat-scroll']");
+  const messages = body.querySelector("[data-role='chat-messages']");
+  const status2 = body.querySelector("[data-role='chat-status']");
+  const form = body.querySelector("[data-role='chat-form']");
+  const input = body.querySelector("[data-role='chat-input']");
+  const send = body.querySelector("[data-role='chat-send']");
+  const select = body.querySelector("[data-role='chat-select']");
+  const jump = body.querySelector("[data-role='chat-jump']");
+  if (!title || !meta || !scroll || !messages || !status2 || !form || !input || !send || !select || !jump) {
+    return null;
+  }
+  return {
+    title,
+    meta,
+    scroll,
+    messages,
+    status: status2,
+    form,
+    input,
+    send,
+    select,
+    jump,
+    create: body.querySelector("[data-action='new']"),
+    remove: body.querySelector("[data-action='delete']")
+  };
+};
+
+// web/src/modules/chat/controller.ts
+init_api();
+
+// web/src/features/chat/conversation.ts
+var currentData = (conversation) => {
+  const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+  conversation.payload.data = payloadData;
+  return payloadData;
+};
+var conversationHasPendingResponse = (conversation) => {
+  if (!conversation) {
+    return false;
+  }
+  const data = currentData(conversation);
+  if (typeof data.pendingResponse === "boolean") {
+    return data.pendingResponse;
+  }
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  if (!messages.length) {
+    return false;
+  }
+  const last = messages[messages.length - 1];
+  if (!isRecord(last)) {
+    return false;
+  }
+  return String(last.role || "").trim().toLowerCase() === "user";
+};
+var appendConversationMessage = (conversation, role, content) => {
+  const data = currentData(conversation);
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const createdAt = (/* @__PURE__ */ new Date()).toISOString();
+  messages.push({ role, content, createdAt });
+  data.messages = messages;
+  data.updatedAt = createdAt;
+  data.pendingResponse = role === "user";
+};
+var markConversationPending = (conversation, pending) => {
+  const data = currentData(conversation);
+  data.pendingResponse = pending;
+  data.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+};
+
+// web/src/features/chat/processing.ts
+var PHRASES = ["Processing...", "Sailing...", "Swimming...", "Floating..."];
+var ROTATE_MS = 3e4;
+var nextPhrase = (current) => {
+  const pool = PHRASES.filter((phrase) => phrase !== current);
+  return pool[Math.floor(Math.random() * pool.length)] ?? PHRASES[0];
+};
+var createProcessingStatus = (setStatus2) => {
+  let timer = null;
+  let current = "";
+  const stop = () => {
+    if (timer !== null) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    current = "";
+    setStatus2("");
+  };
+  const start = () => {
+    if (timer !== null) {
+      if (current === "") {
+        current = nextPhrase(current);
+      }
+      setStatus2(current);
+      return;
+    }
+    current = nextPhrase(current);
+    setStatus2(current);
+    timer = window.setInterval(() => {
+      current = nextPhrase(current);
+      setStatus2(current);
+    }, ROTATE_MS);
+  };
+  return {
+    start,
+    stop
+  };
+};
 
 // web/src/modules/chat/utils.ts
 var messageId = (conversationId, createdAt, index) => `${conversationId}:${createdAt ?? index}`;
@@ -2752,472 +3132,340 @@ var updateConversationHeader = (titleEl, metaEl, conversation) => {
   titleEl.textContent = conversation.payload.name || "Conversation";
   metaEl.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
 };
-var updateChatInputState = (input, send, active) => {
-  input.disabled = !active;
-  send.disabled = !active;
+var updateChatInputState = (input, send, active2) => {
+  input.disabled = !active2;
+  send.disabled = !active2;
 };
 
-// web/src/modules/chat/index.ts
-var buildHeader = (module, agentName, openSettings) => {
-  const header = document.createElement("div");
-  header.className = "app-module-header";
-  const headerRow = document.createElement("div");
-  headerRow.className = "app-module-header-row";
-  const title = document.createElement("div");
-  title.className = "app-module-title";
-  title.textContent = module.name;
-  headerRow.append(title);
-  if (openSettings) {
-    const settingsButton = document.createElement("button");
-    settingsButton.type = "button";
-    settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    settingsButton.title = "Module settings";
-    settingsButton.setAttribute("aria-label", "Module settings");
-    settingsButton.innerHTML = `
-      <span class="icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-          <path
-            d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-          ></path>
-          <path
-            d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-          ></path>
-        </svg>
-      </span>
-    `;
-    settingsButton.addEventListener("click", openSettings);
-    headerRow.append(settingsButton);
-  }
-  const meta = document.createElement("div");
-  meta.className = "app-module-meta";
-  meta.textContent = module.author ? `${module.description} \xB7 ${module.author}` : module.description;
-  header.append(headerRow, meta);
-  if (agentName) {
-    const agentMeta = document.createElement("div");
-    agentMeta.className = "app-module-meta";
-    agentMeta.textContent = `Agent: ${agentName}`;
-    header.append(agentMeta);
-  }
-  return header;
-};
-var renderChatModule = (panel, context) => {
-  const { module, payload, editor, auth } = context;
-  const settings = isRecord(context.settings) ? context.settings : null;
-  const agentSettings = settings && isRecord(settings.agent) ? settings.agent : null;
-  const agentName = typeof agentSettings?.name === "string" ? agentSettings.name.trim() : "";
-  const settingsKey = moduleSettingsKey(payload, module.name);
-  const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
-  const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : module.name;
+// web/src/modules/chat/controller.ts
+var mountChatController = (runtime) => {
+  let conversations = [];
+  let currentConversation = null;
+  let pendingNew = false;
+  let disposeRealtime = null;
+  let disposeRealtimeStatus = null;
   const ensureDataObject = () => {
-    if (isRecord(payload.data)) {
-      return payload.data;
+    if (isRecord(runtime.payload.data)) {
+      return runtime.payload.data;
     }
-    payload.data = {};
-    editor?.setValue(payload.data);
-    return payload.data;
+    runtime.payload.data = {};
+    runtime.editor?.setValue(runtime.payload.data);
+    return runtime.payload.data;
   };
   const ensureOutputList = () => {
     const data = ensureDataObject();
-    const existing = data[targetKey];
+    const existing = data[runtime.targetKey];
     if (!Array.isArray(existing)) {
-      data[targetKey] = [];
-      return data[targetKey];
+      data[runtime.targetKey] = [];
+      return data[runtime.targetKey];
     }
     return existing;
   };
-  const moduleCard = document.createElement("div");
-  moduleCard.className = "app-module";
-  moduleCard.append(buildHeader(module, agentName, context.openSettings));
-  if (!agentName) {
-    const notice = document.createElement("div");
-    notice.className = "notification is-warning is-light";
-    notice.textContent = "Set Chat.agent.name in module settings to start chatting.";
-    moduleCard.append(notice);
-    panel.append(moduleCard);
-    return;
-  }
-  const body = document.createElement("div");
-  body.className = "app-module-body";
-  body.innerHTML = `
-    <div class="app-chat-layout">
-      <div class="app-panel app-chat">
-        <div class="app-chat-header">
-          <div>
-            <div class="app-chat-title" data-role="chat-title">No conversation selected</div>
-            <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
-          </div>
-          <div class="app-chat-actions">
-            <div class="select is-small">
-              <select data-role="chat-select">
-                <option value="">Select chat</option>
-              </select>
-            </div>
-            <button class="button app-button app-ghost" data-action="new">New</button>
-            <button class="button app-button app-ghost app-icon-button" data-action="delete" title="Delete chat" aria-label="Delete chat" disabled>
-              <span class="icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
-                  <path
-                    d="M9 6h6M10 6V4h4v2M6 6h12M8 6v12m4-12v12m4-12v12"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  ></path>
-                </svg>
-              </span>
-            </button>
-          </div>
-        </div>
-        <div class="app-chat-scroll" data-role="chat-scroll">
-          <div class="app-chat-messages" data-role="chat-messages"></div>
-          <button
-            type="button"
-            class="button app-button app-ghost app-chat-jump"
-            data-role="chat-jump"
-            aria-label="Jump to latest message"
-            title="Jump to latest message"
-          >
-            <span class="icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
-                <path
-                  d="M6 9l6 6 6-6"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                ></path>
-              </svg>
-            </span>
-          </button>
-        </div>
-        <div class="app-chat-input">
-          <form data-role="chat-form">
-            <div class="field">
-              <div class="control">
-                <textarea class="textarea" rows="2" placeholder="Write a message" data-role="chat-input" disabled></textarea>
-              </div>
-            </div>
-            <div class="buttons">
-              <button class="button app-button app-primary" data-role="chat-send" disabled>Send</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    <p class="help" data-role="chat-status"></p>
-  `;
-  moduleCard.append(body);
-  panel.append(moduleCard);
-  const titleEl = body.querySelector("[data-role='chat-title']");
-  const metaEl = body.querySelector("[data-role='chat-meta']");
-  const scrollEl = body.querySelector("[data-role='chat-scroll']");
-  const messagesEl = body.querySelector("[data-role='chat-messages']");
-  const statusEl = body.querySelector("[data-role='chat-status']");
-  const formEl = body.querySelector("[data-role='chat-form']");
-  const inputEl = body.querySelector("[data-role='chat-input']");
-  const sendEl = body.querySelector("[data-role='chat-send']");
-  const selectEl = body.querySelector("[data-role='chat-select']");
-  const jumpEl = body.querySelector("[data-role='chat-jump']");
-  const newButton = body.querySelector("[data-action='new']");
-  const deleteButton = body.querySelector("[data-action='delete']");
-  if (!titleEl || !metaEl || !scrollEl || !messagesEl || !statusEl || !formEl || !inputEl || !sendEl || !selectEl || !jumpEl) {
-    return;
-  }
-  let conversations = [];
-  let currentConversation = null;
-  let poller = null;
-  let pendingNew = false;
   const isMessageSelected = (message) => {
     const data = ensureDataObject();
-    const list = Array.isArray(data[targetKey]) ? data[targetKey] : [];
+    const list = Array.isArray(data[runtime.targetKey]) ? data[runtime.targetKey] : [];
     return list.some((entry) => isRecord(entry) && entry.id === message.id);
   };
-  const buildMessageEntry = (message, conversationId) => ({
-    id: message.id,
-    conversationId,
-    agent: agentName,
-    content: message.content,
-    createdAt: message.createdAt ?? null,
-    role: message.role
-  });
-  const toggleMessageSelection = (message, selected) => {
-    const data = ensureDataObject();
-    const list = ensureOutputList();
-    if (selected) {
-      const next = list.filter((entry) => !(isRecord(entry) && entry.id === message.id));
-      data[targetKey] = next;
-    } else if (currentConversation) {
-      list.push(buildMessageEntry(message, currentConversation.id));
-    }
-    editor?.setValue(data);
-  };
-  const copyMessage = async (message) => {
-    const content = message.content;
-    if (!content) {
-      return;
-    }
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(content);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = content;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.append(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        textarea.remove();
-      }
-      setStatus("Copied.");
-      window.setTimeout(() => setStatus(""), 1200);
-    } catch {
-      setStatus("Copy failed.");
-    }
-  };
   const renderCurrentMessages = () => {
-    const messages = extractMessages(currentConversation);
     const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
-    renderMessages(messagesEl, messages, {
+    renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
       isSelected: (message) => isMessageSelected(message),
       onToggle: (message, selected) => {
-        toggleMessageSelection(message, selected);
+        const data = ensureDataObject();
+        const list = ensureOutputList();
+        if (selected) {
+          data[runtime.targetKey] = list.filter((entry) => !(isRecord(entry) && entry.id === message.id));
+        } else if (currentConversation) {
+          list.push({
+            id: message.id,
+            conversationId: currentConversation.id,
+            agent: runtime.agentName,
+            content: message.content,
+            createdAt: message.createdAt ?? null,
+            role: message.role
+          });
+        }
+        runtime.editor?.setValue(data);
         renderCurrentMessages();
       },
       onCopy: (message) => void copyMessage(message),
       emptyState
     });
   };
-  const setStatus = (message) => {
-    statusEl.textContent = message;
+  const setStatus2 = (message) => {
+    runtime.dom.status.textContent = message;
   };
-  const isNearBottom = () => {
-    const threshold = 48;
-    return scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight <= threshold;
-  };
+  const processingStatus = createProcessingStatus(setStatus2);
+  const isNearBottom = () => runtime.dom.scroll.scrollHeight - runtime.dom.scroll.scrollTop - runtime.dom.scroll.clientHeight <= 48;
   const scrollToBottom = () => {
-    scrollEl.scrollTop = scrollEl.scrollHeight;
+    runtime.dom.scroll.scrollTop = runtime.dom.scroll.scrollHeight;
   };
   const updateJumpVisibility = () => {
-    jumpEl.classList.toggle("is-visible", pendingNew);
+    runtime.dom.jump.classList.toggle("is-visible", pendingNew);
   };
-  const setConversation = (conversation, forceScroll = false) => {
+  const stopRealtimeBindings = () => {
+    disposeRealtime?.();
+    disposeRealtimeStatus?.();
+    disposeRealtime = null;
+    disposeRealtimeStatus = null;
+  };
+  const syncConversation = (conversation, forceScroll = false) => {
     currentConversation = conversation;
-    updateConversationHeader(titleEl, metaEl, conversation);
-    const wasAtBottom = forceScroll || isNearBottom();
+    updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
+    const shouldScroll = forceScroll || isNearBottom();
     renderCurrentMessages();
-    updateChatInputState(inputEl, sendEl, !!conversation);
+    const pending = conversationHasPendingResponse(conversation);
+    updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
     if (conversation) {
-      selectEl.value = conversation.id;
-      if (deleteButton) {
-        deleteButton.disabled = false;
+      runtime.dom.select.value = conversation.id;
+      if (runtime.dom.remove) {
+        runtime.dom.remove.disabled = false;
       }
     } else {
-      selectEl.value = "";
-      if (deleteButton) {
-        deleteButton.disabled = true;
+      runtime.dom.select.value = "";
+      if (runtime.dom.remove) {
+        runtime.dom.remove.disabled = true;
       }
     }
-    if (wasAtBottom) {
+    if (shouldScroll) {
       scrollToBottom();
       pendingNew = false;
     }
     updateJumpVisibility();
-  };
-  const appendLocalMessage = (role, content) => {
-    if (!currentConversation) {
+    if (pending) {
+      processingStatus.start();
+      syncRealtimeBindings();
       return;
     }
-    const data = isRecord(currentConversation.payload.data) ? currentConversation.payload.data : {};
-    const messages = Array.isArray(data.messages) ? data.messages : [];
-    const createdAt = (/* @__PURE__ */ new Date()).toISOString();
-    messages.push({ role, content, createdAt });
-    data.messages = messages;
-    currentConversation.payload.data = data;
-    const wasAtBottom = isNearBottom();
-    renderCurrentMessages();
-    if (wasAtBottom) {
-      scrollToBottom();
-      pendingNew = false;
-      updateJumpVisibility();
-    }
+    processingStatus.stop();
+    syncRealtimeBindings();
   };
   const updateSelectOptions = () => {
-    selectEl.innerHTML = `<option value="">Select chat</option>` + conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
+    runtime.dom.select.innerHTML = `<option value="">Select chat</option>` + conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
     if (currentConversation) {
-      selectEl.value = currentConversation.id;
-    }
-  };
-  const stopPolling = () => {
-    if (poller !== null) {
-      window.clearInterval(poller);
-      poller = null;
-    }
-  };
-  const startPolling = (conversationId) => {
-    stopPolling();
-    poller = window.setInterval(async () => {
-      if (!auth || !currentConversation || currentConversation.id !== conversationId) {
-        return;
-      }
-      try {
-        const updated = await pullChatConversation(auth, module.name, {
-          id: conversationId,
-          settings: settingsKey
-        });
-        const prevData = isRecord(currentConversation.payload.data) ? currentConversation.payload.data : {};
-        const nextData = isRecord(updated.payload.data) ? updated.payload.data : {};
-        const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
-        const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
-        if (prevCount !== nextCount) {
-          pendingNew = !isNearBottom();
-          setConversation(updated, !pendingNew);
-        }
-      } catch {
-      }
-    }, 2e3);
-  };
-  const loadConversation = async (conversationId) => {
-    if (!auth) {
-      setStatus("Login required.");
-      return;
-    }
-    setStatus("Loading conversation...");
-    try {
-      const conversation = await pullChatConversation(auth, module.name, {
-        id: conversationId,
-        settings: settingsKey
-      });
-      pendingNew = false;
-      setConversation(conversation, true);
-      updateSelectOptions();
-      startPolling(conversation.id);
-      setStatus("");
-    } catch (err) {
-      setStatus(err.message);
+      runtime.dom.select.value = currentConversation.id;
     }
   };
   const refreshList = async () => {
-    if (!auth) {
-      setStatus("Login required.");
+    if (!runtime.auth) {
+      setStatus2("Login required.");
       return;
     }
-    setStatus("Loading conversations...");
     try {
-      const response = await fetchChatConversations(auth, module.name, { settings: settingsKey });
+      const response = await fetchChatConversations(runtime.auth, runtime.moduleName, {
+        settings: runtime.settingsKey
+      });
       conversations = Array.isArray(response.items) ? response.items : [];
       updateSelectOptions();
-      setStatus("");
-    } catch (err) {
-      setStatus(err.message);
+      if (!conversationHasPendingResponse(currentConversation)) {
+        setStatus2("");
+      }
+    } catch (error) {
+      setStatus2(error.message);
+    }
+  };
+  const loadConversation = async (conversationId) => {
+    if (!runtime.auth) {
+      setStatus2("Login required.");
+      return;
+    }
+    try {
+      const conversation = await fetchChatConversation(runtime.auth, runtime.moduleName, {
+        id: conversationId,
+        settings: runtime.settingsKey
+      });
+      pendingNew = false;
+      syncConversation(conversation, true);
+      updateSelectOptions();
+    } catch (error) {
+      setStatus2(error.message);
     }
   };
   const startConversation = async () => {
-    if (!auth) {
-      setStatus("Login required.");
+    if (!runtime.auth) {
+      setStatus2("Login required.");
       return;
     }
-    setStatus("Starting conversation...");
     try {
-      const conversation = await startChatConversation(auth, module.name, { settings: settingsKey });
+      const conversation = await startChatConversation(runtime.auth, runtime.moduleName, {
+        settings: runtime.settingsKey
+      });
       pendingNew = false;
-      setConversation(conversation, true);
+      syncConversation(conversation, true);
       await refreshList();
-      startPolling(conversation.id);
-      setStatus("");
-    } catch (err) {
-      setStatus(err.message);
+      setStatus2("");
+    } catch (error) {
+      setStatus2(error.message);
     }
   };
   const sendMessage = async (content) => {
-    if (!auth || !currentConversation) {
+    if (!runtime.auth || !currentConversation || conversationHasPendingResponse(currentConversation)) {
       return;
     }
-    appendLocalMessage("user", content);
-    setStatus("Sending message...");
+    appendConversationMessage(currentConversation, "user", content);
+    syncConversation(currentConversation, true);
     try {
-      const updated = await appendChatMessage(auth, module.name, {
+      const updated = await appendChatMessage(runtime.auth, runtime.moduleName, {
         id: currentConversation.id,
         content,
-        settings: settingsKey
+        settings: runtime.settingsKey
       });
       pendingNew = false;
-      setConversation(updated, true);
-      startPolling(updated.id);
+      syncConversation(updated, true);
       await refreshList();
-      setStatus("");
-    } catch (err) {
-      appendLocalMessage("assistant", "Agent couldn't reply. Please try again.");
-      setStatus(err.message);
+    } catch (error) {
+      if (currentConversation) {
+        markConversationPending(currentConversation, false);
+        appendConversationMessage(
+          currentConversation,
+          "assistant",
+          `Something went wrong while I was replying: ${error.message || "Please try again."}`
+        );
+        syncConversation(currentConversation, true);
+      }
     }
   };
-  newButton?.addEventListener("click", () => {
+  const copyMessage = async (message) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setStatus2("Copied.");
+      window.setTimeout(() => {
+        if (!conversationHasPendingResponse(currentConversation)) {
+          setStatus2("");
+        }
+      }, 1200);
+    } catch {
+      setStatus2("Copy failed.");
+    }
+  };
+  const handleRealtimeEvent = (event) => {
+    if (event.type !== "chat.conversation.updated") {
+      return;
+    }
+    const data = isRecord(event.conversation.payload.data) ? event.conversation.payload.data : {};
+    if (data.moduleKey !== runtime.settingsKey) {
+      return;
+    }
+    if (currentConversation && currentConversation.id === event.conversation.id) {
+      pendingNew = !isNearBottom();
+      syncConversation(event.conversation, !pendingNew);
+    }
+    void refreshList();
+  };
+  const handleRealtimeStatus = (status2) => {
+    if (status2 === "open") {
+      void refreshList();
+      if (currentConversation) {
+        void loadConversation(currentConversation.id);
+      }
+    }
+  };
+  const syncRealtimeBindings = () => {
+    if (!currentConversation) {
+      stopRealtimeBindings();
+      return;
+    }
+    if (disposeRealtime === null) {
+      disposeRealtime = subscribeRealtime(handleRealtimeEvent);
+    }
+    if (disposeRealtimeStatus === null) {
+      disposeRealtimeStatus = subscribeRealtimeStatus(handleRealtimeStatus);
+    }
+  };
+  runtime.dom.create?.addEventListener("click", () => {
     void startConversation();
   });
-  deleteButton?.addEventListener("click", () => {
-    if (!auth || !currentConversation) {
+  runtime.dom.remove?.addEventListener("click", () => {
+    if (!runtime.auth || !currentConversation) {
       return;
     }
     const conversationId = currentConversation.id;
-    setStatus("Deleting conversation...");
-    void deleteChatConversation(auth, module.name, {
+    setStatus2("Deleting conversation...");
+    void deleteChatConversation(runtime.auth, runtime.moduleName, {
       id: conversationId,
-      settings: settingsKey
+      settings: runtime.settingsKey
     }).then(async () => {
-      stopPolling();
-      setConversation(null, true);
+      syncConversation(null, true);
       await refreshList();
-      setStatus("");
-    }).catch((err) => {
-      setStatus(err.message);
+      setStatus2("");
+    }).catch((error) => {
+      setStatus2(error.message);
     });
   });
-  selectEl.addEventListener("change", () => {
-    const id = selectEl.value.trim();
-    if (!id) {
+  runtime.dom.select.addEventListener("change", () => {
+    const conversationId = runtime.dom.select.value.trim();
+    if (conversationId !== "") {
+      void loadConversation(conversationId);
       return;
     }
-    void loadConversation(id);
+    pendingNew = false;
+    syncConversation(null, true);
+    setStatus2("");
   });
-  scrollEl.addEventListener("scroll", () => {
+  runtime.dom.scroll.addEventListener("scroll", () => {
     if (isNearBottom()) {
       pendingNew = false;
       updateJumpVisibility();
     }
   });
-  jumpEl.addEventListener("click", () => {
+  runtime.dom.jump.addEventListener("click", () => {
     scrollToBottom();
     pendingNew = false;
     updateJumpVisibility();
   });
-  formEl.addEventListener("submit", (event) => {
+  runtime.dom.form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const content = inputEl.value.trim();
-    if (!content) {
+    const content = runtime.dom.input.value.trim();
+    if (content === "") {
       return;
     }
-    inputEl.value = "";
+    runtime.dom.input.value = "";
     void sendMessage(content);
   });
-  inputEl.addEventListener("keydown", (event) => {
+  runtime.dom.input.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      formEl.requestSubmit();
+      runtime.dom.form.requestSubmit();
     }
   });
-  updateChatInputState(inputEl, sendEl, false);
+  registerModuleChatCleanup(() => {
+    stopRealtimeBindings();
+    processingStatus.stop();
+  });
+  updateChatInputState(runtime.dom.input, runtime.dom.send, false);
   renderCurrentMessages();
   void refreshList();
+};
+
+// web/src/modules/chat/index.ts
+var renderChatModule = (panel, context) => {
+  const settings = isRecord(context.settings) ? context.settings : null;
+  const agentSettings = settings && isRecord(settings.agent) ? settings.agent : null;
+  const agentName = typeof agentSettings?.name === "string" ? agentSettings.name.trim() : "";
+  if (!agentName) {
+    const notice = document.createElement("div");
+    notice.className = "app-module";
+    notice.innerHTML = `<div class="notification is-warning is-light">Set Chat.agent.name in module settings to start chatting.</div>`;
+    panel.append(notice);
+    return;
+  }
+  const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
+  const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : context.module.name;
+  const dom = renderChatLayout(panel, context.module, agentName, context.openSettings);
+  if (!dom) {
+    return;
+  }
+  mountChatController({
+    moduleName: context.module.name,
+    settingsKey: moduleSettingsKey(context.payload, context.module.name),
+    agentName,
+    auth: context.auth,
+    payload: context.payload,
+    editor: context.editor,
+    dom,
+    targetKey
+  });
 };
 
 // web/src/modules/gallery/index.ts
@@ -3359,8 +3607,8 @@ var renderGalleryModule = (panel, context) => {
   toggleField.append(toggleLabel, toggleControl);
   const grid = document.createElement("div");
   grid.className = "app-gallery-grid";
-  const status = document.createElement("p");
-  status.className = "help";
+  const status2 = document.createElement("p");
+  status2.className = "help";
   const modal = document.createElement("div");
   modal.className = "modal";
   modal.innerHTML = `
@@ -3382,7 +3630,7 @@ var renderGalleryModule = (panel, context) => {
       </footer>
     </div>
   `;
-  body.append(toggleField, grid, status);
+  body.append(toggleField, grid, status2);
   wrapper.append(header, body);
   panel.append(wrapper, modal);
   const modalBody = modal.querySelector(".app-gallery-modal-body");
@@ -3501,10 +3749,10 @@ var renderGalleryModule = (panel, context) => {
   };
   const loadItems = async () => {
     if (!auth) {
-      status.textContent = "Login required.";
+      status2.textContent = "Login required.";
       return;
     }
-    status.textContent = "Loading media...";
+    status2.textContent = "Loading media...";
     grid.innerHTML = "";
     try {
       const response = await fetchModuleList(auth, module.name, {
@@ -3513,10 +3761,10 @@ var renderGalleryModule = (panel, context) => {
       });
       const items = response.items ?? [];
       if (!items.length) {
-        status.textContent = "No images found.";
+        status2.textContent = "No images found.";
         return;
       }
-      status.textContent = "";
+      status2.textContent = "";
       items.forEach((item) => {
         if (!isRecord2(item) || typeof item.url !== "string" || typeof item.path !== "string") {
           return;
@@ -3538,7 +3786,7 @@ var renderGalleryModule = (panel, context) => {
       });
       renderGrid();
     } catch (err) {
-      status.textContent = err.message;
+      status2.textContent = err.message;
     }
   };
   toggleTabs.querySelectorAll("li").forEach((tab) => {
@@ -5566,6 +5814,14 @@ var showLogsView = () => renderLogsView({
 // web/src/features/agents/controller.ts
 init_api();
 
+// web/src/ui/notice.ts
+var pushNotice = (type, message) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent("app:notice", { detail: { type, message } }));
+};
+
 // web/src/features/agents/view.ts
 init_api();
 
@@ -5573,6 +5829,10 @@ init_api();
 var renderMessages2 = (conversation) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
   if (!messagesContainer) {
+    return;
+  }
+  if (!conversation) {
+    messagesContainer.innerHTML = `<p class="app-muted">Start a conversation with your next message.</p>`;
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
@@ -5611,14 +5871,14 @@ var updateConversationHeader2 = (conversation) => {
   title.textContent = conversation.payload.name || "Conversation";
   meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
 };
-var updateChatInputState2 = (active) => {
+var updateChatInputState2 = (active2) => {
   const input = document.getElementById("agent-chat-text");
   const send = document.getElementById("agent-chat-send");
   if (input) {
-    input.disabled = !active;
+    input.disabled = !active2;
   }
   if (send) {
-    send.disabled = !active;
+    send.disabled = !active2;
   }
 };
 var renderConversationList = (items, currentConversationId, onSelect) => {
@@ -5631,10 +5891,10 @@ var renderConversationList = (items, currentConversationId, onSelect) => {
     return;
   }
   list.innerHTML = items.map((item) => {
-    const active = currentConversationId === item.id ? "is-active" : "";
+    const active2 = currentConversationId === item.id ? "is-active" : "";
     const meta = item.createdAt ? `<div class="app-conversation-meta">${item.createdAt}</div>` : "";
     return `
-        <button class="button app-button app-ghost app-conversation-item ${active}" data-conversation-id="${item.id}">
+        <button class="button app-button app-ghost app-conversation-item ${active2}" data-conversation-id="${item.id}">
           <div class="app-conversation-title">${item.name}</div>
           ${meta}
         </button>
@@ -5649,6 +5909,105 @@ var renderConversationList = (items, currentConversationId, onSelect) => {
     });
   });
 };
+
+// web/src/features/agents/layout.ts
+var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
+  <div class="mb-4">
+    <h1 class="title is-4">${agentDoc.payload.name}</h1>
+    <p class="app-muted">Agent \xB7 ${agentDoc.store}/${agentDoc.path}</p>
+  </div>
+  <div class="columns is-variable is-4">
+    <div class="column is-one-third">
+      <div class="app-panel">
+        <div class="mb-3">
+          <h2 class="title is-6">Settings</h2>
+          <p class="app-muted">Provider, model, and prompts.</p>
+        </div>
+        <div class="field">
+          <label class="label">Name</label>
+          <div class="control">
+            <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Provider</label>
+          <div class="control">
+            <div class="select is-fullwidth">
+              <select id="agent-edit-provider"></select>
+            </div>
+          </div>
+          <p id="agent-edit-provider-help" class="help app-muted"></p>
+        </div>
+        <div class="field">
+          <label class="label">Model</label>
+          <div class="control">
+            <input
+              id="agent-edit-model-search"
+              class="input"
+              type="search"
+              placeholder="Search models"
+              autocomplete="off"
+            />
+          </div>
+          <div class="control mt-2">
+            <div class="select is-fullwidth">
+              <select id="agent-edit-model"></select>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">System prompt</label>
+          <div class="control">
+            <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Admin prompt</label>
+          <div class="control">
+            <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
+          </div>
+        </div>
+        <div class="buttons">
+          <button id="agent-save" class="button app-button app-primary">Save</button>
+        </div>
+      </div>
+      <div class="app-panel mt-4">
+        <div class="app-panel-header">
+          <div>
+            <h2 class="title is-6 mb-1">Conversations</h2>
+            <p class="app-muted">Reuse context or start fresh.</p>
+          </div>
+          <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
+        </div>
+        <div id="agent-conversation-list" class="app-conversation-list"></div>
+      </div>
+    </div>
+    <div class="column">
+      <div class="app-panel app-chat">
+        <div class="app-chat-header">
+          <div>
+            <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
+            <div id="agent-chat-meta" class="app-chat-meta app-muted">Your next message starts a new conversation.</div>
+          </div>
+        </div>
+        <div id="agent-chat-messages" class="app-chat-messages"></div>
+        <div class="app-chat-input">
+          <form id="agent-chat-form">
+            <div class="field">
+              <div class="control">
+                <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
+              </div>
+            </div>
+            <div class="buttons">
+              <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
+            </div>
+          </form>
+          <p id="agent-chat-status" class="help"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
 
 // web/src/features/agents/utils.ts
 var getAgentField = (data, key) => typeof data[key] === "string" ? data[key] : "";
@@ -5666,8 +6025,6 @@ var refreshAgentEditControls = () => {
     return;
   }
   const data = isRecord(state.currentAgent.payload.data) ? state.currentAgent.payload.data : {};
-  const provider = getAgentField(data, "provider");
-  const model = getAgentField(data, "model");
   setupProviderModelControls(
     providerSelect,
     modelSelect,
@@ -5675,8 +6032,8 @@ var refreshAgentEditControls = () => {
     providerHelp,
     state.integrations,
     state.integrationSettings,
-    provider,
-    model,
+    getAgentField(data, "provider"),
+    getAgentField(data, "model"),
     true
   );
 };
@@ -5685,170 +6042,118 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
   if (!content) {
     return;
   }
-  stopAgentPolling();
+  clearAgentState();
   state.currentAgent = agentDoc;
   state.currentConversation = null;
   const data = isRecord(agentDoc.payload.data) ? agentDoc.payload.data : {};
-  const provider = getAgentField(data, "provider");
-  const model = getAgentField(data, "model");
-  const systemPrompt = getAgentField(data, "systemPrompt");
-  const adminPrompt = getAgentField(data, "adminPrompt");
-  content.innerHTML = `
-    <div class="mb-4">
-      <h1 class="title is-4">${agentDoc.payload.name}</h1>
-      <p class="app-muted">Agent \xB7 ${agentDoc.store}/${agentDoc.path}</p>
-    </div>
-    <div class="columns is-variable is-4">
-      <div class="column is-one-third">
-        <div class="app-panel">
-          <div class="mb-3">
-            <h2 class="title is-6">Settings</h2>
-            <p class="app-muted">Provider, model, and prompts.</p>
-          </div>
-          <div class="field">
-            <label class="label">Name</label>
-            <div class="control">
-              <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Provider</label>
-            <div class="control">
-              <div class="select is-fullwidth">
-                <select id="agent-edit-provider"></select>
-              </div>
-            </div>
-            <p id="agent-edit-provider-help" class="help app-muted"></p>
-          </div>
-          <div class="field">
-            <label class="label">Model</label>
-            <div class="control">
-              <input
-                id="agent-edit-model-search"
-                class="input"
-                type="search"
-                placeholder="Search models"
-                autocomplete="off"
-              />
-            </div>
-            <div class="control mt-2">
-              <div class="select is-fullwidth">
-                <select id="agent-edit-model"></select>
-              </div>
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">System prompt</label>
-            <div class="control">
-              <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Admin prompt</label>
-            <div class="control">
-              <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
-            </div>
-          </div>
-          <div class="buttons">
-            <button id="agent-save" class="button app-button app-primary">Save</button>
-          </div>
-        </div>
-        <div class="app-panel mt-4">
-          <div class="app-panel-header">
-            <div>
-              <h2 class="title is-6 mb-1">Conversations</h2>
-              <p class="app-muted">Reuse context or start fresh.</p>
-            </div>
-            <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
-          </div>
-          <div id="agent-conversation-list" class="app-conversation-list"></div>
-        </div>
-      </div>
-      <div class="column">
-        <div class="app-panel app-chat">
-          <div class="app-chat-header">
-            <div>
-              <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
-              <div id="agent-chat-meta" class="app-chat-meta app-muted">Select or create a conversation.</div>
-            </div>
-          </div>
-          <div id="agent-chat-messages" class="app-chat-messages"></div>
-          <div class="app-chat-input">
-            <form id="agent-chat-form">
-              <div class="field">
-                <div class="control">
-                  <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
-                </div>
-              </div>
-              <div class="buttons">
-                <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  const editProviderSelect = document.getElementById("agent-edit-provider");
-  const editModelSelect = document.getElementById("agent-edit-model");
-  const editModelSearch = document.getElementById("agent-edit-model-search");
-  const editProviderHelp = document.getElementById("agent-edit-provider-help");
-  const agentSaveButton = document.getElementById("agent-save");
-  if (editProviderSelect && editModelSelect) {
+  content.innerHTML = renderAgentLayout(
+    agentDoc,
+    getAgentField(data, "systemPrompt"),
+    getAgentField(data, "adminPrompt")
+  );
+  const providerSelect = document.getElementById("agent-edit-provider");
+  const modelSelect = document.getElementById("agent-edit-model");
+  const modelSearch = document.getElementById("agent-edit-model-search");
+  const providerHelp = document.getElementById("agent-edit-provider-help");
+  const saveButton = document.getElementById("agent-save");
+  const chatMeta = document.getElementById("agent-chat-meta");
+  const chatForm = document.getElementById("agent-chat-form");
+  const chatInput = document.getElementById("agent-chat-text");
+  const chatStatus = document.getElementById("agent-chat-status");
+  if (providerSelect && modelSelect) {
     setupProviderModelControls(
-      editProviderSelect,
-      editModelSelect,
-      editModelSearch,
-      editProviderHelp,
+      providerSelect,
+      modelSelect,
+      modelSearch,
+      providerHelp,
       state.integrations,
       state.integrationSettings,
-      provider,
-      model,
+      getAgentField(data, "provider"),
+      getAgentField(data, "model"),
       true
     );
-    if (agentSaveButton) {
-      agentSaveButton.disabled = editProviderSelect.disabled || editModelSelect.disabled;
-    }
-    const updateSaveState = () => {
-      if (agentSaveButton) {
-        agentSaveButton.disabled = editProviderSelect.disabled || editModelSelect.disabled;
+    const syncSaveState = () => {
+      if (saveButton) {
+        saveButton.disabled = providerSelect.disabled || modelSelect.disabled;
       }
     };
-    editProviderSelect.addEventListener("change", updateSaveState);
-    editModelSelect.addEventListener("change", updateSaveState);
+    syncSaveState();
+    providerSelect.addEventListener("change", syncSaveState);
+    modelSelect.addEventListener("change", syncSaveState);
   }
-  const loadConversation = async (conversationId) => {
-    if (!auth) {
+  const setStatus2 = (message) => {
+    if (chatStatus) {
+      chatStatus.textContent = message;
+    }
+  };
+  const processingStatus = createProcessingStatus(setStatus2);
+  let conversations = [];
+  let disposeRealtime = null;
+  let disposeRealtimeStatus = null;
+  const stopRealtimeBindings = () => {
+    disposeRealtime?.();
+    disposeRealtimeStatus?.();
+    disposeRealtime = null;
+    disposeRealtimeStatus = null;
+  };
+  const renderConversations = () => {
+    renderConversationList(conversations, state.currentConversation?.id ?? null, (id) => {
+      void loadConversation(id);
+    });
+  };
+  const handleRealtimeEvent = (event) => {
+    if (event.type !== "agent.conversation.updated") {
       return;
     }
-    try {
-      const conversation = await fetchAgentConversation(auth, conversationId);
-      state.currentConversation = conversation;
-      updateConversationHeader2(conversation);
-      renderMessages2(conversation);
-      updateChatInputState2(true);
-      stopAgentPolling();
-      state.agentPoller = window.setInterval(async () => {
-        if (!auth || !state.currentConversation || state.currentConversation.id !== conversationId) {
-          return;
-        }
-        try {
-          const updated = await fetchAgentConversation(auth, conversationId);
-          const previous = state.currentConversation;
-          state.currentConversation = updated;
-          const prevData = isRecord(previous.payload.data) ? previous.payload.data : {};
-          const nextData = isRecord(updated.payload.data) ? updated.payload.data : {};
-          const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
-          const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
-          if (prevCount !== nextCount) {
-            renderMessages2(updated);
-          }
-        } catch {
-        }
-      }, 3e3);
-    } catch (err) {
-      alert(err.message);
+    const payloadData = isRecord(event.conversation.payload.data) ? event.conversation.payload.data : {};
+    const eventAgentId = typeof payloadData.agentId === "string" ? payloadData.agentId : "";
+    const eventAgentName = typeof payloadData.agentName === "string" ? payloadData.agentName : "";
+    if (eventAgentId && eventAgentId !== agentDoc.id) {
+      return;
     }
+    if (!eventAgentId && eventAgentName !== agentDoc.payload.name) {
+      return;
+    }
+    if (state.currentConversation && state.currentConversation.id === event.conversation.id) {
+      syncConversation(event.conversation);
+    }
+    void refreshConversations();
+  };
+  const handleRealtimeStatus = (status2) => {
+    if (status2 === "open" && state.currentConversation) {
+      void refreshConversations();
+      void loadConversation(state.currentConversation.id);
+    }
+  };
+  const syncRealtimeBindings = () => {
+    if (!state.currentConversation) {
+      stopRealtimeBindings();
+      return;
+    }
+    if (disposeRealtime === null) {
+      disposeRealtime = subscribeRealtime(handleRealtimeEvent);
+    }
+    if (disposeRealtimeStatus === null) {
+      disposeRealtimeStatus = subscribeRealtimeStatus(handleRealtimeStatus);
+    }
+  };
+  const syncConversation = (conversation) => {
+    state.currentConversation = conversation;
+    updateConversationHeader2(conversation);
+    renderMessages2(conversation);
+    renderConversations();
+    const pending = conversationHasPendingResponse(conversation);
+    updateChatInputState2(!!auth && !!state.currentAgent && !pending);
+    if (!conversation && chatMeta) {
+      chatMeta.textContent = "Your next message starts a new conversation.";
+    }
+    if (pending) {
+      processingStatus.start();
+      syncRealtimeBindings();
+      return;
+    }
+    processingStatus.stop();
+    syncRealtimeBindings();
   };
   const refreshConversations = async () => {
     if (!auth) {
@@ -5856,32 +6161,57 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     }
     try {
       const response = await fetchAgentConversations(auth, agentDoc.id);
-      const items = Array.isArray(response.conversations) ? response.conversations : [];
-      renderConversationList(items, state.currentConversation?.id ?? null, loadConversation);
+      conversations = Array.isArray(response.conversations) ? response.conversations : [];
+      renderConversations();
     } catch (err) {
-      alert(err.message);
+      pushNotice("error", err.message);
     }
+  };
+  const loadConversation = async (conversationId) => {
+    if (!auth) {
+      return;
+    }
+    try {
+      const conversation = await fetchAgentConversation(auth, conversationId);
+      syncConversation(conversation);
+    } catch (err) {
+      pushNotice("error", err.message);
+    }
+  };
+  const ensureConversation = async () => {
+    if (!auth || !state.currentAgent) {
+      return null;
+    }
+    if (state.currentConversation) {
+      return state.currentConversation;
+    }
+    const created = await createAgentConversation(auth, state.currentAgent.id);
+    syncConversation(created);
+    await refreshConversations();
+    return created;
+  };
+  const appendLocalMessage = (role, content2) => {
+    if (!state.currentConversation) {
+      return;
+    }
+    appendConversationMessage(state.currentConversation, role, content2);
+    syncConversation(state.currentConversation);
   };
   document.getElementById("agent-save")?.addEventListener("click", async () => {
     if (!auth || !state.currentAgent) {
       return;
     }
-    const nameInput = document.getElementById("agent-edit-name");
-    const providerInput = document.getElementById("agent-edit-provider");
-    const modelInput = document.getElementById("agent-edit-model");
-    const systemInput = document.getElementById("agent-edit-system");
-    const adminInput = document.getElementById("agent-edit-admin");
-    const nameValue = nameInput?.value.trim() || "";
-    const providerValue = providerInput?.value.trim() || "";
-    const modelValue = modelInput?.value.trim() || "";
-    const systemValue = systemInput?.value.trim() || "";
-    const adminValue = adminInput?.value.trim() || "";
+    const nameValue = document.getElementById("agent-edit-name")?.value.trim() || "";
+    const providerValue = providerSelect?.value.trim() || "";
+    const modelValue = modelSelect?.value.trim() || "";
+    const systemValue = document.getElementById("agent-edit-system")?.value.trim() || "";
+    const adminValue = document.getElementById("agent-edit-admin")?.value.trim() || "";
     if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
-      alert("All agent fields are required.");
+      pushNotice("error", "All agent fields are required.");
       return;
     }
-    if (providerInput?.disabled || modelInput?.disabled) {
-      alert("Enable an integration and sync models first.");
+    if (providerSelect?.disabled || modelSelect?.disabled) {
+      pushNotice("error", "Enable an integration and sync models first.");
       return;
     }
     try {
@@ -5895,8 +6225,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
       state.currentAgent = updated;
       await reloadAgents();
       await renderAgentView({ auth, agentDoc: updated, reloadAgents });
-    } catch (err) {
-      alert(err.message);
+    } catch {
     }
   });
   document.getElementById("agent-new-conversation")?.addEventListener("click", async () => {
@@ -5905,36 +6234,57 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     }
     try {
       const created = await createAgentConversation(auth, state.currentAgent.id);
-      state.currentConversation = created;
+      syncConversation(created);
       await refreshConversations();
-      await loadConversation(created.id);
     } catch (err) {
-      alert(err.message);
+      pushNotice("error", err.message);
     }
   });
-  document.getElementById("agent-chat-form")?.addEventListener("submit", async (event) => {
+  chatForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!auth || !state.currentConversation) {
+    if (!auth || conversationHasPendingResponse(state.currentConversation)) {
       return;
     }
-    const input = document.getElementById("agent-chat-text");
-    const content2 = input?.value.trim() || "";
+    const content2 = chatInput?.value.trim() || "";
     if (!content2) {
       return;
     }
+    const conversation = await ensureConversation().catch((err) => {
+      pushNotice("error", err.message);
+      return null;
+    });
+    if (!conversation) {
+      return;
+    }
+    if (chatInput) {
+      chatInput.value = "";
+    }
+    appendLocalMessage("user", content2);
     try {
-      const updated = await appendAgentMessage(auth, state.currentConversation.id, content2);
-      state.currentConversation = updated;
-      if (input) {
-        input.value = "";
-      }
-      renderMessages2(updated);
+      const updated = await appendAgentMessage(auth, conversation.id, content2);
+      syncConversation(updated);
+      await refreshConversations();
     } catch (err) {
-      alert(err.message);
+      if (state.currentConversation) {
+        markConversationPending(state.currentConversation, false);
+        appendLocalMessage(
+          "assistant",
+          `Something went wrong while I was replying: ${err.message || "Please try again."}`
+        );
+      }
     }
   });
-  updateChatInputState2(false);
-  updateConversationHeader2(null);
+  chatInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      chatForm?.requestSubmit();
+    }
+  });
+  registerAgentChatCleanup(() => {
+    stopRealtimeBindings();
+    processingStatus.stop();
+  });
+  syncConversation(null);
   await refreshConversations();
 };
 
@@ -5948,7 +6298,7 @@ var loadAgent = async (id, reloadAgents) => {
     state.currentDocument = null;
     await renderAgentView({ auth: state.auth, agentDoc: agent, reloadAgents });
   } catch (err) {
-    alert(err.message);
+    pushNotice("error", err.message);
   }
 };
 
@@ -5992,6 +6342,7 @@ var renderApp = async () => {
   await loadModules();
   renderAppShell({ moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected) });
   initNotifications();
+  startRealtime(() => state.auth);
   const reloadAgents = () => loadAgents((id) => loadAgent(id, reloadAgents));
   const createModal = initCreateModal({
     getAuth: () => state.auth,
@@ -6017,6 +6368,7 @@ var renderApp = async () => {
   state.openIntegrationModalHandler = integrationModal.openIntegrationModal;
   initShellEvents({
     onLogout: () => {
+      stopRealtime();
       state.auth = null;
       saveAuth(null);
       renderLogin({
@@ -6049,6 +6401,7 @@ var renderApp = async () => {
 var bootstrap = () => {
   initTheme();
   renderApp().catch(() => {
+    stopRealtime();
     const app = document.getElementById("app");
     if (!app) {
       return;

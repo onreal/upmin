@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Manage\Interface\Http\Controllers;
 
 use Manage\Application\Ports\TokenService;
-use Manage\Application\UseCases\AppendAgentMessage;
 use Manage\Application\UseCases\CreateAgentConversation;
 use Manage\Application\UseCases\GetAgentConversation;
 use Manage\Application\UseCases\ListAgentConversations;
+use Manage\Application\UseCases\SendAgentMessage;
 use Manage\Domain\Document\DocumentId;
 use Manage\Interface\Http\Request;
 use Manage\Interface\Http\Response;
@@ -18,21 +18,21 @@ final class AgentConversationController
     private ListAgentConversations $listConversations;
     private CreateAgentConversation $createConversation;
     private GetAgentConversation $getConversation;
-    private AppendAgentMessage $appendMessage;
+    private SendAgentMessage $sendMessage;
     private TokenService $tokens;
 
     public function __construct(
         ListAgentConversations $listConversations,
         CreateAgentConversation $createConversation,
         GetAgentConversation $getConversation,
-        AppendAgentMessage $appendMessage,
+        SendAgentMessage $sendMessage,
         TokenService $tokens
     )
     {
         $this->listConversations = $listConversations;
         $this->createConversation = $createConversation;
         $this->getConversation = $getConversation;
-        $this->appendMessage = $appendMessage;
+        $this->sendMessage = $sendMessage;
         $this->tokens = $tokens;
     }
 
@@ -105,7 +105,7 @@ final class AgentConversationController
         $userId = $this->resolveUserId($request);
 
         try {
-            $conversation = $this->appendMessage->handle($conversationId, $userId, $content);
+            $conversation = $this->sendMessage->handle($conversationId, $userId, $content);
         } catch (\InvalidArgumentException $exception) {
             return Response::json(['error' => $exception->getMessage()], 422);
         }

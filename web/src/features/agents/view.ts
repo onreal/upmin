@@ -9,11 +9,26 @@ import {
   type RemoteDocument,
 } from "../../api";
 import { state } from "../../app/state";
+import {
+  appendConversationMessage,
+  conversationHasPendingResponse,
+  markConversationPending,
+} from "../chat/conversation";
+import { createProcessingStatus } from "../chat/processing";
+import { registerAgentChatCleanup } from "../chat/runtime";
 import { setupProviderModelControls } from "../integrations/helpers";
+import {
+  subscribeRealtime,
+  subscribeRealtimeStatus,
+  type RealtimeEvent,
+  type RealtimeStatus,
+} from "../realtime/client";
+import { pushNotice } from "../../ui/notice";
 import { isRecord } from "../../utils";
 import { renderConversationList, renderMessages, updateChatInputState, updateConversationHeader } from "./chat";
+import { renderAgentLayout } from "./layout";
+import { clearAgentState } from "./state";
 import { getAgentField } from "./utils";
-import { stopAgentPolling } from "./state";
 
 export type AgentViewContext = {
   auth: AuthState | null;
@@ -25,6 +40,7 @@ export const refreshAgentEditControls = () => {
   if (!state.currentAgent) {
     return;
   }
+
   const providerSelect = document.getElementById("agent-edit-provider") as HTMLSelectElement | null;
   const modelSelect = document.getElementById("agent-edit-model") as HTMLSelectElement | null;
   const modelSearch = document.getElementById("agent-edit-model-search") as HTMLInputElement | null;
@@ -32,9 +48,8 @@ export const refreshAgentEditControls = () => {
   if (!providerSelect || !modelSelect) {
     return;
   }
+
   const data = isRecord(state.currentAgent.payload.data) ? state.currentAgent.payload.data : {};
-  const provider = getAgentField(data, "provider");
-  const model = getAgentField(data, "model");
   setupProviderModelControls(
     providerSelect,
     modelSelect,
@@ -42,8 +57,8 @@ export const refreshAgentEditControls = () => {
     providerHelp,
     state.integrations,
     state.integrationSettings,
-    provider,
-    model,
+    getAgentField(data, "provider"),
+    getAgentField(data, "model"),
     true
   );
 };
@@ -54,215 +69,211 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
     return;
   }
 
-  stopAgentPolling();
+  clearAgentState();
   state.currentAgent = agentDoc;
   state.currentConversation = null;
 
   const data = isRecord(agentDoc.payload.data) ? agentDoc.payload.data : {};
-  const provider = getAgentField(data, "provider");
-  const model = getAgentField(data, "model");
-  const systemPrompt = getAgentField(data, "systemPrompt");
-  const adminPrompt = getAgentField(data, "adminPrompt");
+  content.innerHTML = renderAgentLayout(
+    agentDoc,
+    getAgentField(data, "systemPrompt"),
+    getAgentField(data, "adminPrompt")
+  );
 
-  content.innerHTML = `
-    <div class="mb-4">
-      <h1 class="title is-4">${agentDoc.payload.name}</h1>
-      <p class="app-muted">Agent · ${agentDoc.store}/${agentDoc.path}</p>
-    </div>
-    <div class="columns is-variable is-4">
-      <div class="column is-one-third">
-        <div class="app-panel">
-          <div class="mb-3">
-            <h2 class="title is-6">Settings</h2>
-            <p class="app-muted">Provider, model, and prompts.</p>
-          </div>
-          <div class="field">
-            <label class="label">Name</label>
-            <div class="control">
-              <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Provider</label>
-            <div class="control">
-              <div class="select is-fullwidth">
-                <select id="agent-edit-provider"></select>
-              </div>
-            </div>
-            <p id="agent-edit-provider-help" class="help app-muted"></p>
-          </div>
-          <div class="field">
-            <label class="label">Model</label>
-            <div class="control">
-              <input
-                id="agent-edit-model-search"
-                class="input"
-                type="search"
-                placeholder="Search models"
-                autocomplete="off"
-              />
-            </div>
-            <div class="control mt-2">
-              <div class="select is-fullwidth">
-                <select id="agent-edit-model"></select>
-              </div>
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">System prompt</label>
-            <div class="control">
-              <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Admin prompt</label>
-            <div class="control">
-              <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
-            </div>
-          </div>
-          <div class="buttons">
-            <button id="agent-save" class="button app-button app-primary">Save</button>
-          </div>
-        </div>
-        <div class="app-panel mt-4">
-          <div class="app-panel-header">
-            <div>
-              <h2 class="title is-6 mb-1">Conversations</h2>
-              <p class="app-muted">Reuse context or start fresh.</p>
-            </div>
-            <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
-          </div>
-          <div id="agent-conversation-list" class="app-conversation-list"></div>
-        </div>
-      </div>
-      <div class="column">
-        <div class="app-panel app-chat">
-          <div class="app-chat-header">
-            <div>
-              <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
-              <div id="agent-chat-meta" class="app-chat-meta app-muted">Select or create a conversation.</div>
-            </div>
-          </div>
-          <div id="agent-chat-messages" class="app-chat-messages"></div>
-          <div class="app-chat-input">
-            <form id="agent-chat-form">
-              <div class="field">
-                <div class="control">
-                  <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
-                </div>
-              </div>
-              <div class="buttons">
-                <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  const providerSelect = document.getElementById("agent-edit-provider") as HTMLSelectElement | null;
+  const modelSelect = document.getElementById("agent-edit-model") as HTMLSelectElement | null;
+  const modelSearch = document.getElementById("agent-edit-model-search") as HTMLInputElement | null;
+  const providerHelp = document.getElementById("agent-edit-provider-help");
+  const saveButton = document.getElementById("agent-save") as HTMLButtonElement | null;
+  const chatMeta = document.getElementById("agent-chat-meta");
+  const chatForm = document.getElementById("agent-chat-form") as HTMLFormElement | null;
+  const chatInput = document.getElementById("agent-chat-text") as HTMLTextAreaElement | null;
+  const chatStatus = document.getElementById("agent-chat-status");
 
-  const editProviderSelect = document.getElementById("agent-edit-provider") as HTMLSelectElement | null;
-  const editModelSelect = document.getElementById("agent-edit-model") as HTMLSelectElement | null;
-  const editModelSearch = document.getElementById("agent-edit-model-search") as HTMLInputElement | null;
-  const editProviderHelp = document.getElementById("agent-edit-provider-help");
-  const agentSaveButton = document.getElementById("agent-save") as HTMLButtonElement | null;
-
-  if (editProviderSelect && editModelSelect) {
+  if (providerSelect && modelSelect) {
     setupProviderModelControls(
-      editProviderSelect,
-      editModelSelect,
-      editModelSearch,
-      editProviderHelp,
+      providerSelect,
+      modelSelect,
+      modelSearch,
+      providerHelp,
       state.integrations,
       state.integrationSettings,
-      provider,
-      model,
+      getAgentField(data, "provider"),
+      getAgentField(data, "model"),
       true
     );
-    if (agentSaveButton) {
-      agentSaveButton.disabled = editProviderSelect.disabled || editModelSelect.disabled;
-    }
-    const updateSaveState = () => {
-      if (agentSaveButton) {
-        agentSaveButton.disabled = editProviderSelect.disabled || editModelSelect.disabled;
+
+    const syncSaveState = () => {
+      if (saveButton) {
+        saveButton.disabled = providerSelect.disabled || modelSelect.disabled;
       }
     };
-    editProviderSelect.addEventListener("change", updateSaveState);
-    editModelSelect.addEventListener("change", updateSaveState);
+
+    syncSaveState();
+    providerSelect.addEventListener("change", syncSaveState);
+    modelSelect.addEventListener("change", syncSaveState);
   }
 
-  const loadConversation = async (conversationId: string) => {
-    if (!auth) {
+  const setStatus = (message: string) => {
+    if (chatStatus) {
+      chatStatus.textContent = message;
+    }
+  };
+
+  const processingStatus = createProcessingStatus(setStatus);
+  let conversations: AgentConversationSummary[] = [];
+  let disposeRealtime: (() => void) | null = null;
+  let disposeRealtimeStatus: (() => void) | null = null;
+
+  const stopRealtimeBindings = () => {
+    disposeRealtime?.();
+    disposeRealtimeStatus?.();
+    disposeRealtime = null;
+    disposeRealtimeStatus = null;
+  };
+
+  const renderConversations = () => {
+    renderConversationList(conversations, state.currentConversation?.id ?? null, (id) => {
+      void loadConversation(id);
+    });
+  };
+
+  const handleRealtimeEvent = (event: RealtimeEvent) => {
+    if (event.type !== "agent.conversation.updated") {
       return;
     }
-    try {
-      const conversation = await fetchAgentConversation(auth, conversationId);
-      state.currentConversation = conversation;
-      updateConversationHeader(conversation);
-      renderMessages(conversation);
-      updateChatInputState(true);
-      stopAgentPolling();
-      state.agentPoller = window.setInterval(async () => {
-        if (!auth || !state.currentConversation || state.currentConversation.id !== conversationId) {
-          return;
-        }
-        try {
-          const updated = await fetchAgentConversation(auth, conversationId);
-          const previous = state.currentConversation;
-          state.currentConversation = updated;
-          const prevData = isRecord(previous.payload.data) ? previous.payload.data : {};
-          const nextData = isRecord(updated.payload.data) ? updated.payload.data : {};
-          const prevCount = Array.isArray(prevData.messages) ? prevData.messages.length : 0;
-          const nextCount = Array.isArray(nextData.messages) ? nextData.messages.length : 0;
-          if (prevCount !== nextCount) {
-            renderMessages(updated);
-          }
-        } catch {
-          // ignore polling errors
-        }
-      }, 3000);
-    } catch (err) {
-      alert((err as Error).message);
+
+    const payloadData = isRecord(event.conversation.payload.data) ? event.conversation.payload.data : {};
+    const eventAgentId = typeof payloadData.agentId === "string" ? payloadData.agentId : "";
+    const eventAgentName = typeof payloadData.agentName === "string" ? payloadData.agentName : "";
+    if (eventAgentId && eventAgentId !== agentDoc.id) {
+      return;
     }
+    if (!eventAgentId && eventAgentName !== agentDoc.payload.name) {
+      return;
+    }
+
+    if (state.currentConversation && state.currentConversation.id === event.conversation.id) {
+      syncConversation(event.conversation);
+    }
+
+    void refreshConversations();
+  };
+
+  const handleRealtimeStatus = (status: RealtimeStatus) => {
+    if (status === "open" && state.currentConversation) {
+      void refreshConversations();
+      void loadConversation(state.currentConversation.id);
+    }
+  };
+
+  const syncRealtimeBindings = () => {
+    if (!state.currentConversation) {
+      stopRealtimeBindings();
+      return;
+    }
+
+    if (disposeRealtime === null) {
+      disposeRealtime = subscribeRealtime(handleRealtimeEvent);
+    }
+    if (disposeRealtimeStatus === null) {
+      disposeRealtimeStatus = subscribeRealtimeStatus(handleRealtimeStatus);
+    }
+  };
+
+  const syncConversation = (conversation: RemoteDocument | null) => {
+    state.currentConversation = conversation;
+    updateConversationHeader(conversation);
+    renderMessages(conversation);
+    renderConversations();
+
+    const pending = conversationHasPendingResponse(conversation);
+    updateChatInputState(!!auth && !!state.currentAgent && !pending);
+
+    if (!conversation && chatMeta) {
+      chatMeta.textContent = "Your next message starts a new conversation.";
+    }
+
+    if (pending) {
+      processingStatus.start();
+      syncRealtimeBindings();
+      return;
+    }
+
+    processingStatus.stop();
+    syncRealtimeBindings();
   };
 
   const refreshConversations = async () => {
     if (!auth) {
       return;
     }
+
     try {
       const response = await fetchAgentConversations(auth, agentDoc.id);
-      const items = Array.isArray(response.conversations)
+      conversations = Array.isArray(response.conversations)
         ? (response.conversations as AgentConversationSummary[])
         : [];
-      renderConversationList(items, state.currentConversation?.id ?? null, loadConversation);
+      renderConversations();
     } catch (err) {
-      alert((err as Error).message);
+      pushNotice("error", (err as Error).message);
     }
+  };
+
+  const loadConversation = async (conversationId: string) => {
+    if (!auth) {
+      return;
+    }
+
+    try {
+      const conversation = await fetchAgentConversation(auth, conversationId);
+      syncConversation(conversation);
+    } catch (err) {
+      pushNotice("error", (err as Error).message);
+    }
+  };
+
+  const ensureConversation = async () => {
+    if (!auth || !state.currentAgent) {
+      return null;
+    }
+    if (state.currentConversation) {
+      return state.currentConversation;
+    }
+
+    const created = await createAgentConversation(auth, state.currentAgent.id);
+    syncConversation(created);
+    await refreshConversations();
+    return created;
+  };
+
+  const appendLocalMessage = (role: "user" | "assistant", content: string) => {
+    if (!state.currentConversation) {
+      return;
+    }
+    appendConversationMessage(state.currentConversation, role, content);
+    syncConversation(state.currentConversation);
   };
 
   document.getElementById("agent-save")?.addEventListener("click", async () => {
     if (!auth || !state.currentAgent) {
       return;
     }
-    const nameInput = document.getElementById("agent-edit-name") as HTMLInputElement | null;
-    const providerInput = document.getElementById("agent-edit-provider") as HTMLSelectElement | null;
-    const modelInput = document.getElementById("agent-edit-model") as HTMLSelectElement | null;
-    const systemInput = document.getElementById("agent-edit-system") as HTMLTextAreaElement | null;
-    const adminInput = document.getElementById("agent-edit-admin") as HTMLTextAreaElement | null;
 
-    const nameValue = nameInput?.value.trim() || "";
-    const providerValue = providerInput?.value.trim() || "";
-    const modelValue = modelInput?.value.trim() || "";
-    const systemValue = systemInput?.value.trim() || "";
-    const adminValue = adminInput?.value.trim() || "";
+    const nameValue = (document.getElementById("agent-edit-name") as HTMLInputElement | null)?.value.trim() || "";
+    const providerValue = providerSelect?.value.trim() || "";
+    const modelValue = modelSelect?.value.trim() || "";
+    const systemValue =
+      (document.getElementById("agent-edit-system") as HTMLTextAreaElement | null)?.value.trim() || "";
+    const adminValue =
+      (document.getElementById("agent-edit-admin") as HTMLTextAreaElement | null)?.value.trim() || "";
 
     if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
-      alert("All agent fields are required.");
+      pushNotice("error", "All agent fields are required.");
       return;
     }
-    if (providerInput?.disabled || modelInput?.disabled) {
-      alert("Enable an integration and sync models first.");
+    if (providerSelect?.disabled || modelSelect?.disabled) {
+      pushNotice("error", "Enable an integration and sync models first.");
       return;
     }
 
@@ -277,8 +288,8 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
       state.currentAgent = updated;
       await reloadAgents();
       await renderAgentView({ auth, agentDoc: updated, reloadAgents });
-    } catch (err) {
-      alert((err as Error).message);
+    } catch {
+      // API notifications already cover save failures here.
     }
   });
 
@@ -286,39 +297,68 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
     if (!auth || !state.currentAgent) {
       return;
     }
+
     try {
       const created = await createAgentConversation(auth, state.currentAgent.id);
-      state.currentConversation = created;
+      syncConversation(created);
       await refreshConversations();
-      await loadConversation(created.id);
     } catch (err) {
-      alert((err as Error).message);
+      pushNotice("error", (err as Error).message);
     }
   });
 
-  document.getElementById("agent-chat-form")?.addEventListener("submit", async (event) => {
+  chatForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!auth || !state.currentConversation) {
+    if (!auth || conversationHasPendingResponse(state.currentConversation)) {
       return;
     }
-    const input = document.getElementById("agent-chat-text") as HTMLTextAreaElement | null;
-    const content = input?.value.trim() || "";
+
+    const content = chatInput?.value.trim() || "";
     if (!content) {
       return;
     }
+
+    const conversation = await ensureConversation().catch((err: Error) => {
+      pushNotice("error", err.message);
+      return null;
+    });
+    if (!conversation) {
+      return;
+    }
+
+    if (chatInput) {
+      chatInput.value = "";
+    }
+
+    appendLocalMessage("user", content);
+
     try {
-      const updated = await appendAgentMessage(auth, state.currentConversation.id, content);
-      state.currentConversation = updated;
-      if (input) {
-        input.value = "";
-      }
-      renderMessages(updated);
+      const updated = await appendAgentMessage(auth, conversation.id, content);
+      syncConversation(updated);
+      await refreshConversations();
     } catch (err) {
-      alert((err as Error).message);
+      if (state.currentConversation) {
+        markConversationPending(state.currentConversation, false);
+        appendLocalMessage(
+          "assistant",
+          `Something went wrong while I was replying: ${(err as Error).message || "Please try again."}`
+        );
+      }
     }
   });
 
-  updateChatInputState(false);
-  updateConversationHeader(null);
+  chatInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      chatForm?.requestSubmit();
+    }
+  });
+
+  registerAgentChatCleanup(() => {
+    stopRealtimeBindings();
+    processingStatus.stop();
+  });
+
+  syncConversation(null);
   await refreshConversations();
 };

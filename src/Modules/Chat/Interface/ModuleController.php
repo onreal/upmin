@@ -8,8 +8,8 @@ use Manage\Application\Ports\TokenService;
 use Manage\Domain\Module\ModuleDefinition;
 use Manage\Interface\Http\Request;
 use Manage\Interface\Http\Response;
-use Manage\Modules\Chat\Application\GetConversation;
 use Manage\Modules\Chat\Application\DeleteConversation;
+use Manage\Modules\Chat\Application\GetConversation;
 use Manage\Modules\Chat\Application\SendMessage;
 use Manage\Modules\Chat\Application\ListConversations;
 use Manage\Modules\Chat\Application\StartConversation;
@@ -21,8 +21,8 @@ final class ModuleController
     private ModuleDefinition $definition;
     private ListConversations $listConversations;
     private StartConversation $startConversation;
-    private SendMessage $sendMessage;
     private GetConversation $getConversation;
+    private SendMessage $sendMessage;
     private DeleteConversation $deleteConversation;
     private ModuleSettingsStore $settings;
     private TokenService $tokens;
@@ -31,8 +31,8 @@ final class ModuleController
         ModuleDefinition $definition,
         ListConversations $listConversations,
         StartConversation $startConversation,
-        SendMessage $sendMessage,
         GetConversation $getConversation,
+        SendMessage $sendMessage,
         DeleteConversation $deleteConversation,
         ModuleSettingsStore $settings,
         TokenService $tokens
@@ -41,8 +41,8 @@ final class ModuleController
         $this->definition = $definition;
         $this->listConversations = $listConversations;
         $this->startConversation = $startConversation;
-        $this->sendMessage = $sendMessage;
         $this->getConversation = $getConversation;
+        $this->sendMessage = $sendMessage;
         $this->deleteConversation = $deleteConversation;
         $this->settings = $settings;
         $this->tokens = $tokens;
@@ -76,7 +76,7 @@ final class ModuleController
     }
 
     #[ModuleRoute('GET')]
-    public function Pull(Request $request): Response
+    public function Conversation(Request $request): Response
     {
         $query = $request->query();
         $settingsKey = is_string($query['settings'] ?? null) ? trim((string) $query['settings']) : '';

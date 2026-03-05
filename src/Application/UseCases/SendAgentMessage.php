@@ -2,20 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Manage\Modules\Chat\Application;
+namespace Manage\Application\UseCases;
 
 use Manage\Application\Ports\RealtimePublisher;
+use Manage\Domain\Document\DocumentId;
 use Manage\Infrastructure\Realtime\RealtimeIdentity;
 use Manage\Infrastructure\Workers\ReplyWorkerLauncher;
 
-final class SendMessage
+final class SendAgentMessage
 {
-    private AppendMessage $appendMessage;
+    private AppendAgentMessage $appendMessage;
     private RealtimePublisher $realtime;
     private ReplyWorkerLauncher $worker;
 
     public function __construct(
-        AppendMessage $appendMessage,
+        AppendAgentMessage $appendMessage,
         RealtimePublisher $realtime,
         ReplyWorkerLauncher $worker
     )
@@ -26,26 +27,9 @@ final class SendMessage
     }
 
     /** @return array<string, mixed>|null */
-    public function handle(
-        string $conversationId,
-        string $moduleKey,
-        string $agentName,
-        string $userId,
-        string $content,
-        ?array $settings = null,
-        ?string $agentId = null
-    ): ?array
+    public function handle(DocumentId $conversationId, string $userId, string $content): ?array
     {
-        $conversation = $this->appendMessage->handle(
-            $conversationId,
-            $moduleKey,
-            $agentName,
-            $userId,
-            $content,
-            'user',
-            $settings
-        );
-
+        $conversation = $this->appendMessage->handle($conversationId, $userId, $content, 'user');
         if ($conversation === null) {
             return null;
         }
@@ -53,16 +37,13 @@ final class SendMessage
         $this->publish($conversation, $userId);
 
         try {
-            $this->worker->dispatch($conversationId);
+            $this->worker->dispatch($conversationId->encoded());
         } catch (\Throwable $exception) {
             $failed = $this->appendMessage->handle(
                 $conversationId,
-                $moduleKey,
-                $agentName,
                 $userId,
                 $this->failureMessage($exception),
-                'assistant',
-                $settings
+                'assistant'
             );
 
             if ($failed !== null) {
@@ -81,7 +62,7 @@ final class SendMessage
             $this->realtime->publishToIdentity(
                 RealtimeIdentity::fromUserId($userId),
                 [
-                    'type' => 'chat.conversation.updated',
+                    'type' => 'agent.conversation.updated',
                     'conversation' => $conversation,
                 ]
             );
