@@ -11,11 +11,20 @@ final class ListNavigation
 {
     private DocumentRepository $documents;
     private EnsureModuleSettings $ensureModuleSettings;
+    private EnsureFormPages $ensureFormPages;
+    private EnsureDocumentId $ensureDocumentId;
 
-    public function __construct(DocumentRepository $documents, EnsureModuleSettings $ensureModuleSettings)
+    public function __construct(
+        DocumentRepository $documents,
+        EnsureModuleSettings $ensureModuleSettings,
+        EnsureFormPages $ensureFormPages,
+        EnsureDocumentId $ensureDocumentId
+    )
     {
         $this->documents = $documents;
         $this->ensureModuleSettings = $ensureModuleSettings;
+        $this->ensureFormPages = $ensureFormPages;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -25,11 +34,16 @@ final class ListNavigation
         $sectionsByPage = [];
 
         foreach ($this->documents->listAll() as $document) {
+            $document = $this->ensureDocumentId->handle($document);
+            if ($document->store() === 'private' && str_starts_with($document->path(), 'system/forms/')) {
+                continue;
+            }
             $type = $document->wrapper()->type();
             if (!in_array($type, ['page', 'module'], true)) {
                 continue;
             }
             $this->ensureModuleSettings->handle($document->wrapper());
+            $this->ensureFormPages->handle($document);
             if ($document->wrapper()->isSection()) {
                 $sectionsByPage[$document->wrapper()->page()][] = $document;
                 continue;

@@ -1,4 +1,5 @@
 import type { AgentConversationSummary, RemoteDocument } from "../../api";
+import { appendConversationProgress, getConversationProgress } from "../chat/progress";
 import { isRecord } from "../../utils";
 
 export const renderMessages = (conversation: RemoteDocument | null) => {
@@ -32,6 +33,8 @@ export const renderMessages = (conversation: RemoteDocument | null) => {
       `;
     })
     .join("");
+
+  appendConversationProgress(messagesContainer, getConversationProgress(conversation));
 };
 
 export const updateConversationHeader = (conversation: RemoteDocument | null) => {

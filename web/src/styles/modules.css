@@ -38,6 +38,20 @@
   gap: var(--app-gap-sm);
 }
 
+.app-module-note {
+  border: 1px dashed color-mix(in srgb, var(--app-border) 80%, var(--app-accent));
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-sm);
+  background: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%);
+  display: grid;
+  gap: var(--app-gap-xs);
+}
+
+.app-module-note strong {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
 .app-module-preview {
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-sm);

@@ -6,6 +6,7 @@ namespace Manage\Domain\Document;
 
 final class DocumentWrapper
 {
+    private ?string $id;
     private string $type;
     private string $page;
     private string $name;
@@ -18,6 +19,7 @@ final class DocumentWrapper
     private mixed $data;
 
     private function __construct(
+        ?string $id,
         string $type,
         string $page,
         string $name,
@@ -29,6 +31,7 @@ final class DocumentWrapper
         mixed $data
     )
     {
+        $this->id = $id;
         $this->type = $type;
         $this->page = $page;
         $this->name = $name;
@@ -42,6 +45,15 @@ final class DocumentWrapper
 
     public static function fromArray(array $payload): self
     {
+        $id = null;
+        if (array_key_exists('id', $payload)) {
+            if (is_string($payload['id'])) {
+                $trimmed = trim($payload['id']);
+                if ($trimmed !== '') {
+                    $id = $trimmed;
+                }
+            }
+        }
         $type = $payload['type'] ?? 'page';
         if (!is_string($type) || trim($type) === '') {
             throw new \InvalidArgumentException('Document.type must be a non-empty string.');
@@ -120,6 +132,7 @@ final class DocumentWrapper
         }
 
         return new self(
+            $id,
             $type,
             trim($payload['page']),
             trim($payload['name']),
@@ -130,6 +143,11 @@ final class DocumentWrapper
             $position,
             $payload['data']
         );
+    }
+
+    public function id(): ?string
+    {
+        return $this->id;
     }
 
     public function page(): string
@@ -180,12 +198,17 @@ final class DocumentWrapper
 
     public function withData(mixed $data): self
     {
-        return new self($this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $data);
+        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $data);
     }
 
     public function withOrder(int $order): self
     {
-        return new self($this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->data);
+        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->data);
+    }
+
+    public function withId(string $id): self
+    {
+        return new self($id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->data);
     }
 
     public function toArray(): array
@@ -196,6 +219,10 @@ final class DocumentWrapper
             'name' => $this->name,
             'data' => $this->data,
         ];
+
+        if ($this->id !== null) {
+            $payload['id'] = $this->id;
+        }
 
         if (in_array($this->type, ['page', 'module'], true)) {
             $payload['section'] = $this->section;

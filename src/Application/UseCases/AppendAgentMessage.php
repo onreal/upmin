@@ -11,10 +11,12 @@ use Manage\Domain\Document\DocumentWrapper;
 final class AppendAgentMessage
 {
     private DocumentRepository $documents;
+    private EnsureDocumentId $ensureDocumentId;
 
-    public function __construct(DocumentRepository $documents)
+    public function __construct(DocumentRepository $documents, EnsureDocumentId $ensureDocumentId)
     {
         $this->documents = $documents;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     /** @return array<string, mixed>|null */
@@ -57,20 +59,36 @@ final class AppendAgentMessage
             $messages = [];
         }
 
+        $timestamp = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
         $messages[] = [
             'role' => $role,
             'content' => $content,
-            'createdAt' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM),
+            'createdAt' => $timestamp,
         ];
 
         $data['messages'] = $messages;
-        $data['updatedAt'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
+        $data['updatedAt'] = $timestamp;
         $data['pendingResponse'] = $role === 'user';
+        if ($role === 'user') {
+            $data['progress'] = [
+                'status' => 'Queued reply...',
+                'updatedAt' => $timestamp,
+                'items' => [
+                    [
+                        'message' => 'Queued reply...',
+                        'createdAt' => $timestamp,
+                    ],
+                ],
+            ];
+        } else {
+            unset($data['progress']);
+        }
 
         $updatedWrapper = $wrapper->withData($data);
 
         $document = $document->withWrapper($updatedWrapper);
         $this->documents->save($document);
+        $document = $this->ensureDocumentId->handle($document);
 
         return [
             'id' => $document->id()->encoded(),

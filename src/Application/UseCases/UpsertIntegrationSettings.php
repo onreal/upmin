@@ -91,6 +91,17 @@ final class UpsertIntegrationSettings
             return null;
         }
 
+        if ($field->type() === 'select') {
+            $allowed = array_map(
+                static fn(array $option): string => $option['value'],
+                $field->options()
+            );
+
+            if (!in_array($value, $allowed, true)) {
+                throw new \InvalidArgumentException('Integration.' . $field->key() . ' must be one of: ' . implode(', ', $allowed) . '.');
+            }
+        }
+
         return $value;
     }
 }

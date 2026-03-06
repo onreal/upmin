@@ -10,10 +10,12 @@ use Manage\Domain\Document\DocumentId;
 final class GetAgent
 {
     private DocumentRepository $documents;
+    private EnsureDocumentId $ensureDocumentId;
 
-    public function __construct(DocumentRepository $documents)
+    public function __construct(DocumentRepository $documents, EnsureDocumentId $ensureDocumentId)
     {
         $this->documents = $documents;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     /** @return array<string, mixed>|null */
@@ -24,6 +26,7 @@ final class GetAgent
             return null;
         }
 
+        $document = $this->ensureDocumentId->handle($document);
         $wrapper = $document->wrapper();
         if ($wrapper->type() !== 'agent' || $wrapper->page() !== 'agents' || $wrapper->isSection()) {
             return null;

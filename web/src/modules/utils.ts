@@ -7,14 +7,16 @@ const slug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+
 export const moduleSettingsKey = (payload: DocumentPayload, moduleName: string) => {
   const moduleSlug = slug(moduleName) || "module";
-  if (!payload.section) {
-    const pageSlug = slug(payload.page) || "page";
-    return `${pageSlug}-${moduleSlug}`;
+  const docId = typeof payload.id === "string" ? payload.id.trim().toLowerCase() : "";
+  if (!docId || !isUuid(docId)) {
+    throw new Error("Document id is required for module settings.");
   }
-  const sectionSlug = slug(payload.name) || "section";
-  return `${sectionSlug}-${moduleSlug}`;
+  return `${docId}-${moduleSlug}`;
 };
-
-export const legacyModuleSettingsKey = (moduleName: string) => slug(moduleName) || "module";

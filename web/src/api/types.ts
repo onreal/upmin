@@ -32,6 +32,7 @@ export type NavigationPage = {
 };
 
 export type DocumentPayload = {
+  id?: string | null;
   type?: string | null;
   page: string;
   name: string;
@@ -67,7 +68,10 @@ export type CreationActionResponse = {
 
 export type AgentSummary = {
   id: string;
+  uid?: string | null;
   name: string;
+  provider?: string | null;
+  providerId?: string | null;
   store: string;
   path: string;
   order?: number;
@@ -110,16 +114,24 @@ export type ModuleDefinition = {
 export type IntegrationField = {
   key: string;
   label: string;
-  type: "text" | "password";
+  type: "text" | "password" | "select";
   required: boolean;
+  options?: Array<{
+    value: string;
+    label: string;
+  }>;
 };
 
 export type IntegrationSummary = {
+  id: string;
   name: string;
   description: string;
   fields: IntegrationField[];
   supportsModels: boolean;
   enabled: boolean;
+  syncing?: boolean;
+  lastSyncError?: string | null;
+  lastSyncedAt?: string | null;
 };
 
 export type IntegrationSettings = Record<string, unknown> & {
@@ -133,6 +145,28 @@ export type LogSummary = {
   count?: number;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+export type FormSummary = {
+  id: string;
+  formId: string;
+  name: string;
+  label?: string | null;
+  store: string;
+  path: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  entries?: number;
+  settingsKey?: string | null;
+  source?: {
+    documentUid?: string;
+    documentId?: string;
+    store?: string;
+    path?: string;
+    page?: string;
+    name?: string;
+    section?: boolean;
+  } | null;
 };
 
 export type LayoutConfig = {

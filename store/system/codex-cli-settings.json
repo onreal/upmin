@@ -5,10 +5,20 @@
     "section": true,
     "order": 1,
     "data": {
+        "authMode": "cliAuth",
         "binary": "codex",
         "args": "--dangerously-bypass-approvals-and-sandbox exec --json --output-last-message {outputFile} --skip-git-repo-check --cd {workingDir} --model {model}",
         "workingDir": "\/app",
-        "apiKey": null,
-        "models": []
-    }
+        "apiKey": "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",
+        "models": [
+            "gpt-5.3-codex",
+            "gpt-5.2-codex",
+            "gpt-5.1-codex-max",
+            "gpt-5.1-codex",
+            "gpt-5.1-codex-mini",
+            "gpt-5-codex",
+            "codex-mini-latest"
+        ]
+    },
+    "id": "8ce22d66-9670-5394-99eb-05f53845ebf3"
 }

@@ -34,6 +34,60 @@
   gap: var(--app-gap-xs);
 }
 
+.app-doc-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  font-size: 0.8rem;
+}
+
+.app-doc-meta-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--app-muted, #6b7280);
+  font-weight: 600;
+}
+
+.app-doc-meta-value {
+  font-size: 0.78rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent) 22%, transparent);
+  color: var(--app-text);
+}
+
+.app-doc-meta-copy {
+  border: none;
+  background: transparent;
+  color: var(--app-accent);
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.app-doc-meta-copy:hover {
+  background: color-mix(in srgb, var(--app-accent) 20%, transparent);
+}
+
+.app-doc-meta-copy.is-copied {
+  color: #1f7a5a;
+}
+
+.app-doc-meta-copy.is-error {
+  color: var(--app-danger);
+}
+}
+
 .app-icon-button {
   width: 36px;
   height: 36px;

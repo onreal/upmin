@@ -16,8 +16,15 @@ final class GetConversation
     }
 
     /** @return array<string, mixed>|null */
-    public function handle(string $conversationId, string $moduleKey, string $agentName, string $userId, ?array $settings = null): ?array
+    public function handle(
+        string $conversationId,
+        string $moduleKey,
+        string $agentName,
+        string $userId,
+        ?array $settings = null,
+        ?string $agentId = null
+    ): ?array
     {
-        return $this->store->get($conversationId, $moduleKey, $agentName, $userId, $settings);
+        return $this->store->get($conversationId, $moduleKey, $agentName, $userId, $settings, $agentId);
     }
 }

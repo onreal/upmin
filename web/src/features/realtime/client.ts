@@ -3,7 +3,15 @@ import { fetchRealtimeTicket, type AuthState, type RemoteDocument } from "../../
 export type RealtimeEvent =
   | { type: "realtime.ready" }
   | { type: "agent.conversation.updated"; conversation: RemoteDocument }
-  | { type: "chat.conversation.updated"; conversation: RemoteDocument };
+  | { type: "chat.conversation.updated"; conversation: RemoteDocument }
+  | {
+      type: "integration.sync.updated";
+      name: string;
+      syncing: boolean;
+      ok?: boolean;
+      error?: string;
+      models?: number;
+    };
 
 export type RealtimeStatus = "idle" | "connecting" | "open" | "closed" | "unauthorized";
 

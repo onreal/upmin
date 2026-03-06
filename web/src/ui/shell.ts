@@ -106,6 +106,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               <a class="navbar-item" id="modules-link">Modules</a>
               <a class="navbar-item" id="integrations-link">Integrations</a>
               <a class="navbar-item" id="logs-link">Logs</a>
+              <a class="navbar-item is-hidden" id="forms-link">Forms</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>

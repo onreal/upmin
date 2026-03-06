@@ -27,8 +27,9 @@ export const updateIntegrationSettings = (
   );
 
 export const syncIntegrationModels = (auth: AuthState, name: string) =>
-  request<{ settings: IntegrationSettings }>(
+  request<{ name: string; queued: boolean; alreadyRunning: boolean; syncing: boolean }>(
     `/api/integrations/${encodeURIComponent(name)}/sync`,
     { method: "POST" },
-    auth
+    auth,
+    { notify: false }
   );

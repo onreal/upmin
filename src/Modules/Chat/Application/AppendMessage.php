@@ -23,9 +23,21 @@ final class AppendMessage
         string $userId,
         string $content,
         string $role = 'user',
-        ?array $settings = null
+        ?array $settings = null,
+        ?string $agentId = null,
+        ?string $provider = null
     ): ?array
     {
-        return $this->store->append($conversationId, $moduleKey, $agentName, $userId, $content, $role, $settings);
+        return $this->store->append(
+            $conversationId,
+            $moduleKey,
+            $agentName,
+            $userId,
+            $content,
+            $role,
+            $settings,
+            $agentId,
+            $provider
+        );
     }
 }

@@ -5,12 +5,44 @@
     "data": {
         "creations": [
             {
-                "id": "creation-20260305-233011",
-                "createdAt": "2026-03-05T23:30:11+00:00",
+                "id": "creation-20260306-155950",
+                "createdAt": "2026-03-06T15:59:50+00:00",
                 "reason": "before-clear",
-                "snapshotPath": "creations\/creation-20260305-233011.svg",
+                "snapshotPath": "creations\/creation-20260306-155950.svg",
                 "snapshotMimeType": "image\/svg+xml",
-                "backupPath": "creations\/creation-20260305-233011.tar.gz"
+                "backupPath": "creations\/creation-20260306-155950.tar.gz"
+            },
+            {
+                "id": "creation-20260306-140940",
+                "createdAt": "2026-03-06T14:09:40+00:00",
+                "reason": "before-clear",
+                "snapshotPath": "creations\/creation-20260306-140940.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260306-140940.tar.gz"
+            },
+            {
+                "id": "creation-20260306-012124",
+                "createdAt": "2026-03-06T01:21:24+00:00",
+                "reason": "manual",
+                "snapshotPath": "creations\/creation-20260306-012124.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260306-012124.tar.gz"
+            },
+            {
+                "id": "creation-20260306-003247",
+                "createdAt": "2026-03-06T00:32:47+00:00",
+                "reason": "manual",
+                "snapshotPath": "creations\/creation-20260306-003247.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260306-003247.tar.gz"
+            },
+            {
+                "id": "creation-20260305-235044",
+                "createdAt": "2026-03-05T23:50:44+00:00",
+                "reason": "manual",
+                "snapshotPath": "creations\/creation-20260305-235044.svg",
+                "snapshotMimeType": "image\/svg+xml",
+                "backupPath": "creations\/creation-20260305-235044.tar.gz"
             },
             {
                 "id": "creation-20260305-213656",
@@ -38,6 +70,7 @@
             }
         ]
     },
+    "id": "f7acaec5-40a7-4d1b-85dc-451964bbd7ce",
     "section": false,
     "position": "system",
     "order": 4

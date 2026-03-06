@@ -1,4 +1,5 @@
 import type { AuthState, IntegrationSummary } from "../api";
+import { pushNotice } from "../ui/notice";
 
 export type IntegrationsViewContext = {
   content: HTMLElement | null;
@@ -8,7 +9,10 @@ export type IntegrationsViewContext = {
   getIntegrationModels: (name: string) => string[];
   clearAgentState: () => void;
   openIntegrationModal: (integration: IntegrationSummary) => void;
-  syncIntegrationModels: (auth: AuthState, name: string) => Promise<void>;
+  syncIntegrationModels: (
+    auth: AuthState,
+    name: string
+  ) => Promise<{ name: string; queued: boolean; alreadyRunning: boolean; syncing: boolean }>;
   reloadIntegrations: () => Promise<void>;
 };
 
@@ -48,8 +52,14 @@ export const renderIntegrationsView = ({
       const modelsLine = integration.supportsModels
         ? `<div class="app-module-row-meta">Models: ${models}</div>`
         : "";
-      const syncDisabled = integration.enabled ? "" : "disabled";
+      const syncState = integration.syncing ? "Sync: running" : integration.lastSyncError
+        ? `Last sync failed: ${integration.lastSyncError}`
+        : integration.lastSyncedAt
+          ? `Last synced: ${integration.lastSyncedAt}`
+          : "Sync: idle";
+      const syncDisabled = integration.enabled && !integration.syncing ? "" : "disabled";
       const settingsLabel = integration.enabled ? "Edit settings" : "Enable integration";
+      const syncLabel = integration.syncing ? "Syncing..." : "Sync models";
 
       return `
         <div class="app-module-row">
@@ -57,6 +67,7 @@ export const renderIntegrationsView = ({
           <div class="app-module-row-meta">${integration.description}</div>
           <div class="app-module-row-meta">Status: ${enabledLabel}</div>
           ${modelsLine}
+          ${integration.supportsModels ? `<div class="app-module-row-meta">${syncState}</div>` : ""}
           <div class="buttons">
             <button
               class="button app-button app-ghost app-icon-button"
@@ -84,7 +95,7 @@ export const renderIntegrationsView = ({
             ${
               integration.supportsModels
                 ? `<button class="button app-button app-ghost" data-integration-sync="${integration.name}" ${syncDisabled}>
-                    Sync models
+                    ${syncLabel}
                   </button>`
                 : ""
             }
@@ -124,7 +135,8 @@ export const renderIntegrationsView = ({
         return;
       }
       try {
-        await syncIntegrationModels(auth, name);
+        const result = await syncIntegrationModels(auth, name);
+        pushNotice("success", result.alreadyRunning ? "Model sync already running." : "Model sync started.");
         await reloadIntegrations();
         renderIntegrationsView({
           content,
@@ -138,7 +150,7 @@ export const renderIntegrationsView = ({
           reloadIntegrations,
         });
       } catch (err) {
-        alert((err as Error).message);
+        pushNotice("error", (err as Error).message);
       }
     });
   });

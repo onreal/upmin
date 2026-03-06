@@ -1,0 +1,12 @@
+name: "form"
+description: "Collects form submissions"
+input: "fields"
+output: "entries"
+parameters:
+  name: ""
+  sendadminemail: false
+  senduseremail: false
+  captcha: false
+schema:
+  type: object
+  additionalProperties: true

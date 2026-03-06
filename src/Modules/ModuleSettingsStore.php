@@ -29,7 +29,7 @@ final class ModuleSettingsStore
     }
 
     /** @param array<string, mixed> $data */
-    public function ensureDefaults(string $key, array $data, string $label, ?string $legacyKey = null): void
+    public function ensureDefaults(string $key, array $data, string $label): void
     {
         $path = $this->pathForKey($key);
         if ($path === null) {
@@ -37,11 +37,6 @@ final class ModuleSettingsStore
         }
 
         if (!is_file($path)) {
-            $legacyPayload = $this->payloadForLegacy($legacyKey, $label, $data);
-            if ($legacyPayload !== null) {
-                $this->writePayload($path, $legacyPayload);
-                return;
-            }
             $this->writePayload($path, $this->defaultPayload($label, $data));
             return;
         }
@@ -117,30 +112,6 @@ final class ModuleSettingsStore
         }
 
         file_put_contents($path, $encoded . PHP_EOL, LOCK_EX);
-    }
-
-    private function payloadForLegacy(?string $legacyKey, string $label, array $defaults): ?array
-    {
-        if ($legacyKey === null) {
-            return null;
-        }
-        $legacyPath = $this->pathForKey($legacyKey);
-        if ($legacyPath === null || !is_file($legacyPath)) {
-            return null;
-        }
-        $payload = $this->readPayload($legacyPath);
-        if (!is_array($payload)) {
-            return null;
-        }
-        $existing = $payload['data'] ?? null;
-        $existingData = is_array($existing) ? $existing : [];
-        $payload['type'] = 'module';
-        $payload['page'] = 'modules';
-        $payload['name'] = $label;
-        $payload['section'] = true;
-        $payload['order'] = 1;
-        $payload['data'] = $this->mergeDefaults($defaults, $existingData);
-        return $payload;
     }
 
     /** @param array<string, mixed> $defaults @param array<string, mixed> $existing */

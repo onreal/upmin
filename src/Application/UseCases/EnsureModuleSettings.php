@@ -34,12 +34,15 @@ final class EnsureModuleSettings
             }
 
             $key = ModuleSettingsKey::forDocument($wrapper, $moduleName);
-            $label = $wrapper->name() . ' · ' . $definition->name();
-            $legacyKey = null;
-            if (!$wrapper->isSection()) {
-                $legacyKey = ModuleSettingsKey::legacyModuleKey($moduleName);
+            if ($key === '') {
+                continue;
             }
-            $this->settings->ensureDefaults($key, $definition->parameters(), $label, $legacyKey);
+            $label = $wrapper->name() . ' · ' . $definition->name();
+            $defaults = $definition->parameters();
+            if ($moduleName === 'form') {
+                $defaults['name'] = $wrapper->name() . ' - form';
+            }
+            $this->settings->ensureDefaults($key, $defaults, $label);
         }
     }
 }

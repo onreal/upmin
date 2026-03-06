@@ -13,6 +13,7 @@ import {
 import { ensureModuleSettingsDocument, fetchModuleSettings } from "../features/modules/settings";
 import { clearAgentState } from "../features/agents/state";
 import { isCreationsDocument, renderCreationsPage } from "../features/creations/controller";
+import { clearRegisteredIntegrationCleanup } from "../features/integrations/runtime";
 import { encodeDocumentId } from "../utils";
 import { refreshNavigation } from "./loaders";
 
@@ -109,6 +110,7 @@ export const loadDocument = async (id: string) => {
   if (!state.auth) {
     return;
   }
+  clearRegisteredIntegrationCleanup();
   try {
     const doc = await fetchDocument(state.auth, id);
     state.currentDocument = doc;

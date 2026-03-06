@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Manage\Interface\Http\Controllers;
 
+use Manage\Application\Ports\TokenService;
 use Manage\Application\UseCases\GetIntegrationSettings;
 use Manage\Application\UseCases\ListIntegrations;
-use Manage\Application\UseCases\SyncIntegrationModels;
+use Manage\Application\UseCases\QueueIntegrationModelSync;
 use Manage\Application\UseCases\UpsertIntegrationSettings;
+use Manage\Infrastructure\Realtime\RealtimeIdentity;
 use Manage\Interface\Http\Request;
 use Manage\Interface\Http\Response;
 
@@ -16,19 +18,22 @@ final class IntegrationController
     private ListIntegrations $listIntegrations;
     private GetIntegrationSettings $getSettings;
     private UpsertIntegrationSettings $upsertSettings;
-    private SyncIntegrationModels $syncModels;
+    private QueueIntegrationModelSync $queueSync;
+    private TokenService $tokens;
 
     public function __construct(
         ListIntegrations $listIntegrations,
         GetIntegrationSettings $getSettings,
         UpsertIntegrationSettings $upsertSettings,
-        SyncIntegrationModels $syncModels
+        QueueIntegrationModelSync $queueSync,
+        TokenService $tokens
     )
     {
         $this->listIntegrations = $listIntegrations;
         $this->getSettings = $getSettings;
         $this->upsertSettings = $upsertSettings;
-        $this->syncModels = $syncModels;
+        $this->queueSync = $queueSync;
+        $this->tokens = $tokens;
     }
 
     public function index(Request $request): Response
@@ -91,13 +96,27 @@ final class IntegrationController
         }
 
         try {
-            $settings = $this->syncModels->handle($name);
+            $result = $this->queueSync->handle($name, $this->resolveIdentity($request));
         } catch (\InvalidArgumentException $exception) {
             return Response::json(['error' => $exception->getMessage()], 422);
         } catch (\RuntimeException $exception) {
             return Response::json(['error' => $exception->getMessage()], 502);
         }
 
-        return Response::json(['settings' => $settings]);
+        return Response::json($result, 202);
+    }
+
+    private function resolveIdentity(Request $request): string
+    {
+        $authHeader = $request->header('Authorization');
+        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
+            $token = trim(substr($authHeader, 7));
+            $payload = $this->tokens->verify($token);
+            if (is_array($payload) && isset($payload['userId'])) {
+                return RealtimeIdentity::fromUserId((string) $payload['userId']);
+            }
+        }
+
+        return RealtimeIdentity::fromUserId('api-key');
     }
 }

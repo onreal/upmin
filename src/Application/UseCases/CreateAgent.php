@@ -8,6 +8,7 @@ use Manage\Application\Ports\DocumentRepository;
 use Manage\Domain\Document\Document;
 use Manage\Domain\Document\DocumentId;
 use Manage\Domain\Document\DocumentWrapper;
+use Manage\Domain\Integration\IntegrationDefinition;
 use Manage\Integrations\Contracts\IntegrationCatalog;
 use Manage\Integrations\IntegrationSettingsStore;
 
@@ -16,16 +17,19 @@ final class CreateAgent
     private DocumentRepository $documents;
     private IntegrationCatalog $integrations;
     private IntegrationSettingsStore $settings;
+    private EnsureDocumentId $ensureDocumentId;
 
     public function __construct(
         DocumentRepository $documents,
         IntegrationCatalog $integrations,
-        IntegrationSettingsStore $settings
+        IntegrationSettingsStore $settings,
+        EnsureDocumentId $ensureDocumentId
     )
     {
         $this->documents = $documents;
         $this->integrations = $integrations;
         $this->settings = $settings;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     /** @param array<string, mixed> $payload
@@ -39,13 +43,17 @@ final class CreateAgent
         }
 
         $name = $this->requireString($payload, 'name', 'Agent.name is required.');
-        $provider = strtolower($this->requireString($payload, 'provider', 'Agent.provider is required.'));
+        $providerInput = $payload['provider'] ?? null;
+        $providerIdInput = $payload['providerId'] ?? null;
+        $definition = $this->resolveProvider($providerIdInput, $providerInput);
+        $provider = $definition->name();
+        $providerId = $definition->id();
         $model = $this->requireString($payload, 'model', 'Agent.model is required.');
         $systemPrompt = $this->requireString($payload, 'systemPrompt', 'Agent.systemPrompt is required.');
         $adminPrompt = $this->requireString($payload, 'adminPrompt', 'Agent.adminPrompt is required.');
         $position = $this->normalizePosition($payload);
 
-        $this->validateProviderModel($provider, $model);
+        $this->validateProviderModel($definition, $model);
 
         $language = null;
         if (array_key_exists('language', $payload)) {
@@ -73,6 +81,7 @@ final class CreateAgent
 
         $data = [
             'provider' => $provider,
+            'providerId' => $providerId,
             'model' => $model,
             'systemPrompt' => $systemPrompt,
             'adminPrompt' => $adminPrompt,
@@ -93,6 +102,7 @@ final class CreateAgent
 
         $document = new Document(DocumentId::fromParts($store, $path), $wrapper, $store, $path);
         $this->documents->save($document);
+        $document = $this->ensureDocumentId->handle($document, null, true);
 
         return [
             'id' => $document->id()->encoded(),
@@ -111,12 +121,8 @@ final class CreateAgent
         return trim($value);
     }
 
-    private function validateProviderModel(string $provider, string $model): void
+    private function validateProviderModel(IntegrationDefinition $definition, string $model): void
     {
-        $definition = $this->integrations->definition($provider);
-        if ($definition === null) {
-            throw new \InvalidArgumentException('Agent.provider is invalid.');
-        }
         if (!$definition->supportsModels()) {
             throw new \InvalidArgumentException('Agent.provider does not support models.');
         }
@@ -205,5 +211,29 @@ final class CreateAgent
         $value = strtolower(trim($value));
         $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
         return trim($value, '-');
+    }
+
+    private function resolveProvider(mixed $providerId, mixed $provider): IntegrationDefinition
+    {
+        if (is_string($providerId) && trim($providerId) !== '') {
+            $normalized = strtolower(trim($providerId));
+            foreach ($this->integrations->list() as $definition) {
+                if ($definition->id() === $normalized) {
+                    return $definition;
+                }
+            }
+            throw new \InvalidArgumentException('Agent.providerId is invalid.');
+        }
+
+        if (!is_string($provider) || trim($provider) === '') {
+            throw new \InvalidArgumentException('Agent.provider is required.');
+        }
+
+        $definition = $this->integrations->definition(strtolower(trim($provider)));
+        if ($definition === null) {
+            throw new \InvalidArgumentException('Agent.provider is invalid.');
+        }
+
+        return $definition;
     }
 }

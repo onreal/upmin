@@ -13,16 +13,22 @@ final class UpdateDocument
     private DocumentRepository $documents;
     private ReorderDocuments $reorderDocuments;
     private EnsureModuleSettings $ensureModuleSettings;
+    private EnsureFormPages $ensureFormPages;
+    private EnsureDocumentId $ensureDocumentId;
 
     public function __construct(
         DocumentRepository $documents,
         ReorderDocuments $reorderDocuments,
-        EnsureModuleSettings $ensureModuleSettings
+        EnsureModuleSettings $ensureModuleSettings,
+        EnsureFormPages $ensureFormPages,
+        EnsureDocumentId $ensureDocumentId
     )
     {
         $this->documents = $documents;
         $this->reorderDocuments = $reorderDocuments;
         $this->ensureModuleSettings = $ensureModuleSettings;
+        $this->ensureFormPages = $ensureFormPages;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     public function handle(DocumentId $id, array $payload): ?array
@@ -46,7 +52,11 @@ final class UpdateDocument
             $wrapper = $document->wrapper()->withData($payload['data']);
             $updated = $document->withWrapper($wrapper);
             $this->documents->save($updated);
+            $existingId = $document->wrapper()->id();
+            $forceId = !$this->ensureDocumentId->isValid($existingId);
+            $updated = $this->ensureDocumentId->handle($updated, $existingId, $forceId);
             $this->ensureModuleSettings->handle($updated->wrapper());
+            $this->ensureFormPages->handle($updated);
 
             return [
                 'id' => $updated->id()->encoded(),
@@ -68,8 +78,12 @@ final class UpdateDocument
             throw new \InvalidArgumentException('Logs are read-only.');
         }
         $updated = $document->withWrapper($wrapper);
+        $existingId = $document->wrapper()->id();
+        $forceId = !$this->ensureDocumentId->isValid($existingId);
+        $updated = $this->ensureDocumentId->handle($updated, $existingId, $forceId);
         $updated = $this->reorderDocuments->handle($updated);
         $this->ensureModuleSettings->handle($updated->wrapper());
+        $this->ensureFormPages->handle($updated);
 
         return [
             'id' => $updated->id()->encoded(),

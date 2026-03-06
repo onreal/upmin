@@ -33,7 +33,8 @@ final class SendMessage
         string $userId,
         string $content,
         ?array $settings = null,
-        ?string $agentId = null
+        ?string $agentId = null,
+        ?string $provider = null
     ): ?array
     {
         $conversation = $this->appendMessage->handle(
@@ -43,7 +44,9 @@ final class SendMessage
             $userId,
             $content,
             'user',
-            $settings
+            $settings,
+            $agentId,
+            $provider
         );
 
         if ($conversation === null) {
@@ -62,7 +65,9 @@ final class SendMessage
                 $userId,
                 $this->failureMessage($exception),
                 'assistant',
-                $settings
+                $settings,
+                $agentId,
+                $provider
             );
 
             if ($failed !== null) {

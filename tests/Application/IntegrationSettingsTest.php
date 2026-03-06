@@ -72,6 +72,40 @@ final class IntegrationSettingsTest extends TestCase
         $this->assertSame('secret', $result['apiKey']);
     }
 
+    public function testUpsertAllowsCodexCliAuthModeWithoutApiKey(): void
+    {
+        $definition = $this->codexDefinition();
+        $catalog = $this->catalog($definition, null);
+        $settings = $this->settingsStore();
+
+        $useCase = new UpsertIntegrationSettings($catalog, $settings);
+        $result = $useCase->handle('codex-cli', [
+            'authMode' => 'cliAuth',
+            'binary' => 'codex',
+            'workingDir' => '/app',
+        ]);
+
+        $this->assertSame('cliAuth', $result['authMode']);
+        $this->assertNull($result['apiKey']);
+    }
+
+    public function testUpsertRejectsInvalidSelectOption(): void
+    {
+        $definition = $this->codexDefinition();
+        $catalog = $this->catalog($definition, null);
+        $settings = $this->settingsStore();
+
+        $useCase = new UpsertIntegrationSettings($catalog, $settings);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Integration.authMode must be one of: cliAuth, apiKey.');
+
+        $useCase->handle('codex-cli', [
+            'authMode' => 'bad-mode',
+            'binary' => 'codex',
+        ]);
+    }
+
     private function definition(string $name): IntegrationDefinition
     {
         return IntegrationDefinition::fromArray(
@@ -81,6 +115,33 @@ final class IntegrationSettingsTest extends TestCase
                 'supportsModels' => true,
                 'fields' => [
                     ['key' => 'apiKey', 'label' => 'API key', 'type' => 'password', 'required' => true],
+                ],
+            ],
+            __FILE__
+        );
+    }
+
+    private function codexDefinition(): IntegrationDefinition
+    {
+        return IntegrationDefinition::fromArray(
+            [
+                'name' => 'codex-cli',
+                'description' => 'Codex CLI',
+                'supportsModels' => true,
+                'fields' => [
+                    [
+                        'key' => 'authMode',
+                        'label' => 'Authentication mode',
+                        'type' => 'select',
+                        'required' => true,
+                        'options' => [
+                            ['value' => 'cliAuth', 'label' => 'CLI authentication'],
+                            ['value' => 'apiKey', 'label' => 'API key'],
+                        ],
+                    ],
+                    ['key' => 'binary', 'label' => 'CLI binary', 'type' => 'text', 'required' => true],
+                    ['key' => 'workingDir', 'label' => 'Working directory', 'type' => 'text', 'required' => false],
+                    ['key' => 'apiKey', 'label' => 'API key', 'type' => 'password', 'required' => false],
                 ],
             ],
             __FILE__

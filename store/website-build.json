@@ -3,10 +3,11 @@
     "page": "website-build",
     "name": "Website build",
     "data": [],
+    "id": "1cab0259-7e2d-450f-88ac-c7e9100fe850",
     "section": false,
     "modules": [
         "chat"
     ],
-    "order": 3,
-    "position": "system"
+    "position": "system",
+    "order": 3
 }

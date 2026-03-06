@@ -328,7 +328,8 @@ var init_integrations = __esm({
     syncIntegrationModels = (auth, name) => request(
       `/api/integrations/${encodeURIComponent(name)}/sync`,
       { method: "POST" },
-      auth
+      auth,
+      { notify: false }
     );
   }
 });
@@ -340,6 +341,16 @@ var init_logs = __esm({
     "use strict";
     init_client();
     fetchLogs = (auth) => request("/api/logs", { method: "GET" }, auth);
+  }
+});
+
+// web/src/api/forms.ts
+var fetchForms;
+var init_forms = __esm({
+  "web/src/api/forms.ts"() {
+    "use strict";
+    init_client();
+    fetchForms = (auth) => request("/api/forms", { method: "GET" }, auth);
   }
 });
 
@@ -438,6 +449,7 @@ __export(api_exports, {
   fetchChatConversations: () => fetchChatConversations,
   fetchCreationSnapshotImage: () => fetchCreationSnapshotImage,
   fetchDocument: () => fetchDocument,
+  fetchForms: () => fetchForms,
   fetchIntegrationSettings: () => fetchIntegrationSettings,
   fetchIntegrations: () => fetchIntegrations,
   fetchLayoutConfig: () => fetchLayoutConfig,
@@ -475,6 +487,7 @@ var init_api = __esm({
     init_modules();
     init_integrations();
     init_logs();
+    init_forms();
     init_agents();
     init_creations();
     init_realtime();
@@ -499,6 +512,7 @@ var state = {
   openIntegrationModalHandler: null,
   agents: [],
   logs: [],
+  forms: [],
   navigationPages: [],
   moduleSettingsCache: /* @__PURE__ */ new Map(),
   currentAgent: null,
@@ -658,6 +672,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <a class="navbar-item" id="modules-link">Modules</a>
               <a class="navbar-item" id="integrations-link">Integrations</a>
               <a class="navbar-item" id="logs-link">Logs</a>
+              <a class="navbar-item is-hidden" id="forms-link">Forms</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>
@@ -1184,6 +1199,26 @@ var clearAgentState = () => {
   state.currentConversation = null;
 };
 
+// web/src/features/integrations/runtime.ts
+var integrationCleanup = null;
+var runCleanup2 = (cleanup) => {
+  if (!cleanup) {
+    return;
+  }
+  cleanup();
+};
+var registerIntegrationCleanup = (cleanup) => {
+  const previous = integrationCleanup;
+  integrationCleanup = null;
+  runCleanup2(previous);
+  integrationCleanup = cleanup;
+};
+var clearRegisteredIntegrationCleanup = () => {
+  const cleanup = integrationCleanup;
+  integrationCleanup = null;
+  runCleanup2(cleanup);
+};
+
 // web/src/features/auth/profile.ts
 var renderProfile = async () => {
   const content = document.getElementById("content");
@@ -1191,6 +1226,7 @@ var renderProfile = async () => {
     return;
   }
   clearAgentState();
+  clearRegisteredIntegrationCleanup();
   const auth = state.auth;
   if (!isTokenAuth(auth) || !auth.user) {
     content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03C5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u03C0\u03C1\u03BF\u03C6\u03AF\u03BB \u03B3\u03B9\u03B1 API key \u03C3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7.</p>`;
@@ -1324,6 +1360,7 @@ var initShellEvents = ({
   onShowModules,
   onShowIntegrations,
   onShowLogs,
+  onShowForms,
   onExportAll,
   onOpenCreate,
   onOpenAgentModal
@@ -1375,6 +1412,11 @@ var initShellEvents = ({
   document.getElementById("logs-link")?.addEventListener("click", (event) => {
     event.preventDefault();
     onShowLogs();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+  document.getElementById("forms-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowForms();
     document.getElementById("private-dropdown")?.classList.remove("is-active");
   });
   document.getElementById("export-zip-header")?.addEventListener("click", () => {
@@ -1847,6 +1889,8 @@ var initIntegrationModal = ({
   const getDefaultFieldValue = (integration, key) => {
     if (integration.name === "codex-cli") {
       switch (key) {
+        case "authMode":
+          return "cliAuth";
         case "binary":
           return "codex";
         case "args":
@@ -1865,76 +1909,122 @@ var initIntegrationModal = ({
     }
     integrationFields.innerHTML = "";
     const existing = state.integrationSettings[integration.name];
+    if (integration.name === "codex-cli") {
+      const notice = document.createElement("div");
+      notice.className = "notification is-light app-muted";
+      notice.innerHTML = "Development setup: use <code>CLI authentication</code> to avoid API costs, then run <code>docker compose exec manage codex login --device-auth</code> once. The Docker volume keeps the Codex credentials between restarts.";
+      integrationFields.appendChild(notice);
+    }
     integration.fields.forEach((field) => {
       const wrapper = document.createElement("div");
       wrapper.className = "field";
+      wrapper.dataset.integrationFieldKey = field.key;
       const label = document.createElement("label");
       label.className = "label";
       label.textContent = field.label;
-      const input = document.createElement("input");
-      input.className = "input";
-      input.type = field.type === "password" ? "password" : "text";
-      input.id = `integration-${integration.name}-${field.key}`;
-      input.autocomplete = "off";
-      if (field.required) {
-        input.required = true;
-      }
       const existingValue = existing?.[field.key];
-      if (typeof existingValue === "string") {
-        input.value = existingValue;
-      } else if (field.type !== "password") {
-        const fallback = getDefaultFieldValue(integration, field.key);
-        if (fallback) {
-          input.value = fallback;
-        }
-      }
-      wrapper.appendChild(label);
-      if (field.type === "password") {
-        const fieldRow = document.createElement("div");
-        fieldRow.className = "field has-addons";
-        const inputControl = document.createElement("div");
-        inputControl.className = "control is-expanded";
-        inputControl.appendChild(input);
-        const buttonControl = document.createElement("div");
-        buttonControl.className = "control";
-        const toggleButton = document.createElement("button");
-        toggleButton.type = "button";
-        toggleButton.className = "button app-button app-ghost";
-        toggleButton.innerHTML = `
-          <span class="icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-              <path
-                d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linejoin="round"
-              ></path>
-              <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
-            </svg>
-          </span>
-        `;
-        toggleButton.addEventListener("click", () => {
-          input.type = input.type === "password" ? "text" : "password";
-        });
-        buttonControl.appendChild(toggleButton);
-        fieldRow.appendChild(inputControl);
-        fieldRow.appendChild(buttonControl);
-        wrapper.appendChild(fieldRow);
-      } else {
+      const fallback = integration.name === "codex-cli" && field.key === "authMode" && typeof existing?.apiKey === "string" && existing.apiKey.trim() !== "" ? "apiKey" : getDefaultFieldValue(integration, field.key);
+      const initialValue = typeof existingValue === "string" ? existingValue : fallback;
+      if (field.type === "select") {
         const control = document.createElement("div");
         control.className = "control";
-        control.appendChild(input);
+        const selectWrap = document.createElement("div");
+        selectWrap.className = "select is-fullwidth";
+        const select = document.createElement("select");
+        select.id = `integration-${integration.name}-${field.key}`;
+        select.required = field.required;
+        (field.options ?? []).forEach((option) => {
+          const optionEl = document.createElement("option");
+          optionEl.value = option.value;
+          optionEl.textContent = option.label;
+          select.appendChild(optionEl);
+        });
+        if (initialValue) {
+          select.value = initialValue;
+        }
+        selectWrap.appendChild(select);
+        control.appendChild(selectWrap);
+        wrapper.appendChild(label);
         wrapper.appendChild(control);
+      } else {
+        const input = document.createElement("input");
+        input.className = "input";
+        input.type = field.type === "password" ? "password" : "text";
+        input.id = `integration-${integration.name}-${field.key}`;
+        input.autocomplete = "off";
+        input.required = field.required;
+        if (initialValue && (field.type !== "password" || typeof existingValue === "string")) {
+          input.value = initialValue;
+        }
+        wrapper.appendChild(label);
+        if (field.type === "password") {
+          const fieldRow = document.createElement("div");
+          fieldRow.className = "field has-addons";
+          const inputControl = document.createElement("div");
+          inputControl.className = "control is-expanded";
+          inputControl.appendChild(input);
+          const buttonControl = document.createElement("div");
+          buttonControl.className = "control";
+          const toggleButton = document.createElement("button");
+          toggleButton.type = "button";
+          toggleButton.className = "button app-button app-ghost";
+          toggleButton.innerHTML = `
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+                <path
+                  d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                ></path>
+                <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+              </svg>
+            </span>
+          `;
+          toggleButton.addEventListener("click", () => {
+            input.type = input.type === "password" ? "text" : "password";
+          });
+          buttonControl.appendChild(toggleButton);
+          fieldRow.appendChild(inputControl);
+          fieldRow.appendChild(buttonControl);
+          wrapper.appendChild(fieldRow);
+        } else {
+          const control = document.createElement("div");
+          control.className = "control";
+          control.appendChild(input);
+          wrapper.appendChild(control);
+        }
       }
       if (field.required) {
         const help = document.createElement("p");
         help.className = "help app-muted";
         help.textContent = "Required";
+        help.dataset.integrationRequired = field.key;
         wrapper.appendChild(help);
       }
       integrationFields.appendChild(wrapper);
     });
+    if (integration.name === "codex-cli") {
+      const authMode = document.getElementById("integration-codex-cli-authMode");
+      const apiKeyWrapper = integrationFields.querySelector("[data-integration-field-key='apiKey']");
+      const apiKeyInput = document.getElementById("integration-codex-cli-apiKey");
+      const apiKeyHelp = integrationFields.querySelector("[data-integration-required='apiKey']");
+      const syncCodexAuthMode = () => {
+        const usingApiKey = authMode?.value === "apiKey";
+        if (apiKeyWrapper) {
+          apiKeyWrapper.classList.toggle("is-hidden", !usingApiKey);
+        }
+        if (apiKeyInput) {
+          apiKeyInput.required = usingApiKey;
+        }
+        if (apiKeyHelp) {
+          apiKeyHelp.classList.toggle("is-hidden", !usingApiKey);
+        }
+      };
+      authMode?.addEventListener("change", syncCodexAuthMode);
+      syncCodexAuthMode();
+    }
   };
   const openIntegrationModal = (integration) => {
     currentIntegration = integration;
@@ -1963,7 +2053,8 @@ var initIntegrationModal = ({
       );
       const value = input?.value.trim() || "";
       if (!value) {
-        if (field.required) {
+        const codexApiKeyRequired = currentIntegration.name === "codex-cli" && field.key === "apiKey" && document.getElementById("integration-codex-cli-authMode")?.value === "apiKey";
+        if (field.required || codexApiKeyRequired) {
           showIntegrationError(`${field.label} is required.`);
           return;
         }
@@ -2242,6 +2333,20 @@ var renderAgentsMenu = (agents, onSelectAgent) => {
   });
 };
 
+// web/src/features/forms/menu.ts
+var renderFormsMenu = (forms) => {
+  const link = document.getElementById("forms-link");
+  if (!link) {
+    return;
+  }
+  if (!forms.length) {
+    link.classList.add("is-hidden");
+    return;
+  }
+  link.classList.remove("is-hidden");
+  link.textContent = "Forms";
+};
+
 // web/src/app/loaders.ts
 var loadUiConfig = async () => {
   if (!state.auth) {
@@ -2323,6 +2428,18 @@ var loadAgents = async (onSelectAgent) => {
   }
   renderAgentsMenu(state.agents, onSelectAgent);
 };
+var loadForms = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchForms(state.auth);
+    state.forms = Array.isArray(response.forms) ? response.forms : [];
+  } catch {
+    state.forms = [];
+  }
+  renderFormsMenu(state.forms);
+};
 var refreshNavigation = async (onSelectDocument) => {
   if (!state.auth) {
     return;
@@ -2331,9 +2448,18 @@ var refreshNavigation = async (onSelectDocument) => {
     const nav = await fetchNavigation(state.auth);
     state.navigationPages = nav.pages;
     renderNavigation(nav.pages, onSelectDocument);
+    await loadForms();
   } catch (err) {
     alert(err.message);
   }
+};
+
+// web/src/ui/notice.ts
+var pushNotice = (type, message) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent("app:notice", { detail: { type, message } }));
 };
 
 // web/src/views/integrations.ts
@@ -2368,14 +2494,17 @@ var renderIntegrationsView = ({
     const enabledLabel = integration.enabled ? "Enabled" : "Disabled";
     const models = integration.supportsModels ? getIntegrationModels2(integration.name).length : null;
     const modelsLine = integration.supportsModels ? `<div class="app-module-row-meta">Models: ${models}</div>` : "";
-    const syncDisabled = integration.enabled ? "" : "disabled";
+    const syncState = integration.syncing ? "Sync: running" : integration.lastSyncError ? `Last sync failed: ${integration.lastSyncError}` : integration.lastSyncedAt ? `Last synced: ${integration.lastSyncedAt}` : "Sync: idle";
+    const syncDisabled = integration.enabled && !integration.syncing ? "" : "disabled";
     const settingsLabel = integration.enabled ? "Edit settings" : "Enable integration";
+    const syncLabel = integration.syncing ? "Syncing..." : "Sync models";
     return `
         <div class="app-module-row">
           <div class="app-module-row-title">${integration.name}</div>
           <div class="app-module-row-meta">${integration.description}</div>
           <div class="app-module-row-meta">Status: ${enabledLabel}</div>
           ${modelsLine}
+          ${integration.supportsModels ? `<div class="app-module-row-meta">${syncState}</div>` : ""}
           <div class="buttons">
             <button
               class="button app-button app-ghost app-icon-button"
@@ -2401,7 +2530,7 @@ var renderIntegrationsView = ({
               </span>
             </button>
             ${integration.supportsModels ? `<button class="button app-button app-ghost" data-integration-sync="${integration.name}" ${syncDisabled}>
-                    Sync models
+                    ${syncLabel}
                   </button>` : ""}
           </div>
         </div>
@@ -2435,7 +2564,8 @@ var renderIntegrationsView = ({
         return;
       }
       try {
-        await syncIntegrationModels2(auth, name);
+        const result = await syncIntegrationModels2(auth, name);
+        pushNotice("success", result.alreadyRunning ? "Model sync already running." : "Model sync started.");
         await reloadIntegrations();
         renderIntegrationsView({
           content,
@@ -2449,7 +2579,7 @@ var renderIntegrationsView = ({
           reloadIntegrations
         });
       } catch (err) {
-        alert(err.message);
+        pushNotice("error", err.message);
       }
     });
   });
@@ -2794,16 +2924,17 @@ var renderLogDocument = ({
 
 // web/src/modules/utils.ts
 var slug = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+var isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+  value
+);
 var moduleSettingsKey = (payload, moduleName) => {
   const moduleSlug = slug(moduleName) || "module";
-  if (!payload.section) {
-    const pageSlug = slug(payload.page) || "page";
-    return `${pageSlug}-${moduleSlug}`;
+  const docId = typeof payload.id === "string" ? payload.id.trim().toLowerCase() : "";
+  if (!docId || !isUuid(docId)) {
+    throw new Error("Document id is required for module settings.");
   }
-  const sectionSlug = slug(payload.name) || "section";
-  return `${sectionSlug}-${moduleSlug}`;
+  return `${docId}-${moduleSlug}`;
 };
-var legacyModuleSettingsKey = (moduleName) => slug(moduleName) || "module";
 
 // web/src/modules/chat/layout.ts
 var buildHeader = (module, agentName, openSettings) => {
@@ -2973,6 +3104,67 @@ var markConversationPending = (conversation, pending) => {
   data.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
 };
 
+// web/src/features/chat/progress.ts
+var getConversationProgress = (conversation) => {
+  if (!conversation) {
+    return null;
+  }
+  const data = isRecord(conversation.payload.data) ? conversation.payload.data : {};
+  const progress = isRecord(data.progress) ? data.progress : null;
+  if (!progress) {
+    return null;
+  }
+  const items = [];
+  (Array.isArray(progress.items) ? progress.items : []).forEach((item) => {
+    const record = isRecord(item) ? item : {};
+    const message = typeof record.message === "string" ? record.message.trim() : "";
+    if (!message) {
+      return;
+    }
+    items.push({
+      message,
+      createdAt: typeof record.createdAt === "string" ? record.createdAt : null
+    });
+  });
+  const recentItems = items.slice(-4);
+  const status2 = (typeof progress.status === "string" ? progress.status.trim() : "") || recentItems[recentItems.length - 1]?.message || "";
+  const updatedAt = typeof progress.updatedAt === "string" ? progress.updatedAt : null;
+  if (!status2 && recentItems.length === 0) {
+    return null;
+  }
+  return {
+    status: status2,
+    updatedAt,
+    items: recentItems
+  };
+};
+var appendConversationProgress = (container, progress) => {
+  if (!progress) {
+    return;
+  }
+  const card = document.createElement("div");
+  card.className = "app-chat-progress";
+  const title = document.createElement("div");
+  title.className = "app-chat-progress-title";
+  title.textContent = "Codex is working";
+  const status2 = document.createElement("div");
+  status2.className = "app-chat-progress-status";
+  status2.textContent = progress.status || "Working...";
+  card.append(title, status2);
+  if (progress.items.length > 0) {
+    const list = document.createElement("div");
+    list.className = "app-chat-progress-items";
+    progress.items.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "app-chat-progress-item";
+      row.textContent = item.message;
+      list.append(row);
+    });
+    card.append(list);
+  }
+  container.append(card);
+};
+
 // web/src/features/chat/processing.ts
 var PHRASES = ["Processing...", "Sailing...", "Swimming...", "Floating..."];
 var ROTATE_MS = 3e4;
@@ -2983,32 +3175,49 @@ var nextPhrase = (current) => {
 var createProcessingStatus = (setStatus2) => {
   let timer = null;
   let current = "";
+  let detail = "";
+  const render = () => {
+    if (current === "") {
+      setStatus2("");
+      return;
+    }
+    setStatus2(detail ? `${current} ${detail}` : current);
+  };
   const stop = () => {
     if (timer !== null) {
       window.clearInterval(timer);
       timer = null;
     }
     current = "";
+    detail = "";
     setStatus2("");
   };
-  const start = () => {
+  const start = (nextDetail = "") => {
+    detail = nextDetail;
     if (timer !== null) {
       if (current === "") {
         current = nextPhrase(current);
       }
-      setStatus2(current);
+      render();
       return;
     }
     current = nextPhrase(current);
-    setStatus2(current);
+    render();
     timer = window.setInterval(() => {
       current = nextPhrase(current);
-      setStatus2(current);
+      render();
     }, ROTATE_MS);
+  };
+  const update = (nextDetail = "") => {
+    detail = nextDetail;
+    if (timer !== null) {
+      render();
+    }
   };
   return {
     start,
-    stop
+    stop,
+    update
   };
 };
 
@@ -3040,6 +3249,7 @@ var renderMessages = (container, messages, options = {}) => {
   if (!messages.length) {
     const label = options.emptyState ?? "Select or create a conversation.";
     container.innerHTML = `<p class="app-muted">${label}</p>`;
+    appendConversationProgress(container, options.progress ?? null);
     return;
   }
   const enableActions = options.enableActions ?? false;
@@ -3120,6 +3330,7 @@ var renderMessages = (container, messages, options = {}) => {
       }
     });
   }
+  appendConversationProgress(container, options.progress ?? null);
 };
 var updateConversationHeader = (titleEl, metaEl, conversation) => {
   if (!conversation) {
@@ -3170,6 +3381,7 @@ var mountChatController = (runtime) => {
     const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
+      progress: getConversationProgress(currentConversation),
       isSelected: (message) => isMessageSelected(message),
       onToggle: (message, selected) => {
         const data = ensureDataObject();
@@ -3216,6 +3428,7 @@ var mountChatController = (runtime) => {
     const shouldScroll = forceScroll || isNearBottom();
     renderCurrentMessages();
     const pending = conversationHasPendingResponse(conversation);
+    const progress = getConversationProgress(conversation);
     updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
     if (conversation) {
       runtime.dom.select.value = conversation.id;
@@ -3234,7 +3447,7 @@ var mountChatController = (runtime) => {
     }
     updateJumpVisibility();
     if (pending) {
-      processingStatus.start();
+      processingStatus.start(progress?.status ?? "");
       syncRealtimeBindings();
       return;
     }
@@ -3443,11 +3656,50 @@ var renderChatModule = (panel, context) => {
   const settings = isRecord(context.settings) ? context.settings : null;
   const agentSettings = settings && isRecord(settings.agent) ? settings.agent : null;
   const agentName = typeof agentSettings?.name === "string" ? agentSettings.name.trim() : "";
-  if (!agentName) {
-    const notice = document.createElement("div");
-    notice.className = "app-module";
-    notice.innerHTML = `<div class="notification is-warning is-light">Set Chat.agent.name in module settings to start chatting.</div>`;
-    panel.append(notice);
+  const agentId = typeof agentSettings?.id === "string" ? agentSettings.id.trim() : "";
+  if (!agentName || !agentId) {
+    const card = document.createElement("div");
+    card.className = "app-module";
+    const header = document.createElement("div");
+    header.className = "app-module-header";
+    const headerRow = document.createElement("div");
+    headerRow.className = "app-module-header-row";
+    const title = document.createElement("div");
+    title.className = "app-module-title";
+    title.textContent = context.module.name;
+    headerRow.append(title);
+    if (context.openSettings) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+      button.title = "Module settings";
+      button.setAttribute("aria-label", "Module settings");
+      button.innerHTML = `
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+          </svg>
+        </span>
+      `;
+      button.addEventListener("click", context.openSettings);
+      headerRow.append(button);
+    }
+    const meta = document.createElement("div");
+    meta.className = "app-module-meta";
+    meta.textContent = context.module.description;
+    header.append(headerRow, meta);
+    const body = document.createElement("div");
+    body.className = "app-module-body";
+    const note = document.createElement("div");
+    note.className = "app-module-note";
+    note.innerHTML = `
+      <strong>Chat needs an agent.</strong>
+      <p class="app-muted">Select an agent in module settings to start chatting.</p>
+    `;
+    body.append(note);
+    card.append(header, body);
+    panel.append(card);
     return;
   }
   const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
@@ -3466,6 +3718,52 @@ var renderChatModule = (panel, context) => {
     dom,
     targetKey
   });
+};
+
+// web/src/modules/form/index.ts
+var resolveLabel = (settings, fallback) => {
+  const name = settings?.name;
+  if (typeof name === "string" && name.trim() !== "") {
+    return name.trim();
+  }
+  return `${fallback} - form`;
+};
+var resolveFlag = (settings, key) => {
+  return settings?.[key] === true;
+};
+var renderFormModule = (panel, context) => {
+  const settings = isRecord(context.settings) ? context.settings : null;
+  const label = resolveLabel(settings, context.payload.name);
+  const formId = moduleSettingsKey(context.payload, context.module.name);
+  const wrapper = document.createElement("div");
+  wrapper.className = "app-module";
+  const flags = [
+    { key: "sendadminemail", label: "Send admin email" },
+    { key: "senduseremail", label: "Send user email" },
+    { key: "captcha", label: "Captcha" }
+  ];
+  const flagMarkup = flags.map((flag) => {
+    const value = resolveFlag(settings, flag.key) ? "enabled" : "disabled";
+    return `<div class="app-form-flag"><span>${flag.label}</span><strong>${value}</strong></div>`;
+  }).join("");
+  wrapper.innerHTML = `
+    <div class="app-module-header">
+      <div>
+        <h3 class="title is-6">${label}</h3>
+        <p class="app-muted">Form id: <code>${formId}</code></p>
+      </div>
+      <div class="buttons">
+        <button class="button app-button app-ghost" data-form-settings>Settings</button>
+      </div>
+    </div>
+    <div class="app-form-flags">${flagMarkup}</div>
+    <p class="app-muted">Entries appear under Settings \u2192 Forms.</p>
+  `;
+  const settingsButton = wrapper.querySelector("[data-form-settings]");
+  settingsButton?.addEventListener("click", () => {
+    context.openSettings?.();
+  });
+  panel.append(wrapper);
 };
 
 // web/src/modules/gallery/index.ts
@@ -4065,6 +4363,7 @@ var renderUploaderModule = (panel, context) => {
 // web/src/modules/registry.ts
 var registry = {
   chat: renderChatModule,
+  form: renderFormModule,
   gallery: renderGalleryModule,
   uploader: renderUploaderModule
 };
@@ -4255,6 +4554,156 @@ var renderModulesView = ({
         loadDocument2(id);
       }
     });
+  });
+};
+
+// web/src/views/forms.ts
+init_api();
+var escapeHtml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
+var formatTimestamp = (value) => {
+  if (!value) {
+    return "Unknown time";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+};
+var buildFormSelect = (forms, currentId) => {
+  const options = forms.map((form) => {
+    const label = form.label || form.name;
+    const source = form.source?.name ? ` \xB7 ${form.source.name}` : "";
+    const selected = form.id === currentId ? "selected" : "";
+    return `<option value="${form.id}" ${selected}>${escapeHtml(label)}${escapeHtml(source)}</option>`;
+  }).join("");
+  return `
+    <div class="field">
+      <label class="label">Form</label>
+      <div class="control">
+        <div class="select is-fullwidth">
+          <select id="forms-select">${options}</select>
+        </div>
+      </div>
+    </div>
+  `;
+};
+var renderEntries = (doc, target) => {
+  const data = doc.payload.data;
+  const entries = Array.isArray(data?.entries) ? data?.entries : [];
+  if (!entries.length) {
+    target.innerHTML = `<div class="notification is-light">No entries yet.</div>`;
+    return;
+  }
+  const list = entries.map((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return "";
+    }
+    const record = entry;
+    const submittedAt = formatTimestamp(record.submittedAt);
+    const actor = record.actor && typeof record.actor === "object" ? record.actor : null;
+    const actorLabel = actor ? `${actor.sub ?? ""}${actor.role ? ` \xB7 ${actor.role}` : ""}`.trim() : "anonymous";
+    const payload = record.data ?? {};
+    const payloadJson = escapeHtml(JSON.stringify(payload, null, 2));
+    return `
+        <article class="app-form-entry app-surface">
+          <div class="app-form-entry-header">
+            <div>
+              <span class="app-form-entry-label">Submitted</span>
+              <span class="app-form-entry-value">${escapeHtml(submittedAt)}</span>
+            </div>
+            <div>
+              <span class="app-form-entry-label">Actor</span>
+              <span class="app-form-entry-value">${escapeHtml(actorLabel || "anonymous")}</span>
+            </div>
+          </div>
+          <pre class="app-form-entry-json">${payloadJson}</pre>
+        </article>
+      `;
+  }).join("");
+  target.innerHTML = `<div class="app-form-entry-list">${list}</div>`;
+};
+var renderFormsView = async ({
+  content,
+  auth,
+  forms,
+  setForms,
+  fetchForms: fetchForms2,
+  clearAgentState: clearAgentState2
+}) => {
+  if (!content) {
+    return;
+  }
+  clearAgentState2();
+  if (!auth) {
+    content.innerHTML = `<p class="app-muted">Authentication required.</p>`;
+    return;
+  }
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">Forms</h1>
+        <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+      </div>
+    </div>
+    <div class="notification is-light">Loading forms...</div>
+  `;
+  try {
+    const response = await fetchForms2(auth);
+    forms = Array.isArray(response.forms) ? response.forms : [];
+    setForms(forms);
+  } catch (err) {
+    content.innerHTML = `<p class="app-muted">${err.message}</p>`;
+    return;
+  }
+  if (!forms.length) {
+    content.innerHTML = `
+      <div class="app-view-header mb-4">
+        <div>
+          <h1 class="title is-4">Forms</h1>
+          <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+        </div>
+      </div>
+      <div class="notification is-light">No forms found yet.</div>
+    `;
+    return;
+  }
+  const selectedId = forms[0]?.id || "";
+  content.innerHTML = `
+    <div class="app-view-header mb-4">
+      <div>
+        <h1 class="title is-4">Forms</h1>
+        <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+      </div>
+      <div class="app-view-actions">
+        <span class="app-muted">${forms.length} total</span>
+      </div>
+    </div>
+    <div class="app-forms-toolbar mb-4">${buildFormSelect(forms, selectedId)}</div>
+    <div id="forms-entries" class="app-forms-entries"></div>
+  `;
+  const entriesTarget = document.getElementById("forms-entries");
+  const select = document.getElementById("forms-select");
+  const loadSelected = async (id) => {
+    if (!entriesTarget || !auth) {
+      return;
+    }
+    entriesTarget.innerHTML = `<div class="notification is-light">Loading entries...</div>`;
+    try {
+      const doc = await fetchDocument(auth, id);
+      renderEntries(doc, entriesTarget);
+    } catch (err) {
+      entriesTarget.innerHTML = `<p class="app-muted">${err.message}</p>`;
+    }
+  };
+  if (selectedId) {
+    void loadSelected(selectedId);
+  }
+  select?.addEventListener("change", () => {
+    const next = select.value.trim();
+    if (next) {
+      void loadSelected(next);
+    }
   });
 };
 
@@ -4559,9 +5008,12 @@ var renderModuleSettingsForm = ({
   form.className = "app-module-settings-form";
   container.append(form);
   const agentsByName = new Map(agents.map((agent) => [agent.name, agent]));
-  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+  const agentsByUid = new Map(
+    agents.map((agent) => [typeof agent.uid === "string" ? agent.uid : "", agent]).filter(([uid]) => uid !== "")
+  );
   let agentNameSelect = null;
   let agentIdInput = null;
+  let agentProviderInput = null;
   let pendingAgentId = "";
   const renderField = (parent, path, defaultValue, currentValue) => {
     const field = document.createElement("div");
@@ -4616,7 +5068,10 @@ var renderModuleSettingsForm = ({
           return;
         }
         const selected = agentsByName.get(select.value);
-        agentIdInput.value = selected?.id ?? "";
+        agentIdInput.value = selected?.uid ?? "";
+        if (agentProviderInput) {
+          agentProviderInput.value = selected?.provider ?? "";
+        }
       });
       const selectWrapper = document.createElement("div");
       selectWrapper.className = "select is-fullwidth";
@@ -4636,6 +5091,19 @@ var renderModuleSettingsForm = ({
       input2.readOnly = true;
       pendingAgentId = input2.value;
       agentIdInput = input2;
+      control.append(input2);
+      field.append(control);
+      parent.append(field);
+      fields.push({ path, type: "text", element: input2, defaultValue });
+      return;
+    }
+    if (module.name === "chat" && path.join(".") === "agent.provider") {
+      const input2 = document.createElement("input");
+      input2.type = "text";
+      input2.className = "input";
+      input2.value = typeof currentValue === "string" ? currentValue : "";
+      input2.readOnly = true;
+      agentProviderInput = input2;
       control.append(input2);
       field.append(control);
       parent.append(field);
@@ -4708,18 +5176,25 @@ var renderModuleSettingsForm = ({
   }
   const linkedAgentNameSelect = agentNameSelect;
   const linkedAgentIdInput = agentIdInput;
+  const linkedAgentProviderInput = agentProviderInput;
   if (linkedAgentNameSelect && linkedAgentIdInput) {
     if (!linkedAgentNameSelect.value && pendingAgentId) {
-      const match = agentsById.get(pendingAgentId);
+      const match = agentsByUid.get(pendingAgentId);
       if (match) {
         linkedAgentNameSelect.value = match.name;
       }
     }
     if (linkedAgentNameSelect.value) {
       const match = agentsByName.get(linkedAgentNameSelect.value);
-      linkedAgentIdInput.value = match?.id ?? "";
+      linkedAgentIdInput.value = match?.uid ?? "";
+      if (linkedAgentProviderInput) {
+        linkedAgentProviderInput.value = match?.provider ?? "";
+      }
     } else {
       linkedAgentIdInput.value = "";
+      if (linkedAgentProviderInput) {
+        linkedAgentProviderInput.value = "";
+      }
     }
   }
   const getValue = () => {
@@ -4787,8 +5262,42 @@ var renderDocument = ({
   const isLogDocument = doc.store === "private" && doc.path.startsWith("logs/") && !isLogSettings;
   const isSystemPage = doc.store === "private" && payload.position === "system";
   const isConfigurationPage = doc.store === "private" && doc.path === "system/configuration.json";
+  const pageId = typeof payload.id === "string" && payload.id.trim() !== "" ? payload.id : null;
+  const idMeta = pageId ? `
+      <div class="app-doc-meta">
+        <span class="app-doc-meta-label">ID</span>
+        <code class="app-doc-meta-value">${pageId}</code>
+        <button class="app-doc-meta-copy" type="button" aria-label="Copy ID" data-copy-doc-id="${pageId}">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" focusable="false" aria-hidden="true">
+              <rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+              <rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+            </svg>
+          </span>
+        </button>
+      </div>
+    ` : "";
+  const bindIdCopy = () => {
+    document.querySelectorAll("[data-copy-doc-id]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const value = button.getAttribute("data-copy-doc-id") || "";
+        if (!value) {
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(value);
+          button.classList.add("is-copied");
+          window.setTimeout(() => button.classList.remove("is-copied"), 1200);
+        } catch {
+          button.classList.add("is-error");
+          window.setTimeout(() => button.classList.remove("is-error"), 1200);
+        }
+      });
+    });
+  };
   if (isLogDocument) {
     renderLogDocument2(doc);
+    bindIdCopy();
     return;
   }
   if (isModuleSettings) {
@@ -4798,6 +5307,7 @@ var renderDocument = ({
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">Module settings \xB7 ${doc.store}/${doc.path}</p>
+        ${idMeta}
       </div>
       <div class="mb-4 buttons">
         ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">Back</button>` : ""}
@@ -4855,16 +5365,17 @@ var renderDocument = ({
         alert(err.message);
       }
     });
+    bindIdCopy();
     return;
   }
   if (isSystemPage) {
-    const adminPath = typeof payload.data === "object" && payload.data !== null && "adminPath" in payload.data && typeof payload.data.adminPath === "string" ? payload.data.adminPath ?? "" : "";
     content.innerHTML = `
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">${payload.page} \xB7 ${doc.store}/${doc.path}</p>
+        ${idMeta}
       </div>
-      ${isConfigurationPage ? `<div class="notification is-light app-muted">After saving, open <strong>/${adminPath || "manage"}/</strong>.</div>` : ""}
+      ${isConfigurationPage ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/manage/</strong>.</div>` : ""}
       <div class="mb-4 buttons">
         <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
         <button id="export-json" class="button app-button app-ghost">Export JSON</button>
@@ -4919,6 +5430,7 @@ var renderDocument = ({
     <div class="mb-4">
       <h1 class="title is-4">${payload.name}</h1>
       <p class="app-muted">${payload.page} \xB7 ${doc.store}/${doc.path}</p>
+      ${idMeta}
     </div>
     <div class="mb-4 buttons">
       <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
@@ -4999,6 +5511,7 @@ var renderDocument = ({
     editorRef2.set(buildJsonEditor2(editorContainer, payload.data));
   }
   void renderModulePanel2(doc);
+  bindIdCopy();
   const moduleInput = document.getElementById("field-modules");
   moduleInput?.addEventListener("change", () => {
     payload.modules = readSelectedModules2(moduleInput);
@@ -5076,20 +5589,6 @@ var fetchModuleSettings = async (auth, payload, moduleName, cache) => {
     cache.set(key, settings);
     return settings;
   } catch {
-    if (!payload.section) {
-      const legacyKey = legacyModuleSettingsKey(moduleName);
-      if (legacyKey) {
-        const legacyPath = `modules/${legacyKey}.json`;
-        const legacyId = encodeDocumentId("private", legacyPath);
-        try {
-          const legacyDoc = await fetchDocument(auth, legacyId);
-          const legacySettings = isRecord(legacyDoc.payload.data) ? legacyDoc.payload.data : null;
-          cache.set(key, legacySettings);
-          return legacySettings;
-        } catch {
-        }
-      }
-    }
     cache.set(key, null);
     return null;
   }
@@ -5107,20 +5606,6 @@ var ensureModuleSettingsDocument = async (auth, payload, module, cache) => {
     cache.set(key, settings);
     return doc;
   } catch {
-    if (!payload.section) {
-      const legacyKey = legacyModuleSettingsKey(module.name);
-      if (legacyKey) {
-        const legacyPath = `modules/${legacyKey}.json`;
-        const legacyId = encodeDocumentId("private", legacyPath);
-        try {
-          const legacyDoc = await fetchDocument(auth, legacyId);
-          const legacySettings = isRecord(legacyDoc.payload.data) ? legacyDoc.payload.data : null;
-          cache.set(key, legacySettings);
-          return legacyDoc;
-        } catch {
-        }
-      }
-    }
     const defaults = isRecord(module.parameters) ? module.parameters : {};
     const name = `${payload.name} \xB7 ${module.name}`;
     const created = await createDocument(auth, {
@@ -5149,14 +5634,14 @@ var timestampFormatter = new Intl.DateTimeFormat(void 0, {
   dateStyle: "medium",
   timeStyle: "short"
 });
-var escapeHtml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var escapeHtml2 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var reasonLabel = (reason) => {
   if (reason === "before-clear") {
     return "Pre-clear snapshot";
   }
   return "Manual snapshot";
 };
-var formatTimestamp = (value) => {
+var formatTimestamp2 = (value) => {
   if (!value) {
     return "Unknown time";
   }
@@ -5183,22 +5668,22 @@ var buildCard = (creation) => {
   article.innerHTML = `
     <div class="app-creation-preview is-loading">
       <div class="app-creation-preview-glow"></div>
-      <img alt="${escapeHtml(creation.id)}" loading="lazy" />
+      <img alt="${escapeHtml2(creation.id)}" loading="lazy" />
     </div>
     <div class="app-creation-copy">
       <div class="app-creation-copy-top">
-        <span class="app-creation-badge">${escapeHtml(reasonLabel(creation.reason))}</span>
-        <span class="app-creation-date">${escapeHtml(formatTimestamp(creation.createdAt))}</span>
+        <span class="app-creation-badge">${escapeHtml2(reasonLabel(creation.reason))}</span>
+        <span class="app-creation-date">${escapeHtml2(formatTimestamp2(creation.createdAt))}</span>
       </div>
-      <h2 class="app-creation-title">${escapeHtml(creation.id)}</h2>
+      <h2 class="app-creation-title">${escapeHtml2(creation.id)}</h2>
       <div class="app-creation-paths">
         <div>
           <span class="app-creation-label">Backup</span>
-          <code>manage/store/${escapeHtml(creation.backupPath)}</code>
+          <code>manage/store/${escapeHtml2(creation.backupPath)}</code>
         </div>
         <div>
           <span class="app-creation-label">Preview</span>
-          <code>manage/store/${escapeHtml(creation.snapshotPath)}</code>
+          <code>manage/store/${escapeHtml2(creation.snapshotPath)}</code>
         </div>
       </div>
     </div>
@@ -5230,7 +5715,7 @@ var renderCreationsView = ({
       <div class="app-creations-hero app-surface">
         <div>
           <p class="app-creations-kicker">System page</p>
-          <h1 class="title is-4">${escapeHtml(doc.payload.name)}</h1>
+          <h1 class="title is-4">${escapeHtml2(doc.payload.name)}</h1>
           <p class="app-muted app-creations-subtitle">
             Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.
           </p>
@@ -5241,7 +5726,7 @@ var renderCreationsView = ({
             <span class="app-creations-stat-label">Snapshots</span>
           </div>
           <div>
-            <span class="app-creations-stat-value">${escapeHtml(doc.store)}</span>
+            <span class="app-creations-stat-value">${escapeHtml2(doc.store)}</span>
             <span class="app-creations-stat-label">Store</span>
           </div>
         </div>
@@ -5750,6 +6235,7 @@ var loadDocument = async (id) => {
   if (!state.auth) {
     return;
   }
+  clearRegisteredIntegrationCleanup();
   try {
     const doc = await fetchDocument(state.auth, id);
     state.currentDocument = doc;
@@ -5773,6 +6259,7 @@ var loadDocument = async (id) => {
 // web/src/app/screens.ts
 init_api();
 var showModulesView = () => {
+  clearRegisteredIntegrationCleanup();
   renderModulesView({
     content: document.getElementById("content"),
     modules: state.modules,
@@ -5782,7 +6269,7 @@ var showModulesView = () => {
   });
 };
 var showIntegrationsView = (onAfterLoad) => {
-  renderIntegrationsView({
+  const render = () => renderIntegrationsView({
     content: document.getElementById("content"),
     auth: state.auth,
     integrations: state.integrations,
@@ -5792,35 +6279,74 @@ var showIntegrationsView = (onAfterLoad) => {
     openIntegrationModal: (integration) => {
       state.openIntegrationModalHandler?.(integration);
     },
-    syncIntegrationModels: async (auth, name) => {
-      await syncIntegrationModels(auth, name);
-    },
+    syncIntegrationModels: async (auth, name) => syncIntegrationModels(auth, name),
     reloadIntegrations: () => loadIntegrations({ onAfterLoad })
   });
+  render();
+  const reloadAndRender = async () => {
+    await loadIntegrations({ onAfterLoad });
+    render();
+  };
+  const handleRealtimeEvent = (event) => {
+    if (event.type !== "integration.sync.updated") {
+      return;
+    }
+    void reloadAndRender();
+    if (event.syncing) {
+      return;
+    }
+    if (event.ok === false) {
+      pushNotice("error", event.error || `Model sync failed for ${event.name}.`);
+      return;
+    }
+    if (event.ok === true) {
+      const suffix = typeof event.models === "number" ? ` (${event.models} models)` : "";
+      pushNotice("success", `Models synced for ${event.name}${suffix}.`);
+    }
+  };
+  const handleRealtimeStatus = (status2) => {
+    if (status2 === "open") {
+      void reloadAndRender();
+    }
+  };
+  const disposeRealtime = subscribeRealtime(handleRealtimeEvent);
+  const disposeRealtimeStatus = subscribeRealtimeStatus(handleRealtimeStatus);
+  registerIntegrationCleanup(() => {
+    disposeRealtime();
+    disposeRealtimeStatus();
+  });
 };
-var showLogsView = () => renderLogsView({
-  content: document.getElementById("content"),
-  auth: state.auth,
-  logs: state.logs,
-  setLogs: (next) => {
-    state.logs = next;
-  },
-  fetchLogs,
-  loadDocument,
-  clearAgentState,
-  openLoggerSettings
-});
+var showLogsView = () => {
+  clearRegisteredIntegrationCleanup();
+  renderLogsView({
+    content: document.getElementById("content"),
+    auth: state.auth,
+    logs: state.logs,
+    setLogs: (next) => {
+      state.logs = next;
+    },
+    fetchLogs,
+    loadDocument,
+    clearAgentState,
+    openLoggerSettings
+  });
+};
+var showFormsView = () => {
+  clearRegisteredIntegrationCleanup();
+  renderFormsView({
+    content: document.getElementById("content"),
+    auth: state.auth,
+    forms: state.forms,
+    setForms: (next) => {
+      state.forms = next;
+    },
+    fetchForms,
+    clearAgentState
+  });
+};
 
 // web/src/features/agents/controller.ts
 init_api();
-
-// web/src/ui/notice.ts
-var pushNotice = (type, message) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.dispatchEvent(new CustomEvent("app:notice", { detail: { type, message } }));
-};
 
 // web/src/features/agents/view.ts
 init_api();
@@ -5854,6 +6380,7 @@ var renderMessages2 = (conversation) => {
         </div>
       `;
   }).join("");
+  appendConversationProgress(messagesContainer, getConversationProgress(conversation));
 };
 var updateConversationHeader2 = (conversation) => {
   const title = document.getElementById("agent-chat-title");
@@ -6107,11 +6634,8 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     }
     const payloadData = isRecord(event.conversation.payload.data) ? event.conversation.payload.data : {};
     const eventAgentId = typeof payloadData.agentId === "string" ? payloadData.agentId : "";
-    const eventAgentName = typeof payloadData.agentName === "string" ? payloadData.agentName : "";
-    if (eventAgentId && eventAgentId !== agentDoc.id) {
-      return;
-    }
-    if (!eventAgentId && eventAgentName !== agentDoc.payload.name) {
+    const agentUid = typeof agentDoc.payload.id === "string" ? agentDoc.payload.id : "";
+    if (!eventAgentId || eventAgentId !== agentUid) {
       return;
     }
     if (state.currentConversation && state.currentConversation.id === event.conversation.id) {
@@ -6143,12 +6667,13 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     renderMessages2(conversation);
     renderConversations();
     const pending = conversationHasPendingResponse(conversation);
+    const progress = getConversationProgress(conversation);
     updateChatInputState2(!!auth && !!state.currentAgent && !pending);
     if (!conversation && chatMeta) {
       chatMeta.textContent = "Your next message starts a new conversation.";
     }
     if (pending) {
-      processingStatus.start();
+      processingStatus.start(progress?.status ?? "");
       syncRealtimeBindings();
       return;
     }
@@ -6293,6 +6818,7 @@ var loadAgent = async (id, reloadAgents) => {
   if (!state.auth) {
     return;
   }
+  clearRegisteredIntegrationCleanup();
   try {
     const agent = await fetchAgent(state.auth, id);
     state.currentDocument = null;
@@ -6387,6 +6913,9 @@ var renderApp = async () => {
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
     onShowLogs: () => {
       void showLogsView();
+    },
+    onShowForms: () => {
+      void showFormsView();
     },
     onExportAll: exportAll,
     onOpenCreate: createModal.openCreateModal,

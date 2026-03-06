@@ -7,6 +7,7 @@ export * from "./ui";
 export * from "./modules";
 export * from "./integrations";
 export * from "./logs";
+export * from "./forms";
 export * from "./agents";
 export * from "./creations";
 export * from "./realtime";

@@ -8,6 +8,7 @@ use Manage\Application\Ports\DocumentRepository;
 use Manage\Application\Ports\RealtimePublisher;
 use Manage\Domain\Document\DocumentId;
 use Manage\Infrastructure\Agents\AgentResponder;
+use Manage\Infrastructure\Conversations\ConversationProgressTracker;
 use Manage\Infrastructure\Realtime\RealtimeIdentity;
 
 final class ProcessPendingReply
@@ -15,16 +16,19 @@ final class ProcessPendingReply
     private DocumentRepository $documents;
     private AgentResponder $responder;
     private RealtimePublisher $realtime;
+    private ConversationProgressTracker $progress;
 
     public function __construct(
         DocumentRepository $documents,
         AgentResponder $responder,
-        RealtimePublisher $realtime
+        RealtimePublisher $realtime,
+        ConversationProgressTracker $progress
     )
     {
         $this->documents = $documents;
         $this->responder = $responder;
         $this->realtime = $realtime;
+        $this->progress = $progress;
     }
 
     public function handle(string $conversationId): void
@@ -60,7 +64,12 @@ final class ProcessPendingReply
         $userId = is_string($data['userId'] ?? null) ? trim((string) $data['userId']) : 'api-key';
 
         try {
-            $reply = $this->responder->reply($agentId !== '' ? $agentId : null, $agentName, $messages);
+            $reply = $this->responder->reply(
+                $agentId !== '' ? $agentId : null,
+                $agentName,
+                $messages,
+                $this->progressReporter($conversationId)
+            );
         } catch (\Throwable $exception) {
             $reply = $this->failureMessage($exception);
         }
@@ -74,6 +83,7 @@ final class ProcessPendingReply
         $data['messages'] = $messages;
         $data['updatedAt'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
         $data['pendingResponse'] = false;
+        unset($data['progress']);
 
         $updated = $document->withWrapper($wrapper->withData($data));
         $this->documents->save($updated);
@@ -104,5 +114,25 @@ final class ProcessPendingReply
         }
 
         return 'Something went wrong while I was replying: ' . $message;
+    }
+
+    private function progressReporter(string $conversationId): callable
+    {
+        $lastMessage = '';
+
+        return function (string $message) use ($conversationId, &$lastMessage): void {
+            $normalized = trim($message);
+            if ($normalized === '' || $normalized === $lastMessage) {
+                return;
+            }
+
+            $lastMessage = $normalized;
+
+            try {
+                $this->progress->update($conversationId, $normalized);
+            } catch (\Throwable) {
+                // Progress updates are best-effort and must not break the main reply flow.
+            }
+        };
     }
 }

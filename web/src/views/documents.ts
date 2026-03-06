@@ -68,9 +68,46 @@ export const renderDocument = ({
   const isLogDocument = doc.store === "private" && doc.path.startsWith("logs/") && !isLogSettings;
   const isSystemPage = doc.store === "private" && payload.position === "system";
   const isConfigurationPage = doc.store === "private" && doc.path === "system/configuration.json";
+  const pageId = typeof payload.id === "string" && payload.id.trim() !== "" ? payload.id : null;
+  const idMeta = pageId
+    ? `
+      <div class="app-doc-meta">
+        <span class="app-doc-meta-label">ID</span>
+        <code class="app-doc-meta-value">${pageId}</code>
+        <button class="app-doc-meta-copy" type="button" aria-label="Copy ID" data-copy-doc-id="${pageId}">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" focusable="false" aria-hidden="true">
+              <rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+              <rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+            </svg>
+          </span>
+        </button>
+      </div>
+    `
+    : "";
+
+  const bindIdCopy = () => {
+    document.querySelectorAll<HTMLButtonElement>("[data-copy-doc-id]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const value = button.getAttribute("data-copy-doc-id") || "";
+        if (!value) {
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(value);
+          button.classList.add("is-copied");
+          window.setTimeout(() => button.classList.remove("is-copied"), 1200);
+        } catch {
+          button.classList.add("is-error");
+          window.setTimeout(() => button.classList.remove("is-error"), 1200);
+        }
+      });
+    });
+  };
 
   if (isLogDocument) {
     renderLogDocument(doc);
+    bindIdCopy();
     return;
   }
 
@@ -81,6 +118,7 @@ export const renderDocument = ({
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">Module settings · ${doc.store}/${doc.path}</p>
+        ${idMeta}
       </div>
       <div class="mb-4 buttons">
         ${
@@ -152,25 +190,20 @@ export const renderDocument = ({
       }
     });
 
+    bindIdCopy();
     return;
   }
 
   if (isSystemPage) {
-    const adminPath =
-      typeof payload.data === "object" &&
-      payload.data !== null &&
-      "adminPath" in payload.data &&
-      typeof (payload.data as { adminPath?: unknown }).adminPath === "string"
-        ? ((payload.data as { adminPath?: string }).adminPath ?? "")
-        : "";
     content.innerHTML = `
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">${payload.page} · ${doc.store}/${doc.path}</p>
+        ${idMeta}
       </div>
       ${
         isConfigurationPage
-          ? `<div class="notification is-light app-muted">After saving, open <strong>/${adminPath || "manage"}/</strong>.</div>`
+          ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/manage/</strong>.</div>`
           : ""
       }
       <div class="mb-4 buttons">
@@ -233,6 +266,7 @@ export const renderDocument = ({
     <div class="mb-4">
       <h1 class="title is-4">${payload.name}</h1>
       <p class="app-muted">${payload.page} · ${doc.store}/${doc.path}</p>
+      ${idMeta}
     </div>
     <div class="mb-4 buttons">
       <button id="save" class="button app-button app-primary">Αποθήκευση</button>
@@ -315,6 +349,7 @@ export const renderDocument = ({
   }
 
   void renderModulePanel(doc);
+  bindIdCopy();
 
   const moduleInput = document.getElementById("field-modules");
   moduleInput?.addEventListener("change", () => {

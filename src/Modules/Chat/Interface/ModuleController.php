@@ -66,11 +66,17 @@ final class ModuleController
         $settings = $this->settings->read($settingsKey);
         $agent = $this->resolveAgent($settings);
         if ($agent === null) {
-            return Response::json(['error' => 'Chat.agent.name is required.'], 422);
+            return Response::json(['error' => 'Chat.agent.name and Chat.agent.id are required.'], 422);
         }
 
         $userId = $this->resolveUserId($request);
-        $items = $this->listConversations->handle($settingsKey, $agent['name'], $userId, $settings);
+        $items = $this->listConversations->handle(
+            $settingsKey,
+            $agent['name'],
+            $userId,
+            $settings,
+            $agent['id']
+        );
 
         return Response::json(['items' => $items]);
     }
@@ -92,7 +98,7 @@ final class ModuleController
         $settings = $this->settings->read($settingsKey);
         $agent = $this->resolveAgent($settings);
         if ($agent === null) {
-            return Response::json(['error' => 'Chat.agent.name is required.'], 422);
+            return Response::json(['error' => 'Chat.agent.name and Chat.agent.id are required.'], 422);
         }
 
         $userId = $this->resolveUserId($request);
@@ -101,7 +107,8 @@ final class ModuleController
             $settingsKey,
             $agent['name'],
             $userId,
-            $settings
+            $settings,
+            $agent['id']
         );
 
         if ($conversation === null) {
@@ -127,7 +134,7 @@ final class ModuleController
         $settings = $this->settings->read($settingsKey);
         $agent = $this->resolveAgent($settings);
         if ($agent === null) {
-            return Response::json(['error' => 'Chat.agent.name is required.'], 422);
+            return Response::json(['error' => 'Chat.agent.name and Chat.agent.id are required.'], 422);
         }
 
         $userId = $this->resolveUserId($request);
@@ -169,7 +176,7 @@ final class ModuleController
         $settings = $this->settings->read($settingsKey);
         $agent = $this->resolveAgent($settings);
         if ($agent === null) {
-            return Response::json(['error' => 'Chat.agent.name is required.'], 422);
+            return Response::json(['error' => 'Chat.agent.name and Chat.agent.id are required.'], 422);
         }
 
         $userId = $this->resolveUserId($request);
@@ -182,7 +189,8 @@ final class ModuleController
                 $userId,
                 $content,
                 $settings,
-                $agent['id']
+                $agent['id'],
+                $agent['provider']
             );
         } catch (\InvalidArgumentException $exception) {
             return Response::json(['error' => $exception->getMessage()], 422);
@@ -216,7 +224,7 @@ final class ModuleController
         $settings = $this->settings->read($settingsKey);
         $agent = $this->resolveAgent($settings);
         if ($agent === null) {
-            return Response::json(['error' => 'Chat.agent.name is required.'], 422);
+            return Response::json(['error' => 'Chat.agent.name and Chat.agent.id are required.'], 422);
         }
 
         $userId = $this->resolveUserId($request);
@@ -225,7 +233,8 @@ final class ModuleController
             $settingsKey,
             $agent['name'],
             $userId,
-            $settings
+            $settings,
+            $agent['id']
         );
 
         if (!$deleted) {
@@ -235,7 +244,7 @@ final class ModuleController
         return Response::json(['ok' => true]);
     }
 
-    /** @return array{name: string, id: ?string}|null */
+    /** @return array{name: string, id: ?string, provider: ?string}|null */
     private function resolveAgent(?array $settings): ?array
     {
         if (!is_array($settings)) {
@@ -251,12 +260,25 @@ final class ModuleController
         }
         $id = $agent['id'] ?? null;
         if (!is_string($id) || trim($id) === '') {
-            $id = null;
+            return null;
+        }
+        $id = trim($id);
+        if (!preg_match(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
+            $id
+        )) {
+            return null;
+        }
+
+        $provider = $agent['provider'] ?? null;
+        if (!is_string($provider) || trim($provider) === '') {
+            $provider = null;
         }
 
         return [
             'name' => trim($name),
-            'id' => $id !== null ? trim($id) : null,
+            'id' => $id,
+            'provider' => $provider !== null ? trim($provider) : null,
         ];
     }
 

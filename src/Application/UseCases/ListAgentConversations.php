@@ -20,7 +20,11 @@ final class ListAgentConversations
     /** @return array<int, array<string, mixed>> */
     public function handle(DocumentId $agentId, string $userId): array
     {
-        $agentKey = $agentId->encoded();
+        $agentDocument = $this->documents->get($agentId);
+        $agentUid = $agentDocument?->wrapper()->id();
+        if (!is_string($agentUid) || trim($agentUid) === '') {
+            return [];
+        }
         $conversations = [];
 
         foreach ($this->documents->listAll() as $document) {
@@ -32,7 +36,8 @@ final class ListAgentConversations
             if (!is_array($data)) {
                 continue;
             }
-            if (($data['agentId'] ?? null) !== $agentKey) {
+            $conversationAgentId = is_string($data['agentId'] ?? null) ? trim((string) $data['agentId']) : '';
+            if ($conversationAgentId === '' || $conversationAgentId !== $agentUid) {
                 continue;
             }
             if (($data['userId'] ?? null) !== $userId) {

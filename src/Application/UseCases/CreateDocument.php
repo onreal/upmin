@@ -14,16 +14,22 @@ final class CreateDocument
     private DocumentRepository $documents;
     private ReorderDocuments $reorderDocuments;
     private EnsureModuleSettings $ensureModuleSettings;
+    private EnsureFormPages $ensureFormPages;
+    private EnsureDocumentId $ensureDocumentId;
 
     public function __construct(
         DocumentRepository $documents,
         ReorderDocuments $reorderDocuments,
-        EnsureModuleSettings $ensureModuleSettings
+        EnsureModuleSettings $ensureModuleSettings,
+        EnsureFormPages $ensureFormPages,
+        EnsureDocumentId $ensureDocumentId
     )
     {
         $this->documents = $documents;
         $this->reorderDocuments = $reorderDocuments;
         $this->ensureModuleSettings = $ensureModuleSettings;
+        $this->ensureFormPages = $ensureFormPages;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     public function handle(string $store, string $path, array $payload): ?array
@@ -64,8 +70,10 @@ final class CreateDocument
             throw new \InvalidArgumentException('Logs are read-only.');
         }
         $document = new Document($id, $wrapper, $store, $path);
+        $document = $this->ensureDocumentId->handle($document, null, true);
         $document = $this->reorderDocuments->handle($document);
         $this->ensureModuleSettings->handle($document->wrapper());
+        $this->ensureFormPages->handle($document);
 
         return [
             'id' => $document->id()->encoded(),

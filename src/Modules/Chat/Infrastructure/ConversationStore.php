@@ -20,7 +20,13 @@ final class ConversationStore
     }
 
     /** @return array<int, array<string, mixed>> */
-    public function list(string $moduleKey, string $agentName, string $userId, ?array $settings = null): array
+    public function list(
+        string $moduleKey,
+        string $agentName,
+        string $userId,
+        ?array $settings = null,
+        ?string $agentId = null
+    ): array
     {
         $config = $this->resolveConfig($settings);
         $storeRoot = $this->storeRoot($config['visibility']);
@@ -53,6 +59,7 @@ final class ConversationStore
             } catch (\InvalidArgumentException $exception) {
                 continue;
             }
+            $wrapper = $this->ensureWrapperId($file->getPathname(), $wrapper);
 
             if (!$this->isConversationWrapper($wrapper)) {
                 continue;
@@ -65,7 +72,7 @@ final class ConversationStore
             if (($data['moduleKey'] ?? null) !== $moduleKey) {
                 continue;
             }
-            if (($data['agentName'] ?? null) !== $agentName) {
+            if (!$this->matchesAgent($data, $agentId)) {
                 continue;
             }
             if (($data['userId'] ?? null) !== $userId) {
@@ -132,10 +139,11 @@ final class ConversationStore
         ];
 
         if ($agentId !== null && trim($agentId) !== '') {
-            $data['agentId'] = $agentId;
+            $data['agentId'] = trim($agentId);
         }
 
         $wrapper = DocumentWrapper::fromArray([
+            'id' => $this->uuidV4(),
             'type' => 'agent',
             'page' => 'chat-conversations',
             'name' => $agentName . ' · ' . $labelDate,
@@ -162,7 +170,9 @@ final class ConversationStore
         string $userId,
         string $content,
         string $role = 'user',
-        ?array $settings = null
+        ?array $settings = null,
+        ?string $agentId = null,
+        ?string $provider = null
     ): ?array
     {
         $config = $this->resolveConfig($settings);
@@ -189,6 +199,7 @@ final class ConversationStore
         } catch (\InvalidArgumentException $exception) {
             return null;
         }
+        $wrapper = $this->ensureWrapperId($path, $wrapper);
 
         if (!$this->isConversationWrapper($wrapper)) {
             return null;
@@ -201,7 +212,7 @@ final class ConversationStore
         if (($data['moduleKey'] ?? null) !== $moduleKey) {
             return null;
         }
-        if (($data['agentName'] ?? null) !== $agentName) {
+        if (!$this->matchesAgent($data, $agentId)) {
             return null;
         }
         if (($data['userId'] ?? null) !== $userId) {
@@ -226,15 +237,30 @@ final class ConversationStore
             $messages = [];
         }
 
+        $timestamp = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
         $messages[] = [
             'role' => $role,
             'content' => $content,
-            'createdAt' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM),
+            'createdAt' => $timestamp,
         ];
 
         $data['messages'] = $messages;
-        $data['updatedAt'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(DATE_ATOM);
+        $data['updatedAt'] = $timestamp;
         $data['pendingResponse'] = $role === 'user';
+        if ($role === 'user' && $this->supportsProgress($provider)) {
+            $data['progress'] = [
+                'status' => 'Queued reply...',
+                'updatedAt' => $timestamp,
+                'items' => [
+                    [
+                        'message' => 'Queued reply...',
+                        'createdAt' => $timestamp,
+                    ],
+                ],
+            ];
+        } else {
+            unset($data['progress']);
+        }
 
         $updated = $wrapper->withData($data);
         $payload = $updated->toArray();
@@ -254,7 +280,8 @@ final class ConversationStore
         string $moduleKey,
         string $agentName,
         string $userId,
-        ?array $settings = null
+        ?array $settings = null,
+        ?string $agentId = null
     ): ?array
     {
         $config = $this->resolveConfig($settings);
@@ -281,6 +308,7 @@ final class ConversationStore
         } catch (\InvalidArgumentException $exception) {
             return null;
         }
+        $wrapper = $this->ensureWrapperId($path, $wrapper);
 
         if (!$this->isConversationWrapper($wrapper)) {
             return null;
@@ -293,7 +321,7 @@ final class ConversationStore
         if (($data['moduleKey'] ?? null) !== $moduleKey) {
             return null;
         }
-        if (($data['agentName'] ?? null) !== $agentName) {
+        if (!$this->matchesAgent($data, $agentId)) {
             return null;
         }
         if (($data['userId'] ?? null) !== $userId) {
@@ -313,7 +341,8 @@ final class ConversationStore
         string $moduleKey,
         string $agentName,
         string $userId,
-        ?array $settings = null
+        ?array $settings = null,
+        ?string $agentId = null
     ): bool
     {
         $config = $this->resolveConfig($settings);
@@ -352,7 +381,7 @@ final class ConversationStore
         if (($data['moduleKey'] ?? null) !== $moduleKey) {
             return false;
         }
-        if (($data['agentName'] ?? null) !== $agentName) {
+        if (!$this->matchesAgent($data, $agentId)) {
             return false;
         }
         if (($data['userId'] ?? null) !== $userId) {
@@ -490,6 +519,57 @@ final class ConversationStore
         return $wrapper->type() === 'agent'
             && $wrapper->page() === 'chat-conversations'
             && !$wrapper->isSection();
+    }
+
+    private function ensureWrapperId(string $path, DocumentWrapper $wrapper): DocumentWrapper
+    {
+        $existing = $wrapper->id();
+        if (is_string($existing) && $this->isValidUuid($existing)) {
+            return $wrapper;
+        }
+
+        $updated = $wrapper->withId($this->uuidV4());
+        $this->writePayload($path, $updated->toArray());
+
+        return $updated;
+    }
+
+    private function isValidUuid(string $value): bool
+    {
+        return preg_match(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
+            $value
+        ) === 1;
+    }
+
+    private function uuidV4(): string
+    {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+    }
+
+    /** @param array<string, mixed> $data */
+    private function matchesAgent(array $data, ?string $agentId): bool
+    {
+        $expectedId = is_string($agentId) ? trim($agentId) : '';
+        $actualId = is_string($data['agentId'] ?? null) ? trim((string) $data['agentId']) : '';
+
+        if ($expectedId === '' || $actualId === '') {
+            return false;
+        }
+
+        return $actualId === $expectedId;
+    }
+
+    private function supportsProgress(?string $provider): bool
+    {
+        if (!is_string($provider)) {
+            return false;
+        }
+        return strtolower(trim($provider)) === 'codex-cli';
     }
 
     /** @param array<string, mixed> $a @param array<string, mixed> $b */

@@ -6,6 +6,7 @@ import type {
   IntegrationSummary,
   LayoutConfig,
   LogSummary,
+  FormSummary,
   ModuleDefinition,
   NavigationPage,
   RemoteDocument,
@@ -26,6 +27,7 @@ export type AppState = {
   openIntegrationModalHandler: ((integration: IntegrationSummary) => void) | null;
   agents: AgentSummary[];
   logs: LogSummary[];
+  forms: FormSummary[];
   navigationPages: NavigationPage[];
   moduleSettingsCache: Map<string, Record<string, unknown> | null>;
   currentAgent: RemoteDocument | null;
@@ -46,6 +48,7 @@ export const state: AppState = {
   openIntegrationModalHandler: null,
   agents: [],
   logs: [],
+  forms: [],
   navigationPages: [],
   moduleSettingsCache: new Map<string, Record<string, unknown> | null>(),
   currentAgent: null,

@@ -10,10 +10,12 @@ use Manage\Domain\Document\DocumentId;
 final class GetDocument
 {
     private DocumentRepository $documents;
+    private EnsureDocumentId $ensureDocumentId;
 
-    public function __construct(DocumentRepository $documents)
+    public function __construct(DocumentRepository $documents, EnsureDocumentId $ensureDocumentId)
     {
         $this->documents = $documents;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     public function handle(DocumentId $id): ?array
@@ -22,6 +24,8 @@ final class GetDocument
         if ($document === null) {
             return null;
         }
+
+        $document = $this->ensureDocumentId->handle($document);
 
         return [
             'id' => $document->id()->encoded(),

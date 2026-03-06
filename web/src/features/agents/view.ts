@@ -14,6 +14,7 @@ import {
   conversationHasPendingResponse,
   markConversationPending,
 } from "../chat/conversation";
+import { getConversationProgress } from "../chat/progress";
 import { createProcessingStatus } from "../chat/processing";
 import { registerAgentChatCleanup } from "../chat/runtime";
 import { setupProviderModelControls } from "../integrations/helpers";
@@ -145,11 +146,8 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
 
     const payloadData = isRecord(event.conversation.payload.data) ? event.conversation.payload.data : {};
     const eventAgentId = typeof payloadData.agentId === "string" ? payloadData.agentId : "";
-    const eventAgentName = typeof payloadData.agentName === "string" ? payloadData.agentName : "";
-    if (eventAgentId && eventAgentId !== agentDoc.id) {
-      return;
-    }
-    if (!eventAgentId && eventAgentName !== agentDoc.payload.name) {
+    const agentUid = typeof agentDoc.payload.id === "string" ? agentDoc.payload.id : "";
+    if (!eventAgentId || eventAgentId !== agentUid) {
       return;
     }
 
@@ -188,6 +186,7 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
     renderConversations();
 
     const pending = conversationHasPendingResponse(conversation);
+    const progress = getConversationProgress(conversation);
     updateChatInputState(!!auth && !!state.currentAgent && !pending);
 
     if (!conversation && chatMeta) {
@@ -195,7 +194,7 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
     }
 
     if (pending) {
-      processingStatus.start();
+      processingStatus.start(progress?.status ?? "");
       syncRealtimeBindings();
       return;
     }

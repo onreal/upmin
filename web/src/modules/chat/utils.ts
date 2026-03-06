@@ -1,4 +1,5 @@
 import type { ChatConversationSummary, RemoteDocument } from "../../api";
+import { appendConversationProgress, type ConversationProgress } from "../../features/chat/progress";
 import { isRecord } from "../../utils";
 
 export type ChatMessage = {
@@ -14,6 +15,7 @@ export type RenderMessageOptions = {
   onToggle?: (message: ChatMessage, selected: boolean) => void;
   onCopy?: (message: ChatMessage) => void;
   emptyState?: string;
+  progress?: ConversationProgress | null;
 };
 
 const messageId = (conversationId: string, createdAt: string | null, index: number) =>
@@ -51,6 +53,7 @@ export const renderMessages = (
   if (!messages.length) {
     const label = options.emptyState ?? "Select or create a conversation.";
     container.innerHTML = `<p class="app-muted">${label}</p>`;
+    appendConversationProgress(container, options.progress ?? null);
     return;
   }
 
@@ -141,6 +144,8 @@ export const renderMessages = (
       }
     });
   }
+
+  appendConversationProgress(container, options.progress ?? null);
 };
 
 export const updateConversationHeader = (

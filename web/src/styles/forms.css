@@ -1,0 +1,59 @@
+.app-forms-toolbar {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.app-form-entry-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.app-form-entry {
+  padding: 1rem;
+}
+
+.app-form-entry-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.app-form-entry-label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--app-muted, #6b7280);
+}
+
+.app-form-entry-value {
+  font-weight: 600;
+}
+
+.app-form-entry-json {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.75rem;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+}
+
+.app-form-flags {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.app-form-flag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}

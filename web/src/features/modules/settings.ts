@@ -6,7 +6,7 @@ import {
   type ModuleDefinition,
   type RemoteDocument,
 } from "../../api";
-import { legacyModuleSettingsKey, moduleSettingsKey } from "../../modules/utils";
+import { moduleSettingsKey } from "../../modules/utils";
 import { encodeDocumentId, isRecord } from "../../utils";
 
 export const fetchModuleSettings = async (
@@ -30,21 +30,6 @@ export const fetchModuleSettings = async (
     cache.set(key, settings);
     return settings;
   } catch {
-    if (!payload.section) {
-      const legacyKey = legacyModuleSettingsKey(moduleName);
-      if (legacyKey) {
-        const legacyPath = `modules/${legacyKey}.json`;
-        const legacyId = encodeDocumentId("private", legacyPath);
-        try {
-          const legacyDoc = await fetchDocument(auth, legacyId);
-          const legacySettings = isRecord(legacyDoc.payload.data) ? legacyDoc.payload.data : null;
-          cache.set(key, legacySettings);
-          return legacySettings;
-        } catch {
-          // fall through
-        }
-      }
-    }
     cache.set(key, null);
     return null;
   }
@@ -69,24 +54,6 @@ export const ensureModuleSettingsDocument = async (
     cache.set(key, settings);
     return doc;
   } catch {
-    if (!payload.section) {
-      const legacyKey = legacyModuleSettingsKey(module.name);
-      if (legacyKey) {
-        const legacyPath = `modules/${legacyKey}.json`;
-        const legacyId = encodeDocumentId("private", legacyPath);
-        try {
-          const legacyDoc = await fetchDocument(auth, legacyId);
-          const legacySettings = isRecord(legacyDoc.payload.data)
-            ? (legacyDoc.payload.data as Record<string, unknown>)
-            : null;
-          cache.set(key, legacySettings);
-          return legacyDoc;
-        } catch {
-          // fall through to create new
-        }
-      }
-    }
-
     const defaults = isRecord(module.parameters) ? (module.parameters as Record<string, unknown>) : {};
     const name = `${payload.name} · ${module.name}`;
     const created = await createDocument(auth, {

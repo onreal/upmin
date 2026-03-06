@@ -88,9 +88,14 @@ export const renderModuleSettingsForm = ({
   container.append(form);
 
   const agentsByName = new Map(agents.map((agent) => [agent.name, agent]));
-  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+  const agentsByUid = new Map(
+    agents
+      .map((agent) => [typeof agent.uid === "string" ? agent.uid : "", agent] as const)
+      .filter(([uid]) => uid !== "")
+  );
   let agentNameSelect: HTMLSelectElement | null = null;
   let agentIdInput: HTMLInputElement | null = null;
+  let agentProviderInput: HTMLInputElement | null = null;
   let pendingAgentId = "";
 
   const renderField = (
@@ -155,7 +160,10 @@ export const renderModuleSettingsForm = ({
           return;
         }
         const selected = agentsByName.get(select.value);
-        agentIdInput.value = selected?.id ?? "";
+        agentIdInput.value = selected?.uid ?? "";
+        if (agentProviderInput) {
+          agentProviderInput.value = selected?.provider ?? "";
+        }
       });
       const selectWrapper = document.createElement("div");
       selectWrapper.className = "select is-fullwidth";
@@ -176,6 +184,20 @@ export const renderModuleSettingsForm = ({
       input.readOnly = true;
       pendingAgentId = input.value;
       agentIdInput = input;
+      control.append(input);
+      field.append(control);
+      parent.append(field);
+      fields.push({ path, type: "text", element: input, defaultValue });
+      return;
+    }
+
+    if (module.name === "chat" && path.join(".") === "agent.provider") {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "input";
+      input.value = typeof currentValue === "string" ? currentValue : "";
+      input.readOnly = true;
+      agentProviderInput = input;
       control.append(input);
       field.append(control);
       parent.append(field);
@@ -272,18 +294,25 @@ export const renderModuleSettingsForm = ({
 
   const linkedAgentNameSelect = agentNameSelect as HTMLSelectElement | null;
   const linkedAgentIdInput = agentIdInput as HTMLInputElement | null;
+  const linkedAgentProviderInput = agentProviderInput as HTMLInputElement | null;
   if (linkedAgentNameSelect && linkedAgentIdInput) {
     if (!linkedAgentNameSelect.value && pendingAgentId) {
-      const match = agentsById.get(pendingAgentId);
+      const match = agentsByUid.get(pendingAgentId);
       if (match) {
         linkedAgentNameSelect.value = match.name;
       }
     }
     if (linkedAgentNameSelect.value) {
       const match = agentsByName.get(linkedAgentNameSelect.value);
-      linkedAgentIdInput.value = match?.id ?? "";
+      linkedAgentIdInput.value = match?.uid ?? "";
+      if (linkedAgentProviderInput) {
+        linkedAgentProviderInput.value = match?.provider ?? "";
+      }
     } else {
       linkedAgentIdInput.value = "";
+      if (linkedAgentProviderInput) {
+        linkedAgentProviderInput.value = "";
+      }
     }
   }
 

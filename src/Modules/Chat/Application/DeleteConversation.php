@@ -20,9 +20,10 @@ final class DeleteConversation
         string $moduleKey,
         string $agentName,
         string $userId,
-        ?array $settings = null
+        ?array $settings = null,
+        ?string $agentId = null
     ): bool
     {
-        return $this->store->delete($conversationId, $moduleKey, $agentName, $userId, $settings);
+        return $this->store->delete($conversationId, $moduleKey, $agentName, $userId, $settings, $agentId);
     }
 }

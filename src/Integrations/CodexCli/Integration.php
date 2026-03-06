@@ -32,11 +32,6 @@ final class Integration implements IntegrationHandler, ChatIntegration
             $binary = 'codex';
         }
 
-        $apiKey = $settings['apiKey'] ?? null;
-        if (!is_string($apiKey) || trim($apiKey) === '') {
-            throw new \InvalidArgumentException('Codex CLI apiKey is required.');
-        }
-
         $workingDir = $settings['workingDir'] ?? null;
         if (!is_string($workingDir) || trim($workingDir) === '') {
             $workingDir = $this->context->projectRoot();
@@ -64,7 +59,12 @@ final class Integration implements IntegrationHandler, ChatIntegration
         ];
 
         $command = $this->buildCommand($binary, $parts);
-        [$stdout, $stderr, $exitCode] = $this->runCommand($command, $workingDir, trim($apiKey), 60);
+        [$stdout, $stderr, $exitCode] = $this->runCommand(
+            $command,
+            $workingDir,
+            $this->resolveCommandEnv($settings, $binary, $workingDir),
+            60
+        );
 
         $content = file_get_contents($tmpFile);
         @unlink($tmpFile);
@@ -104,11 +104,6 @@ final class Integration implements IntegrationHandler, ChatIntegration
         $binary = $settings['binary'] ?? null;
         if (!is_string($binary) || trim($binary) === '') {
             $binary = 'codex';
-        }
-
-        $apiKey = $settings['apiKey'] ?? null;
-        if (!is_string($apiKey) || trim($apiKey) === '') {
-            throw new \InvalidArgumentException('Codex CLI apiKey is required.');
         }
 
         $model = $payload['model'] ?? null;
@@ -184,7 +179,8 @@ final class Integration implements IntegrationHandler, ChatIntegration
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
-        $env = $this->buildEnv(trim($apiKey));
+        $env = $this->resolveCommandEnv($settings, $binary, $workingDir);
+        $onProgress = $this->resolveProgressCallback($payload);
 
         $process = proc_open($command, $descriptor, $pipes, $workingDir, $env);
         if (!is_resource($process)) {
@@ -198,6 +194,9 @@ final class Integration implements IntegrationHandler, ChatIntegration
 
         $stdout = '';
         $stderr = '';
+        $stdoutBuffer = '';
+
+        $this->emitProgress($onProgress, 'Queued reply...');
 
         while (true) {
             $status = proc_get_status($process);
@@ -207,6 +206,7 @@ final class Integration implements IntegrationHandler, ChatIntegration
             if (is_string($outChunk) && $outChunk !== '') {
                 $stdout .= $outChunk;
                 $this->writeLog($logPath, 'stdout', $outChunk);
+                $this->consumeProgressChunk($stdoutBuffer, $outChunk, $onProgress);
             }
             if (is_string($errChunk) && $errChunk !== '') {
                 $stderr .= $errChunk;
@@ -224,6 +224,7 @@ final class Integration implements IntegrationHandler, ChatIntegration
 
         $exitCode = proc_close($process);
         $this->writeLog($logPath, 'exit', (string) $exitCode, true);
+        $this->consumeProgressChunk($stdoutBuffer, '', $onProgress, true);
 
         $output = '';
         if (is_string($outputFile)) {
@@ -300,12 +301,89 @@ final class Integration implements IntegrationHandler, ChatIntegration
         return trim(implode(PHP_EOL . PHP_EOL, $parts));
     }
 
-    private function buildEnv(string $apiKey): array
+    private function resolveProgressCallback(array $payload): ?callable
+    {
+        $callback = $payload['onProgress'] ?? null;
+        return is_callable($callback) ? $callback : null;
+    }
+
+    /** @return array<string, string> */
+    private function buildEnv(?string $apiKey = null): array
     {
         $env = $_ENV;
-        $env['CODEX_API_KEY'] = $apiKey;
-        $env['OPENAI_API_KEY'] = $apiKey;
+        $path = getenv('PATH');
+        if (is_string($path) && trim($path) !== '') {
+            $env['PATH'] = $path;
+        }
+        $home = getenv('HOME');
+        if (is_string($home) && trim($home) !== '') {
+            $env['HOME'] = $home;
+        }
+        if ($apiKey !== null && trim($apiKey) !== '') {
+            $env['CODEX_API_KEY'] = $apiKey;
+            $env['OPENAI_API_KEY'] = $apiKey;
+        }
         return $env;
+    }
+
+    /** @return array<string, string> */
+    private function resolveCommandEnv(array $settings, string $binary, string $workingDir): array
+    {
+        $authMode = $this->resolveAuthMode($settings);
+        if ($authMode === 'cliAuth') {
+            $env = $this->buildEnv();
+            $this->assertCliLogin($binary, $workingDir, $env);
+            return $env;
+        }
+
+        $apiKey = $settings['apiKey'] ?? null;
+        if (!is_string($apiKey) || trim($apiKey) === '') {
+            throw new \InvalidArgumentException('Codex CLI apiKey is required when authMode is apiKey.');
+        }
+
+        return $this->buildEnv(trim($apiKey));
+    }
+
+    private function resolveAuthMode(array $settings): string
+    {
+        $authMode = $settings['authMode'] ?? 'apiKey';
+        if (!is_string($authMode) || trim($authMode) === '') {
+            return 'apiKey';
+        }
+
+        $normalized = strtolower(trim($authMode));
+        return match ($normalized) {
+            'apikey', 'api-key', 'api_key' => 'apiKey',
+            'cliauth', 'cli-auth', 'cli_auth' => 'cliAuth',
+            default => throw new \InvalidArgumentException('Codex CLI authMode must be apiKey or cliAuth.'),
+        };
+    }
+
+    /** @param array<string, string> $env */
+    private function assertCliLogin(string $binary, string $workingDir, array $env): void
+    {
+        $command = $this->buildCommand($binary, ['login', 'status']);
+        [$stdout, $stderr, $exitCode] = $this->runCommand($command, $workingDir, $env, 15);
+        if ($exitCode === 0 || $this->isSuccessfulLoginStatus($stdout, $stderr)) {
+            return;
+        }
+
+        $message = trim($stdout) !== '' ? trim($stdout) : trim($stderr);
+        if ($message === '') {
+            $message = 'Codex CLI is not logged in.';
+        }
+
+        throw new \RuntimeException($message . ' Run "docker compose exec manage codex login --device-auth".');
+    }
+
+    private function isSuccessfulLoginStatus(string $stdout, string $stderr): bool
+    {
+        $output = strtolower(trim($stdout . PHP_EOL . $stderr));
+        if ($output === '') {
+            return false;
+        }
+
+        return str_contains($output, 'logged in') && !str_contains($output, 'not logged in');
     }
 
     private function openLogFile(): string
@@ -340,6 +418,152 @@ final class Integration implements IntegrationHandler, ChatIntegration
         file_put_contents($path, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
     }
 
+    private function consumeProgressChunk(string &$buffer, string $chunk, ?callable $onProgress, bool $flush = false): void
+    {
+        if ($onProgress === null) {
+            return;
+        }
+
+        $buffer .= $chunk;
+        $remainder = '';
+        $lines = preg_split('/\r?\n/', $buffer);
+        if ($lines === false || $lines === []) {
+            return;
+        }
+
+        if ($flush) {
+            $buffer = '';
+        } else {
+            $remainder = array_pop($lines) ?? '';
+            $buffer = $remainder;
+        }
+
+        foreach ($lines as $line) {
+            $this->emitProgressFromLine($line, $onProgress);
+        }
+
+        if ($flush && $remainder !== '') {
+            $this->emitProgressFromLine($remainder, $onProgress);
+        }
+    }
+
+    private function emitProgressFromLine(string $line, callable $onProgress): void
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return;
+        }
+
+        $payload = json_decode($line, true);
+        if (!is_array($payload)) {
+            return;
+        }
+
+        $message = $this->extractProgressMessage($payload);
+        if ($message === '') {
+            return;
+        }
+
+        $this->emitProgress($onProgress, $message);
+    }
+
+    private function emitProgress(?callable $onProgress, string $message): void
+    {
+        if ($onProgress === null) {
+            return;
+        }
+
+        $normalized = trim($message);
+        if ($normalized === '') {
+            return;
+        }
+
+        try {
+            $onProgress($normalized);
+        } catch (\Throwable) {
+            // Progress reporting is best-effort and must not interrupt Codex execution.
+        }
+    }
+
+    private function extractProgressMessage(array $payload): string
+    {
+        $type = isset($payload['type']) && is_string($payload['type']) ? trim($payload['type']) : '';
+        if ($type === 'thread.started') {
+            return 'Starting Codex CLI...';
+        }
+        if ($type === 'turn.started') {
+            return 'Analyzing request...';
+        }
+
+        $item = $payload['item'] ?? null;
+        if (!is_array($item)) {
+            return '';
+        }
+
+        $itemType = isset($item['type']) && is_string($item['type']) ? trim($item['type']) : '';
+        return match ($itemType) {
+            'reasoning' => $this->sanitizeReasoningText($item['text'] ?? null),
+            'todo_list' => $this->describeTodoList($item['items'] ?? null),
+            'agent_message' => 'Preparing response...',
+            default => '',
+        };
+    }
+
+    private function sanitizeReasoningText(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+
+        $lines = preg_split('/\r?\n/', trim($value)) ?: [];
+        $line = '';
+        foreach ($lines as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate !== '') {
+                $line = $candidate;
+                break;
+            }
+        }
+
+        if ($line === '') {
+            return '';
+        }
+
+        $line = preg_replace('/^\*+|\*+$/', '', $line) ?? $line;
+        $line = preg_replace('/`+/', '', $line) ?? $line;
+        $line = trim(preg_replace('/\s+/', ' ', $line) ?? $line);
+
+        if ($line === '') {
+            return '';
+        }
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($line, 0, 160);
+        }
+
+        return substr($line, 0, 160);
+    }
+
+    private function describeTodoList(mixed $items): string
+    {
+        if (!is_array($items)) {
+            return 'Updating plan...';
+        }
+
+        foreach ($items as $item) {
+            if (!is_array($item) || ($item['completed'] ?? false) === true) {
+                continue;
+            }
+
+            $text = $this->sanitizeReasoningText($item['text'] ?? null);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return 'Updating plan...';
+    }
+
     private function buildCommand(string $binary, array $parts): string
     {
         $command = escapeshellcmd(trim($binary));
@@ -350,8 +574,10 @@ final class Integration implements IntegrationHandler, ChatIntegration
         return $command;
     }
 
-    /** @return array{0:string,1:string,2:int} */
-    private function runCommand(string $command, string $workingDir, string $apiKey, int $timeoutSeconds = 30): array
+    /** @param array<string, string> $env
+     *  @return array{0:string,1:string,2:int}
+     */
+    private function runCommand(string $command, string $workingDir, array $env, int $timeoutSeconds = 30): array
     {
         $descriptor = [
             0 => ['pipe', 'r'],
@@ -359,7 +585,6 @@ final class Integration implements IntegrationHandler, ChatIntegration
             2 => ['pipe', 'w'],
         ];
 
-        $env = $this->buildEnv($apiKey);
         $process = proc_open($command, $descriptor, $pipes, $workingDir, $env);
         if (!is_resource($process)) {
             throw new \RuntimeException('Unable to start Codex CLI.');

@@ -11,6 +11,7 @@ import {
   conversationHasPendingResponse,
   markConversationPending,
 } from "../../features/chat/conversation";
+import { getConversationProgress } from "../../features/chat/progress";
 import { createProcessingStatus } from "../../features/chat/processing";
 import { registerModuleChatCleanup } from "../../features/chat/runtime";
 import {
@@ -79,6 +80,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
     const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
+      progress: getConversationProgress(currentConversation),
       isSelected: (message) => isMessageSelected(message),
       onToggle: (message, selected) => {
         const data = ensureDataObject();
@@ -133,6 +135,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
     const shouldScroll = forceScroll || isNearBottom();
     renderCurrentMessages();
     const pending = conversationHasPendingResponse(conversation);
+    const progress = getConversationProgress(conversation);
     updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
 
     if (conversation) {
@@ -154,7 +157,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
     updateJumpVisibility();
 
     if (pending) {
-      processingStatus.start();
+      processingStatus.start(progress?.status ?? "");
       syncRealtimeBindings();
       return;
     }

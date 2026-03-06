@@ -6,14 +6,17 @@ namespace Manage\Application\UseCases;
 
 use Manage\Application\Ports\DocumentRepository;
 use Manage\Domain\Document\Document;
+use Manage\Domain\Integration\IntegrationId;
 
 final class ListAgents
 {
     private DocumentRepository $documents;
+    private EnsureDocumentId $ensureDocumentId;
 
-    public function __construct(DocumentRepository $documents)
+    public function __construct(DocumentRepository $documents, EnsureDocumentId $ensureDocumentId)
     {
         $this->documents = $documents;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -26,10 +29,26 @@ final class ListAgents
                 continue;
             }
 
+            $document = $this->ensureDocumentId->handle($document);
             $wrapper = $document->wrapper();
+            $data = $wrapper->data();
+            if (is_array($data)) {
+                $provider = $data['provider'] ?? null;
+                $providerId = $data['providerId'] ?? null;
+                if (is_string($provider) && trim($provider) !== '' && !IntegrationId::isValid($providerId)) {
+                    $data['providerId'] = IntegrationId::fromName($provider);
+                    $wrapper = $wrapper->withData($data);
+                    $document = $document->withWrapper($wrapper);
+                    $this->documents->save($document);
+                }
+            }
+
             $agents[] = [
                 'id' => $document->id()->encoded(),
+                'uid' => $wrapper->id(),
                 'name' => $wrapper->name(),
+                'provider' => is_array($data ?? null) && is_string($data['provider'] ?? null) ? $data['provider'] : null,
+                'providerId' => is_array($data ?? null) && is_string($data['providerId'] ?? null) ? $data['providerId'] : null,
                 'store' => $document->store(),
                 'path' => $document->path(),
                 'order' => $wrapper->order(),

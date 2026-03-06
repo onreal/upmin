@@ -8,14 +8,17 @@ use Manage\Application\Ports\DocumentRepository;
 use Manage\Domain\Document\Document;
 use Manage\Domain\Document\DocumentId;
 use Manage\Domain\Document\DocumentWrapper;
+use Manage\Application\UseCases\EnsureDocumentId;
 
 final class CreateAgentConversation
 {
     private DocumentRepository $documents;
+    private EnsureDocumentId $ensureDocumentId;
 
-    public function __construct(DocumentRepository $documents)
+    public function __construct(DocumentRepository $documents, EnsureDocumentId $ensureDocumentId)
     {
         $this->documents = $documents;
+        $this->ensureDocumentId = $ensureDocumentId;
     }
 
     /** @return array<string, mixed>|null */
@@ -26,9 +29,14 @@ final class CreateAgentConversation
             return null;
         }
 
+        $agent = $this->ensureDocumentId->handle($agent);
         $agentWrapper = $agent->wrapper();
         if ($agentWrapper->type() !== 'agent' || $agentWrapper->page() !== 'agents' || $agentWrapper->isSection()) {
             return null;
+        }
+        $agentUid = $agentWrapper->id();
+        if ($agentUid === null) {
+            throw new \RuntimeException('Agent id is required.');
         }
 
         $timestamp = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
@@ -54,7 +62,7 @@ final class CreateAgentConversation
             'name' => $agentWrapper->name() . ' · ' . $labelDate,
             'order' => 1,
             'data' => [
-                'agentId' => $agentId->encoded(),
+                'agentId' => $agentUid,
                 'agentName' => $agentWrapper->name(),
                 'userId' => $userId,
                 'createdAt' => $createdAt,
@@ -66,6 +74,7 @@ final class CreateAgentConversation
 
         $document = new Document(DocumentId::fromParts($store, $path), $wrapper, $store, $path);
         $this->documents->save($document);
+        $document = $this->ensureDocumentId->handle($document);
 
         return [
             'id' => $document->id()->encoded(),

@@ -5,7 +5,8 @@
     "data": {
         "agent": {
             "name": "Website Builder",
-            "id": ""
+            "id": "4e36dc80-3bcb-4052-9520-e1e48366d162",
+            "provider": "codex-cli"
         },
         "conversation": {
             "visibility": "private",
@@ -16,6 +17,7 @@
             "target": "chat"
         }
     },
+    "id": "9b8abce9-b246-44e0-8715-84329df1e1af",
     "section": true,
-    "order": 1
+    "order": 3
 }

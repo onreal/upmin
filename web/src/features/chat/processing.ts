@@ -9,6 +9,16 @@ const nextPhrase = (current: string) => {
 export const createProcessingStatus = (setStatus: (message: string) => void) => {
   let timer: number | null = null;
   let current = "";
+  let detail = "";
+
+  const render = () => {
+    if (current === "") {
+      setStatus("");
+      return;
+    }
+
+    setStatus(detail ? `${current} ${detail}` : current);
+  };
 
   const stop = () => {
     if (timer !== null) {
@@ -16,27 +26,37 @@ export const createProcessingStatus = (setStatus: (message: string) => void) => 
       timer = null;
     }
     current = "";
+    detail = "";
     setStatus("");
   };
 
-  const start = () => {
+  const start = (nextDetail = "") => {
+    detail = nextDetail;
     if (timer !== null) {
       if (current === "") {
         current = nextPhrase(current);
       }
-      setStatus(current);
+      render();
       return;
     }
     current = nextPhrase(current);
-    setStatus(current);
+    render();
     timer = window.setInterval(() => {
       current = nextPhrase(current);
-      setStatus(current);
+      render();
     }, ROTATE_MS);
+  };
+
+  const update = (nextDetail = "") => {
+    detail = nextDetail;
+    if (timer !== null) {
+      render();
+    }
   };
 
   return {
     start,
     stop,
+    update,
   };
 };

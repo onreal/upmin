@@ -5,6 +5,7 @@ import {
   fetchLayoutConfig,
   fetchModules,
   fetchNavigation,
+  fetchForms,
   fetchUiConfig,
   type IntegrationSettings,
   type IntegrationSummary,
@@ -15,6 +16,7 @@ import { applyUiConfig, getCurrentTheme, setTheme } from "../ui/theme";
 import { state } from "./state";
 import { renderNavigation } from "./navigation";
 import { renderAgentsMenu } from "../features/agents/menu";
+import { renderFormsMenu } from "../features/forms/menu";
 
 export const loadUiConfig = async () => {
   if (!state.auth) {
@@ -110,6 +112,20 @@ export const loadAgents = async (onSelectAgent: (id: string) => void) => {
   renderAgentsMenu(state.agents, onSelectAgent);
 };
 
+export const loadForms = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const response = await fetchForms(state.auth);
+    state.forms = Array.isArray(response.forms) ? response.forms : [];
+  } catch {
+    state.forms = [];
+  }
+
+  renderFormsMenu(state.forms);
+};
+
 export const refreshNavigation = async (onSelectDocument: (id: string) => void) => {
   if (!state.auth) {
     return;
@@ -118,6 +134,7 @@ export const refreshNavigation = async (onSelectDocument: (id: string) => void) 
     const nav = await fetchNavigation(state.auth);
     state.navigationPages = nav.pages;
     renderNavigation(nav.pages, onSelectDocument);
+    await loadForms();
   } catch (err) {
     alert((err as Error).message);
   }

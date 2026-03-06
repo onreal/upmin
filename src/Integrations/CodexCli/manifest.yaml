@@ -2,6 +2,15 @@ name: "codex-cli"
 description: "Codex CLI"
 supportsModels: true
 fields:
+  - key: "authMode"
+    label: "Authentication mode"
+    type: "select"
+    required: true
+    options:
+      - value: "cliAuth"
+        label: "CLI authentication"
+      - value: "apiKey"
+        label: "API key"
   - key: "binary"
     label: "CLI binary"
     type: "text"
@@ -17,4 +26,4 @@ fields:
   - key: "apiKey"
     label: "API key"
     type: "password"
-    required: true
+    required: false

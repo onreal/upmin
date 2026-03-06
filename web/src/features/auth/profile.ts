@@ -3,6 +3,7 @@ import { state } from "../../app/state";
 import { profileCopy } from "../../app/layout";
 import { isAuthData, isTokenAuth, type EditableUser } from "./utils";
 import { clearAgentState } from "../agents/state";
+import { clearRegisteredIntegrationCleanup } from "../integrations/runtime";
 
 export const renderProfile = async () => {
   const content = document.getElementById("content");
@@ -10,6 +11,7 @@ export const renderProfile = async () => {
     return;
   }
   clearAgentState();
+  clearRegisteredIntegrationCleanup();
 
   const auth = state.auth;
   if (!isTokenAuth(auth) || !auth.user) {

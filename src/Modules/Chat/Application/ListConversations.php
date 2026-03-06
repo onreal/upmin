@@ -16,8 +16,14 @@ final class ListConversations
     }
 
     /** @return array<int, array<string, mixed>> */
-    public function handle(string $moduleKey, string $agentName, string $userId, ?array $settings = null): array
+    public function handle(
+        string $moduleKey,
+        string $agentName,
+        string $userId,
+        ?array $settings = null,
+        ?string $agentId = null
+    ): array
     {
-        return $this->store->list($moduleKey, $agentName, $userId, $settings);
+        return $this->store->list($moduleKey, $agentName, $userId, $settings, $agentId);
     }
 }

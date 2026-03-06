@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Manage\Integrations;
 
+use Manage\Domain\Integration\IntegrationId;
+
 final class IntegrationSettingsStore
 {
     private string $root;
@@ -30,6 +32,11 @@ final class IntegrationSettingsStore
         if (!is_array($payload)) {
             return null;
         }
+        $existingId = $payload['id'] ?? null;
+        if (!IntegrationId::isValid(is_string($existingId) ? $existingId : null)) {
+            $payload['id'] = IntegrationId::fromName($name);
+            $this->writePayload($path, $payload);
+        }
         $data = $payload['data'] ?? null;
         return is_array($data) ? $data : null;
     }
@@ -43,6 +50,7 @@ final class IntegrationSettingsStore
         }
 
         $payload = [
+            'id' => IntegrationId::fromName($name),
             'type' => 'module',
             'page' => 'system',
             'name' => $label,

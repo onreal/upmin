@@ -6,6 +6,7 @@ export type ShellEventHandlers = {
   onShowModules: () => void;
   onShowIntegrations: () => void;
   onShowLogs: () => void;
+  onShowForms: () => void;
   onExportAll: () => void;
   onOpenCreate: () => void;
   onOpenAgentModal: () => void;
@@ -17,6 +18,7 @@ export const initShellEvents = ({
   onShowModules,
   onShowIntegrations,
   onShowLogs,
+  onShowForms,
   onExportAll,
   onOpenCreate,
   onOpenAgentModal,
@@ -76,6 +78,12 @@ export const initShellEvents = ({
   document.getElementById("logs-link")?.addEventListener("click", (event) => {
     event.preventDefault();
     onShowLogs();
+    document.getElementById("private-dropdown")?.classList.remove("is-active");
+  });
+
+  document.getElementById("forms-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    onShowForms();
     document.getElementById("private-dropdown")?.classList.remove("is-active");
   });
 

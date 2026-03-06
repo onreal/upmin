@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Manage\Infrastructure\Agents;
 
 use Manage\Domain\Document\Document;
-use Manage\Domain\Document\DocumentId;
 use Manage\Integrations\Contracts\ChatIntegration;
 use Manage\Integrations\IntegrationRegistry;
 use Manage\Integrations\IntegrationSettingsStore;
@@ -31,14 +30,18 @@ class AgentResponder
     /**
      * @param array<int, array<string, mixed>> $messages
      */
-    public function reply(?string $agentId, string $agentName, array $messages): string
+    public function reply(?string $agentId, string $agentName, array $messages, ?callable $onProgress = null): string
     {
         $agent = $this->resolveAgent($agentId, $agentName);
         if ($agent === null) {
             throw new \InvalidArgumentException('Chat agent not found.');
         }
 
-        $provider = strtolower($agent['provider']);
+        $definition = $this->resolveIntegrationDefinition($agent['providerId'] ?? null, $agent['provider']);
+        if ($definition === null) {
+            throw new \InvalidArgumentException('Chat provider not found.');
+        }
+        $provider = $definition->name();
         $handler = $this->integrations->handler($provider);
         if ($handler === null) {
             throw new \InvalidArgumentException('Chat provider not found.');
@@ -58,28 +61,26 @@ class AgentResponder
             'adminPrompt' => $agent['adminPrompt'],
             'messages' => $this->normalizeMessages($messages),
         ];
+        if ($onProgress !== null) {
+            $payload['onProgress'] = $onProgress;
+        }
 
         return $handler->chat($settings, $payload);
     }
 
-    /** @return array{provider: string, model: string, systemPrompt: string, adminPrompt: string}|null */
+    /** @return array{provider: string, providerId: ?string, model: string, systemPrompt: string, adminPrompt: string}|null */
     private function resolveAgent(?string $agentId, string $agentName): ?array
     {
         $document = null;
 
         if ($agentId !== null) {
-            try {
-                $id = DocumentId::fromEncoded($agentId);
-            } catch (\InvalidArgumentException $exception) {
-                $id = null;
+            $agentId = trim($agentId);
+            if ($agentId !== '' && preg_match(
+                '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
+                $agentId
+            )) {
+                $document = $this->findAgentByUid(strtolower($agentId));
             }
-            if ($id !== null) {
-                $document = $this->documents->get($id);
-            }
-        }
-
-        if ($document === null) {
-            $document = $this->findAgentByName($agentName);
         }
 
         if ($document === null) {
@@ -97,6 +98,7 @@ class AgentResponder
         }
 
         $provider = $data['provider'] ?? null;
+        $providerId = $data['providerId'] ?? null;
         $model = $data['model'] ?? null;
         $systemPrompt = $data['systemPrompt'] ?? null;
         $adminPrompt = $data['adminPrompt'] ?? null;
@@ -116,25 +118,21 @@ class AgentResponder
 
         return [
             'provider' => trim($provider),
+            'providerId' => is_string($providerId) && trim($providerId) !== '' ? strtolower(trim($providerId)) : null,
             'model' => trim($model),
             'systemPrompt' => trim($systemPrompt),
             'adminPrompt' => trim($adminPrompt),
         ];
     }
 
-    private function findAgentByName(string $agentName): ?Document
+    private function findAgentByUid(string $uid): ?Document
     {
-        $needle = strtolower(trim($agentName));
-        if ($needle === '') {
-            return null;
-        }
-
         foreach ($this->documents->listAll() as $document) {
             $wrapper = $document->wrapper();
             if ($wrapper->type() !== 'agent' || $wrapper->page() !== 'agents' || $wrapper->isSection()) {
                 continue;
             }
-            if (strtolower($wrapper->name()) === $needle) {
+            if ($wrapper->id() === $uid) {
                 return $document;
             }
         }
@@ -169,5 +167,24 @@ class AgentResponder
         }
 
         return $normalized;
+    }
+
+    private function resolveIntegrationDefinition(?string $providerId, string $provider): ?\Manage\Domain\Integration\IntegrationDefinition
+    {
+        if (is_string($providerId) && trim($providerId) !== '') {
+            $normalized = strtolower(trim($providerId));
+            foreach ($this->integrations->list() as $definition) {
+                if ($definition->id() === $normalized) {
+                    return $definition;
+                }
+            }
+        }
+
+        $provider = strtolower(trim($provider));
+        if ($provider === '') {
+            return null;
+        }
+
+        return $this->integrations->definition($provider);
     }
 }

@@ -144,6 +144,36 @@
   white-space: pre-wrap;
 }
 
+.app-chat-progress {
+  border: 1px dashed color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
+  border-radius: var(--app-radius-sm);
+  padding: var(--app-gap-sm);
+  background: color-mix(in srgb, var(--app-accent) 8%, var(--app-surface));
+  display: grid;
+  gap: 0.45rem;
+}
+
+.app-chat-progress-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--app-muted);
+}
+
+.app-chat-progress-status {
+  font-weight: 600;
+}
+
+.app-chat-progress-items {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.app-chat-progress-item {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+
 .app-chat-input {
   border-top: 1px solid var(--app-border);
   padding-top: var(--app-gap-sm);

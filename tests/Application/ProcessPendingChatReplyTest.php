@@ -8,6 +8,7 @@ use Manage\Domain\Document\Document;
 use Manage\Domain\Document\DocumentId;
 use Manage\Domain\Document\DocumentWrapper;
 use Manage\Infrastructure\Agents\AgentResponder;
+use Manage\Infrastructure\Conversations\ConversationProgressTracker;
 use Manage\Modules\Chat\Application\ProcessPendingReply;
 use PHPUnit\Framework\TestCase;
 
@@ -37,6 +38,16 @@ final class ProcessPendingChatReplyTest extends TestCase
                             'createdAt' => '2026-03-05T10:15:00+00:00',
                             'updatedAt' => '2026-03-05T10:15:00+00:00',
                             'pendingResponse' => true,
+                            'progress' => [
+                                'status' => 'Queued reply...',
+                                'updatedAt' => '2026-03-05T10:15:00+00:00',
+                                'items' => [
+                                    [
+                                        'message' => 'Queued reply...',
+                                        'createdAt' => '2026-03-05T10:15:00+00:00',
+                                    ],
+                                ],
+                            ],
                             'messages' => [
                                 [
                                     'role' => 'user',
@@ -89,7 +100,8 @@ final class ProcessPendingChatReplyTest extends TestCase
             ->method('reply')
             ->willReturn('Hello back.');
 
-        $useCase = new ProcessPendingReply($repository, $responder, $realtime);
+        $progress = new ConversationProgressTracker($repository, $realtime);
+        $useCase = new ProcessPendingReply($repository, $responder, $realtime, $progress);
         $useCase->handle($conversationId->encoded());
 
         $updated = $repository->get($conversationId);
@@ -100,6 +112,7 @@ final class ProcessPendingChatReplyTest extends TestCase
         $this->assertCount(2, $data['messages']);
         $this->assertSame('assistant', $data['messages'][1]['role']);
         $this->assertSame('Hello back.', $data['messages'][1]['content']);
+        $this->assertArrayNotHasKey('progress', $data);
 
         $this->assertCount(1, $published);
         $this->assertSame('user:user-1', $published[0]['identity']);

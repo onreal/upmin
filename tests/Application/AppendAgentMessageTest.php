@@ -37,6 +37,24 @@ final class AppendAgentMessageTest extends TestCase
         $this->assertSame('assistant', $messages[1]['role']);
         $this->assertSame('Hello back.', $messages[1]['content']);
         $this->assertFalse($result['payload']['data']['pendingResponse']);
+        $this->assertArrayNotHasKey('progress', $result['payload']['data']);
+    }
+
+    public function testAppendsUserMessageAndSeedsProgressState(): void
+    {
+        $conversationId = DocumentId::fromParts('private', 'agents/conversations/assistant-user-1.json');
+        $repository = $this->repositoryWithConversation($conversationId, false);
+        $useCase = new AppendAgentMessage($repository);
+
+        $result = $useCase->handle($conversationId, 'user-1', 'Can you help?');
+
+        $this->assertNotNull($result);
+        $data = $result['payload']['data'];
+        $this->assertTrue($data['pendingResponse']);
+        $this->assertIsArray($data['progress']);
+        $this->assertSame('Queued reply...', $data['progress']['status']);
+        $this->assertCount(1, $data['progress']['items']);
+        $this->assertSame('Queued reply...', $data['progress']['items'][0]['message']);
     }
 
     private function repositoryWithConversation(DocumentId $conversationId, bool $pending): DocumentRepository

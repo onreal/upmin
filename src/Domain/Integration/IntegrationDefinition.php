@@ -6,6 +6,7 @@ namespace Manage\Domain\Integration;
 
 final class IntegrationDefinition
 {
+    private string $id;
     private string $name;
     private string $description;
     /** @var IntegrationField[] */
@@ -15,6 +16,7 @@ final class IntegrationDefinition
 
     /** @param IntegrationField[] $fields */
     private function __construct(
+        string $id,
         string $name,
         string $description,
         array $fields,
@@ -22,6 +24,7 @@ final class IntegrationDefinition
         string $source
     )
     {
+        $this->id = $id;
         $this->name = $name;
         $this->description = $description;
         $this->fields = $fields;
@@ -59,13 +62,21 @@ final class IntegrationDefinition
             throw new \InvalidArgumentException('Integration.supportsModels must be boolean.');
         }
 
+        $id = IntegrationId::fromName(trim($name));
+
         return new self(
+            $id,
             trim($name),
             trim($description),
             $fields,
             $supportsModels,
             $source
         );
+    }
+
+    public function id(): string
+    {
+        return $this->id;
     }
 
     public function name(): string
@@ -97,6 +108,7 @@ final class IntegrationDefinition
     public function toArray(): array
     {
         return [
+            'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
             'fields' => array_map(static fn(IntegrationField $field) => $field->toArray(), $this->fields),
