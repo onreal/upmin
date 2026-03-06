@@ -19,6 +19,6 @@ final class NavigationController
 
     public function __invoke(Request $request): Response
     {
-        return Response::json(['pages' => $this->listNavigation->handle()]);
+        return Response::json($this->listNavigation->handle());
     }
 }

@@ -17,6 +17,7 @@ import { state } from "./state";
 import { renderNavigation } from "./navigation";
 import { renderAgentsMenu } from "../features/agents/menu";
 import { renderFormsMenu } from "../features/forms/menu";
+import { filterAgentsByLanguage, normalizeLanguageValue, resolveNavigationPages } from "./language";
 
 export const loadUiConfig = async () => {
   if (!state.auth) {
@@ -103,10 +104,13 @@ export const loadAgents = async (onSelectAgent: (id: string) => void) => {
   if (!state.auth) {
     return;
   }
+  state.onSelectAgentMenu = onSelectAgent;
   try {
     const response = await fetchAgents(state.auth);
-    state.agents = Array.isArray(response.agents) ? response.agents : [];
+    state.agentsAll = Array.isArray(response.agents) ? response.agents : [];
+    state.agents = filterAgentsByLanguage(state.agentsAll, state.activeLanguage);
   } catch {
+    state.agentsAll = [];
     state.agents = [];
   }
   renderAgentsMenu(state.agents, onSelectAgent);
@@ -132,8 +136,18 @@ export const refreshNavigation = async (onSelectDocument: (id: string) => void) 
   }
   try {
     const nav = await fetchNavigation(state.auth);
-    state.navigationPages = nav.pages;
-    renderNavigation(nav.pages, onSelectDocument);
+    const pages = Array.isArray(nav.pages) ? nav.pages : [];
+    const defaultLanguage = normalizeLanguageValue(nav.defaultLanguage ?? null);
+    state.navigationGroups = pages;
+    state.defaultLanguage = defaultLanguage;
+    const resolved = resolveNavigationPages(pages, defaultLanguage, state.activeLanguage);
+    state.activeLanguage = resolved.activeLanguage;
+    state.navigationPages = resolved.pages;
+    state.agents = filterAgentsByLanguage(state.agentsAll, state.activeLanguage);
+    if (state.onSelectAgentMenu) {
+      renderAgentsMenu(state.agents, state.onSelectAgentMenu);
+    }
+    renderNavigation(resolved.pages, onSelectDocument);
     await loadForms();
   } catch (err) {
     alert((err as Error).message);

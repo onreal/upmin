@@ -9,6 +9,7 @@ import type {
   FormSummary,
   ModuleDefinition,
   NavigationPage,
+  NavigationPageGroup,
   RemoteDocument,
 } from "../api";
 import type { JsonEditorHandle } from "../json-editor";
@@ -26,13 +27,18 @@ export type AppState = {
   currentIntegration: IntegrationSummary | null;
   openIntegrationModalHandler: ((integration: IntegrationSummary) => void) | null;
   agents: AgentSummary[];
+  agentsAll: AgentSummary[];
   logs: LogSummary[];
   forms: FormSummary[];
   navigationPages: NavigationPage[];
+  navigationGroups: NavigationPageGroup[];
+  activeLanguage: string | null;
+  defaultLanguage: string | null;
   moduleSettingsCache: Map<string, Record<string, unknown> | null>;
   currentAgent: RemoteDocument | null;
   currentConversation: RemoteDocument | null;
   returnToDocumentId: string | null;
+  onSelectAgentMenu: ((id: string) => void) | null;
 };
 
 export const state: AppState = {
@@ -47,13 +53,18 @@ export const state: AppState = {
   currentIntegration: null,
   openIntegrationModalHandler: null,
   agents: [],
+  agentsAll: [],
   logs: [],
   forms: [],
   navigationPages: [],
+  navigationGroups: [],
+  activeLanguage: null,
+  defaultLanguage: null,
   moduleSettingsCache: new Map<string, Record<string, unknown> | null>(),
   currentAgent: null,
   currentConversation: null,
   returnToDocumentId: null,
+  onSelectAgentMenu: null,
 };
 
 export const editorRef: DocumentEditorRef = {

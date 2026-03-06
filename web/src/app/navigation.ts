@@ -29,7 +29,12 @@ const renderNavList = (
       const pageItem = document.createElement("li");
       const pageLink = document.createElement("a");
       pageLink.textContent = page.name;
-      if (page.documentId && state.currentDocument?.id === page.documentId) {
+      const currentId = state.currentDocument?.id;
+      const pageMatches =
+        !!currentId &&
+        (page.documentId === currentId ||
+          (page.variants ?? []).some((variant) => variant.id === currentId));
+      if (pageMatches) {
         pageLink.classList.add("is-active");
       }
       pageLink.addEventListener("click", () => {
@@ -48,7 +53,10 @@ const renderNavList = (
           const sectionItem = document.createElement("li");
           const sectionLink = document.createElement("a");
           sectionLink.textContent = section.name;
-          if (state.currentDocument?.id === section.id) {
+          const sectionMatches =
+            !!currentId &&
+            (section.id === currentId || (section.variants ?? []).some((variant) => variant.id === currentId));
+          if (sectionMatches) {
             sectionLink.classList.add("is-active");
           }
           sectionLink.addEventListener("click", () => {

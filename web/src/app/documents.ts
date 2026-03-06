@@ -4,6 +4,7 @@ import { renderLogDocument } from "../views/logs";
 import { renderDocument } from "../views/documents";
 import { renderModulePanel } from "../views/modules";
 import { state, editorRef } from "./state";
+import { findDocumentVariants, normalizeLanguageValue } from "./language";
 import {
   moduleChecklistHtml as buildModuleChecklistHtml,
   normalizeModuleList,
@@ -27,6 +28,17 @@ export const openLoggerSettings = () => {
 
 export const renderDocumentView = (doc: RemoteDocument) => {
   const content = document.getElementById("content");
+  const languageMatch = doc.id ? findDocumentVariants(state.navigationGroups, doc.id) : null;
+  const languageOptions = languageMatch
+    ? {
+        currentLanguage: normalizeLanguageValue(doc.payload.language),
+        options: languageMatch.variants.map((variant) => ({
+          id: variant.id,
+          language: normalizeLanguageValue(variant.language),
+          label: normalizeLanguageValue(variant.language) ?? "default",
+        })),
+      }
+    : null;
 
   if (isCreationsDocument(doc)) {
     clearAgentState();
@@ -51,6 +63,16 @@ export const renderDocumentView = (doc: RemoteDocument) => {
     modules: state.modules,
     agents: state.agents,
     doc,
+    languageOptions: languageOptions
+      ? {
+          ...languageOptions,
+          onSelect: async (id, language) => {
+            state.activeLanguage = language ? language : null;
+            await refreshNavigation(loadDocument);
+            loadDocument(id);
+          },
+        }
+      : null,
     clearAgentState,
     moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected),
     readSelectedModules,

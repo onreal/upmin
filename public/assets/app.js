@@ -212,7 +212,11 @@ var init_navigation = __esm({
   "web/src/api/navigation.ts"() {
     "use strict";
     init_client();
-    fetchNavigation = (auth) => request("/api/navigation", { method: "GET" }, auth);
+    fetchNavigation = (auth) => request(
+      "/api/navigation",
+      { method: "GET" },
+      auth
+    );
   }
 });
 
@@ -511,13 +515,18 @@ var state = {
   currentIntegration: null,
   openIntegrationModalHandler: null,
   agents: [],
+  agentsAll: [],
   logs: [],
   forms: [],
   navigationPages: [],
+  navigationGroups: [],
+  activeLanguage: null,
+  defaultLanguage: null,
   moduleSettingsCache: /* @__PURE__ */ new Map(),
   currentAgent: null,
   currentConversation: null,
-  returnToDocumentId: null
+  returnToDocumentId: null,
+  onSelectAgentMenu: null
 };
 var editorRef = {
   get: () => state.editor,
@@ -2231,7 +2240,9 @@ var renderNavList = (container, pages, mode, onSelectDocument) => {
     const pageItem = document.createElement("li");
     const pageLink = document.createElement("a");
     pageLink.textContent = page.name;
-    if (page.documentId && state.currentDocument?.id === page.documentId) {
+    const currentId = state.currentDocument?.id;
+    const pageMatches = !!currentId && (page.documentId === currentId || (page.variants ?? []).some((variant) => variant.id === currentId));
+    if (pageMatches) {
       pageLink.classList.add("is-active");
     }
     pageLink.addEventListener("click", () => {
@@ -2249,7 +2260,8 @@ var renderNavList = (container, pages, mode, onSelectDocument) => {
         const sectionItem = document.createElement("li");
         const sectionLink = document.createElement("a");
         sectionLink.textContent = section.name;
-        if (state.currentDocument?.id === section.id) {
+        const sectionMatches = !!currentId && (section.id === currentId || (section.variants ?? []).some((variant) => variant.id === currentId));
+        if (sectionMatches) {
           sectionLink.classList.add("is-active");
         }
         sectionLink.addEventListener("click", () => {
@@ -2347,6 +2359,148 @@ var renderFormsMenu = (forms) => {
   link.textContent = "Forms";
 };
 
+// web/src/app/language.ts
+var normalizeLanguage = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+var collectLanguages = (variants) => {
+  const seen = /* @__PURE__ */ new Set();
+  const ordered = [];
+  variants.forEach((variant) => {
+    const lang = normalizeLanguage(variant.language);
+    if (!lang || seen.has(lang)) {
+      return;
+    }
+    seen.add(lang);
+    ordered.push(lang);
+  });
+  return ordered;
+};
+var pickVariant = (variants, language) => {
+  if (!variants.length) {
+    return null;
+  }
+  if (language) {
+    const match = variants.find((variant) => normalizeLanguage(variant.language) === language);
+    if (match) {
+      return match;
+    }
+  }
+  return variants[variants.length - 1];
+};
+var pickFirstLanguage = (groups) => {
+  for (const page of groups) {
+    for (const variant of page.variants) {
+      const lang = normalizeLanguage(variant.language);
+      if (lang) {
+        return lang;
+      }
+    }
+    for (const section of page.sections) {
+      for (const variant of section.variants) {
+        const lang = normalizeLanguage(variant.language);
+        if (lang) {
+          return lang;
+        }
+      }
+    }
+  }
+  return null;
+};
+var resolveNavigationPages = (groups, defaultLanguage, activeLanguage) => {
+  const normalizedDefault = normalizeLanguage(defaultLanguage);
+  const seedLanguage = normalizedDefault ?? activeLanguage ?? pickFirstLanguage(groups);
+  const resolvedLanguage = seedLanguage ?? null;
+  const resolvedPages = groups.map((group) => {
+    const pageVariant = pickVariant(group.variants, resolvedLanguage);
+    const pageLanguages = collectLanguages(group.variants);
+    const resolvedSections = group.sections.map((section) => resolveSection(section, resolvedLanguage)).filter(Boolean);
+    return {
+      page: group.page,
+      name: pageVariant?.name ?? group.page,
+      language: normalizeLanguage(pageVariant?.language),
+      order: pageVariant?.order ?? null,
+      documentId: pageVariant?.id ?? null,
+      store: pageVariant?.store ?? null,
+      path: pageVariant?.path ?? null,
+      position: pageVariant?.position ?? null,
+      languages: pageLanguages,
+      variants: group.variants,
+      sections: resolvedSections
+    };
+  });
+  resolvedPages.sort(compareByOrder);
+  resolvedPages.forEach((page) => {
+    page.sections.sort(compareByOrder);
+  });
+  return {
+    pages: resolvedPages,
+    activeLanguage: resolvedLanguage
+  };
+};
+var resolveSection = (section, language) => {
+  const variant = pickVariant(section.variants, language);
+  if (!variant) {
+    return null;
+  }
+  return {
+    id: variant.id,
+    name: variant.name,
+    language: normalizeLanguage(variant.language),
+    order: variant.order ?? section.order ?? null,
+    store: variant.store ?? "public",
+    path: variant.path ?? "",
+    position: variant.position ?? null,
+    languages: collectLanguages(section.variants),
+    variants: section.variants
+  };
+};
+var findDocumentVariants = (groups, documentId) => {
+  for (const page of groups) {
+    const pageMatch = page.variants.find((variant) => variant.id === documentId);
+    if (pageMatch) {
+      return {
+        variants: page.variants,
+        languages: collectLanguages(page.variants)
+      };
+    }
+    for (const section of page.sections) {
+      const sectionMatch = section.variants.find((variant) => variant.id === documentId);
+      if (sectionMatch) {
+        return {
+          variants: section.variants,
+          languages: collectLanguages(section.variants)
+        };
+      }
+    }
+  }
+  return null;
+};
+var compareByOrder = (a, b) => {
+  const orderA = typeof a.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
+  const orderB = typeof b.order === "number" ? b.order : Number.MAX_SAFE_INTEGER;
+  if (orderA !== orderB) {
+    return orderA - orderB;
+  }
+  return (a.name || "").localeCompare(b.name || "");
+};
+var filterAgentsByLanguage = (agents, language) => {
+  if (!language) {
+    return agents;
+  }
+  const matching = agents.filter((agent) => normalizeLanguage(agent.language) === language);
+  if (matching.length) {
+    return matching;
+  }
+  const untagged = agents.filter((agent) => !normalizeLanguage(agent.language));
+  return untagged.length ? untagged : agents;
+};
+var normalizeLanguageValue = normalizeLanguage;
+
 // web/src/app/loaders.ts
 var loadUiConfig = async () => {
   if (!state.auth) {
@@ -2420,10 +2574,13 @@ var loadAgents = async (onSelectAgent) => {
   if (!state.auth) {
     return;
   }
+  state.onSelectAgentMenu = onSelectAgent;
   try {
     const response = await fetchAgents(state.auth);
-    state.agents = Array.isArray(response.agents) ? response.agents : [];
+    state.agentsAll = Array.isArray(response.agents) ? response.agents : [];
+    state.agents = filterAgentsByLanguage(state.agentsAll, state.activeLanguage);
   } catch {
+    state.agentsAll = [];
     state.agents = [];
   }
   renderAgentsMenu(state.agents, onSelectAgent);
@@ -2446,8 +2603,18 @@ var refreshNavigation = async (onSelectDocument) => {
   }
   try {
     const nav = await fetchNavigation(state.auth);
-    state.navigationPages = nav.pages;
-    renderNavigation(nav.pages, onSelectDocument);
+    const pages = Array.isArray(nav.pages) ? nav.pages : [];
+    const defaultLanguage = normalizeLanguageValue(nav.defaultLanguage ?? null);
+    state.navigationGroups = pages;
+    state.defaultLanguage = defaultLanguage;
+    const resolved = resolveNavigationPages(pages, defaultLanguage, state.activeLanguage);
+    state.activeLanguage = resolved.activeLanguage;
+    state.navigationPages = resolved.pages;
+    state.agents = filterAgentsByLanguage(state.agentsAll, state.activeLanguage);
+    if (state.onSelectAgentMenu) {
+      renderAgentsMenu(state.agents, state.onSelectAgentMenu);
+    }
+    renderNavigation(resolved.pages, onSelectDocument);
     await loadForms();
   } catch (err) {
     alert(err.message);
@@ -5234,6 +5401,7 @@ var renderDocument = ({
   modules,
   agents,
   doc,
+  languageOptions,
   clearAgentState: clearAgentState2,
   moduleChecklistHtml: moduleChecklistHtml2,
   readSelectedModules: readSelectedModules2,
@@ -5277,6 +5445,21 @@ var renderDocument = ({
         </button>
       </div>
     ` : "";
+  const languageMeta = languageOptions && languageOptions.options.length > 1 ? `
+      <div class="field app-doc-language">
+        <label class="label">Language</label>
+        <div class="control">
+          <div class="select">
+            <select id="doc-language-select">
+              ${languageOptions.options.map((option) => {
+    const selected = option.language === languageOptions.currentLanguage ? "selected" : "";
+    return `<option value="${option.id}" ${selected}>${option.label}</option>`;
+  }).join("")}
+            </select>
+          </div>
+        </div>
+      </div>
+    ` : "";
   const bindIdCopy = () => {
     document.querySelectorAll("[data-copy-doc-id]").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -5295,6 +5478,19 @@ var renderDocument = ({
       });
     });
   };
+  const bindLanguageSelect = () => {
+    if (!languageOptions || languageOptions.options.length <= 1) {
+      return;
+    }
+    const select = document.getElementById("doc-language-select");
+    select?.addEventListener("change", () => {
+      const id = select.value;
+      const choice = languageOptions.options.find((option) => option.id === id) ?? null;
+      if (choice) {
+        languageOptions.onSelect(choice.id, choice.language ?? null);
+      }
+    });
+  };
   if (isLogDocument) {
     renderLogDocument2(doc);
     bindIdCopy();
@@ -5308,6 +5504,7 @@ var renderDocument = ({
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">Module settings \xB7 ${doc.store}/${doc.path}</p>
         ${idMeta}
+        ${languageMeta}
       </div>
       <div class="mb-4 buttons">
         ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">Back</button>` : ""}
@@ -5366,6 +5563,7 @@ var renderDocument = ({
       }
     });
     bindIdCopy();
+    bindLanguageSelect();
     return;
   }
   if (isSystemPage) {
@@ -5374,6 +5572,7 @@ var renderDocument = ({
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">${payload.page} \xB7 ${doc.store}/${doc.path}</p>
         ${idMeta}
+        ${languageMeta}
       </div>
       ${isConfigurationPage ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/manage/</strong>.</div>` : ""}
       <div class="mb-4 buttons">
@@ -5424,6 +5623,8 @@ var renderDocument = ({
         alert(err.message);
       }
     });
+    bindIdCopy();
+    bindLanguageSelect();
     return;
   }
   content.innerHTML = `
@@ -5431,6 +5632,7 @@ var renderDocument = ({
       <h1 class="title is-4">${payload.name}</h1>
       <p class="app-muted">${payload.page} \xB7 ${doc.store}/${doc.path}</p>
       ${idMeta}
+      ${languageMeta}
     </div>
     <div class="mb-4 buttons">
       <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
@@ -5512,6 +5714,7 @@ var renderDocument = ({
   }
   void renderModulePanel2(doc);
   bindIdCopy();
+  bindLanguageSelect();
   const moduleInput = document.getElementById("field-modules");
   moduleInput?.addEventListener("change", () => {
     payload.modules = readSelectedModules2(moduleInput);
@@ -6159,6 +6362,15 @@ var openLoggerSettings = () => {
 };
 var renderDocumentView = (doc) => {
   const content = document.getElementById("content");
+  const languageMatch = doc.id ? findDocumentVariants(state.navigationGroups, doc.id) : null;
+  const languageOptions = languageMatch ? {
+    currentLanguage: normalizeLanguageValue(doc.payload.language),
+    options: languageMatch.variants.map((variant) => ({
+      id: variant.id,
+      language: normalizeLanguageValue(variant.language),
+      label: normalizeLanguageValue(variant.language) ?? "default"
+    }))
+  } : null;
   if (isCreationsDocument(doc)) {
     clearAgentState();
     renderCreationsPage({
@@ -6181,6 +6393,14 @@ var renderDocumentView = (doc) => {
     modules: state.modules,
     agents: state.agents,
     doc,
+    languageOptions: languageOptions ? {
+      ...languageOptions,
+      onSelect: async (id, language) => {
+        state.activeLanguage = language ? language : null;
+        await refreshNavigation(loadDocument);
+        loadDocument(id);
+      }
+    } : null,
     clearAgentState,
     moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected),
     readSelectedModules,

@@ -14,6 +14,11 @@ export type DocumentViewContext = {
   modules: ModuleDefinition[];
   agents: AgentSummary[];
   doc: RemoteDocument;
+  languageOptions?: {
+    currentLanguage: string | null;
+    options: Array<{ id: string; label: string; language: string | null }>;
+    onSelect: (id: string, language: string | null) => void;
+  } | null;
   clearAgentState: () => void;
   moduleChecklistHtml: (selected?: string[]) => string;
   readSelectedModules: (container: HTMLElement | null) => string[];
@@ -38,6 +43,7 @@ export const renderDocument = ({
   modules,
   agents,
   doc,
+  languageOptions,
   clearAgentState,
   moduleChecklistHtml,
   readSelectedModules,
@@ -86,6 +92,26 @@ export const renderDocument = ({
     `
     : "";
 
+  const languageMeta = languageOptions && languageOptions.options.length > 1
+    ? `
+      <div class="field app-doc-language">
+        <label class="label">Language</label>
+        <div class="control">
+          <div class="select">
+            <select id="doc-language-select">
+              ${languageOptions.options
+                .map((option) => {
+                  const selected = option.language === languageOptions.currentLanguage ? "selected" : "";
+                  return `<option value="${option.id}" ${selected}>${option.label}</option>`;
+                })
+                .join("")}
+            </select>
+          </div>
+        </div>
+      </div>
+    `
+    : "";
+
   const bindIdCopy = () => {
     document.querySelectorAll<HTMLButtonElement>("[data-copy-doc-id]").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -105,6 +131,20 @@ export const renderDocument = ({
     });
   };
 
+  const bindLanguageSelect = () => {
+    if (!languageOptions || languageOptions.options.length <= 1) {
+      return;
+    }
+    const select = document.getElementById("doc-language-select") as HTMLSelectElement | null;
+    select?.addEventListener("change", () => {
+      const id = select.value;
+      const choice = languageOptions.options.find((option) => option.id === id) ?? null;
+      if (choice) {
+        languageOptions.onSelect(choice.id, choice.language ?? null);
+      }
+    });
+  };
+
   if (isLogDocument) {
     renderLogDocument(doc);
     bindIdCopy();
@@ -119,6 +159,7 @@ export const renderDocument = ({
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">Module settings · ${doc.store}/${doc.path}</p>
         ${idMeta}
+        ${languageMeta}
       </div>
       <div class="mb-4 buttons">
         ${
@@ -191,6 +232,7 @@ export const renderDocument = ({
     });
 
     bindIdCopy();
+    bindLanguageSelect();
     return;
   }
 
@@ -200,6 +242,7 @@ export const renderDocument = ({
         <h1 class="title is-4">${payload.name}</h1>
         <p class="app-muted">${payload.page} · ${doc.store}/${doc.path}</p>
         ${idMeta}
+        ${languageMeta}
       </div>
       ${
         isConfigurationPage
@@ -259,6 +302,9 @@ export const renderDocument = ({
       }
     });
 
+    bindIdCopy();
+    bindLanguageSelect();
+
     return;
   }
 
@@ -267,6 +313,7 @@ export const renderDocument = ({
       <h1 class="title is-4">${payload.name}</h1>
       <p class="app-muted">${payload.page} · ${doc.store}/${doc.path}</p>
       ${idMeta}
+      ${languageMeta}
     </div>
     <div class="mb-4 buttons">
       <button id="save" class="button app-button app-primary">Αποθήκευση</button>
@@ -350,6 +397,7 @@ export const renderDocument = ({
 
   void renderModulePanel(doc);
   bindIdCopy();
+  bindLanguageSelect();
 
   const moduleInput = document.getElementById("field-modules");
   moduleInput?.addEventListener("change", () => {

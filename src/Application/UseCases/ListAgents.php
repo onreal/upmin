@@ -47,6 +47,7 @@ final class ListAgents
                 'id' => $document->id()->encoded(),
                 'uid' => $wrapper->id(),
                 'name' => $wrapper->name(),
+                'language' => $wrapper->language(),
                 'provider' => is_array($data ?? null) && is_string($data['provider'] ?? null) ? $data['provider'] : null,
                 'providerId' => is_array($data ?? null) && is_string($data['providerId'] ?? null) ? $data['providerId'] : null,
                 'store' => $document->store(),

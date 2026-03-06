@@ -11,6 +11,28 @@ export type AuthState =
   | { type: "token"; value: string; user?: AuthUser }
   | null;
 
+export type NavigationVariant = {
+  id: string;
+  name: string;
+  language?: string | null;
+  order?: number | null;
+  store?: string | null;
+  path?: string | null;
+  position?: string | null;
+};
+
+export type NavigationSectionGroup = {
+  key: string;
+  order?: number | null;
+  variants: NavigationVariant[];
+};
+
+export type NavigationPageGroup = {
+  page: string;
+  variants: NavigationVariant[];
+  sections: NavigationSectionGroup[];
+};
+
 export type NavigationPage = {
   page: string;
   name: string;
@@ -20,6 +42,8 @@ export type NavigationPage = {
   store?: string | null;
   path?: string | null;
   position?: string | null;
+  languages?: string[];
+  variants?: NavigationVariant[];
   sections: Array<{
     id: string;
     name: string;
@@ -28,6 +52,8 @@ export type NavigationPage = {
     store: string;
     path: string;
     position?: string | null;
+    languages?: string[];
+    variants?: NavigationVariant[];
   }>;
 };
 
@@ -70,6 +96,7 @@ export type AgentSummary = {
   id: string;
   uid?: string | null;
   name: string;
+  language?: string | null;
   provider?: string | null;
   providerId?: string | null;
   store: string;
