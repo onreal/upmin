@@ -8,7 +8,7 @@
         "authMode": "cliAuth",
         "binary": "codex",
         "args": "--dangerously-bypass-approvals-and-sandbox exec --json --output-last-message {outputFile} --skip-git-repo-check --cd {workingDir} --model {model}",
-        "workingDir": "\/app",
+        "workingDir": "\/app\/build",
         "apiKey": "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",
         "models": [
             "gpt-5.3-codex",

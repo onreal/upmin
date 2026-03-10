@@ -18,10 +18,12 @@ use Manage\Application\UseCases\GetAgentConversation;
 use Manage\Application\UseCases\GetDocument;
 use Manage\Application\UseCases\GetLayoutConfig;
 use Manage\Application\UseCases\ManageCreations;
+use Manage\Application\UseCases\ManageWebsiteBuild;
 use Manage\Application\UseCases\GetUiConfig;
 use Manage\Application\UseCases\EnsureModuleSettings;
 use Manage\Application\UseCases\EnsureFormPages;
 use Manage\Application\UseCases\EnsureDocumentId;
+use Manage\Application\UseCases\FindDocumentByWrapperId;
 use Manage\Application\UseCases\GetIntegrationSettings;
 use Manage\Application\UseCases\ListAgents;
 use Manage\Application\UseCases\ListIntegrations;
@@ -48,6 +50,7 @@ use Manage\Infrastructure\Realtime\RealtimeConfig;
 use Manage\Infrastructure\Realtime\RealtimeTicketService;
 use Manage\Infrastructure\Realtime\SocketRealtimePublisher;
 use Manage\Infrastructure\Creations\CreationStore;
+use Manage\Infrastructure\WebsiteBuild\WebsiteBuildStore;
 use Manage\Infrastructure\Logging\ErrorLogger;
 use Manage\Infrastructure\Logging\LogStore;
 use Manage\Infrastructure\Workers\ReplyWorkerLauncher;
@@ -57,6 +60,7 @@ use Manage\Interface\Http\Controllers\AgentConversationController;
 use Manage\Interface\Http\Controllers\CreationController;
 use Manage\Interface\Http\Controllers\DocumentController;
 use Manage\Interface\Http\Controllers\ExportController;
+use Manage\Interface\Http\Controllers\WebsiteBuildController;
 use Manage\Interface\Http\Controllers\LogController;
 use Manage\Interface\Http\Controllers\FormController;
 use Manage\Interface\Http\Controllers\IntegrationController;
@@ -66,7 +70,7 @@ use Manage\Interface\Http\Controllers\ModuleRequestController;
 use Manage\Interface\Http\Controllers\NavigationController;
 use Manage\Interface\Http\Controllers\RealtimeController;
 use Manage\Interface\Http\Controllers\UiConfigController;
-use Manage\Interface\Http\Controllers\Public\FormSubmissionController;
+use Manage\Interface\Http\Controllers\Public\ModuleRequestController as PublicModuleRequestController;
 use Manage\Interface\Http\Middleware\AuthMiddleware;
 use Manage\Interface\Http\Middleware\PublicAuthMiddleware;
 use Manage\Interface\Http\Routes\AdminRoutes;
@@ -125,6 +129,7 @@ final class App
         $logStore = new LogStore($this->manageRoot);
         $this->errorLogger = new ErrorLogger($this->manageRoot);
         $creationStore = new CreationStore($documentRepository, $this->projectRoot, $this->manageRoot);
+        $websiteBuildStore = new WebsiteBuildStore($this->projectRoot);
         $apiKeyProvider = new EnvApiKeyProvider($this->env);
         $tokenService = new HmacTokenService($this->env);
         $realtimeConfig = new RealtimeConfig($this->env);
@@ -134,6 +139,7 @@ final class App
         $ensureModuleSettings = new EnsureModuleSettings($this->moduleRegistry, $moduleSettingsStore);
         $ensureDocumentId = new EnsureDocumentId($documentRepository);
         $ensureFormPages = new EnsureFormPages($documentRepository, $this->moduleRegistry, $moduleSettingsStore, $ensureDocumentId);
+        $findDocumentByWrapperId = new FindDocumentByWrapperId($documentRepository, $ensureDocumentId);
         $listNavigation = new ListNavigation($documentRepository, $ensureModuleSettings, $ensureFormPages, $ensureDocumentId);
         $listModules = new ListModules($this->moduleRegistry);
         $listIntegrations = new ListIntegrations($integrationRegistry, $integrationSettingsStore, $integrationSyncStatusStore);
@@ -169,6 +175,7 @@ final class App
         $exportAllPayloads = new ExportAllPayloads($documentRepository);
         $getLayoutConfig = new GetLayoutConfig($documentRepository);
         $this->manageCreations = new ManageCreations($creationStore);
+        $manageWebsiteBuild = new ManageWebsiteBuild($websiteBuildStore);
         $getUiConfig = new GetUiConfig($documentRepository);
         $authenticateApiKey = new AuthenticateApiKey($apiKeyProvider);
         $authenticateUser = new AuthenticateUser($userRepository, $hasher, $tokenService);
@@ -194,6 +201,7 @@ final class App
             $tokenService
         );
         $creationController = new CreationController($this->manageCreations);
+        $websiteBuildController = new WebsiteBuildController($manageWebsiteBuild);
         $documentController = new DocumentController($getDocument, $updateDocument, $createDocument, $exportDocument);
         $exportController = new ExportController($exportAllDocuments, $exportAllPayloads);
         $authController = new AuthController($authenticateUser, $authenticateApiKey);
@@ -201,8 +209,14 @@ final class App
         $realtimeController = new RealtimeController($authenticateApiKey, $tokenService, $realtimeTicketService, $realtimeConfig);
         $uiConfigController = new UiConfigController($getUiConfig);
 
-        $submitFormEntry = new SubmitFormEntry($documentRepository, $ensureDocumentId);
-        $publicFormController = new FormSubmissionController($submitFormEntry);
+        $submitFormEntry = new SubmitFormEntry(
+            $documentRepository,
+            $ensureDocumentId,
+            $ensureModuleSettings,
+            $ensureFormPages,
+            $findDocumentByWrapperId
+        );
+        $publicModuleController = new PublicModuleRequestController($submitFormEntry);
 
         $this->authMiddleware = new AuthMiddleware($authenticateApiKey, $tokenService);
 
@@ -224,6 +238,7 @@ final class App
             'forms' => $formController,
             'agents' => $agentController,
             'creations' => $creationController,
+            'websiteBuild' => $websiteBuildController,
             'agentConversations' => $agentConversationController,
             'layout' => $layoutConfigController,
             'realtime' => $realtimeController,
@@ -235,7 +250,7 @@ final class App
         $this->publicRouter = new Router();
         PublicRoutes::register($this->publicRouter, [
             'auth' => $authController,
-            'publicForms' => $publicFormController,
+            'publicModules' => $publicModuleController,
         ], $publicAuthMiddleware);
     }
 

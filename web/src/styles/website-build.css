@@ -1,0 +1,117 @@
+body.app-build-mode .section > .container > .columns > aside {
+  display: none;
+}
+
+body.app-build-mode .section > .container > .columns > .column {
+  width: 100%;
+}
+
+.app-build-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap-lg);
+}
+
+.app-build-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-gap-lg);
+  flex-wrap: wrap;
+}
+
+.app-build-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+}
+
+.app-build-subtitle {
+  margin-top: 0.35rem;
+}
+
+.app-build-tabs {
+  margin-bottom: 0;
+}
+
+.app-build-body {
+  display: block;
+}
+
+.app-build-panel {
+  display: none;
+}
+
+.app-build-panel.is-active {
+  display: block;
+}
+
+.app-build-preview {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  overflow: hidden;
+  background: var(--app-surface);
+  min-height: 65vh;
+}
+
+.app-build-preview-frame {
+  min-height: 65vh;
+}
+
+.app-build-preview-frame.is-hidden {
+  display: none;
+}
+
+.app-build-preview iframe {
+  width: 100%;
+  height: 65vh;
+  border: 0;
+}
+
+.app-build-preview-loading {
+  min-height: 65vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-gap-md);
+  text-align: center;
+  padding: var(--app-gap-lg);
+}
+
+.app-build-preview-copy {
+  max-width: 640px;
+}
+
+.app-build-preview-title {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.app-build-preview-reasoning {
+  color: var(--app-muted);
+}
+
+.app-build-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--app-accent) 20%, transparent);
+  border-top-color: var(--app-accent);
+  animation: app-build-spin 1s linear infinite;
+}
+
+@keyframes app-build-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1023px) {
+  body.app-build-mode .section > .container > .columns {
+    flex-direction: column;
+  }
+}

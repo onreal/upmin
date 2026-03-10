@@ -117,7 +117,7 @@ export const renderFormsView = async ({
     <div class="app-view-header mb-4">
       <div>
         <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
       </div>
     </div>
     <div class="notification is-light">Loading forms...</div>
@@ -137,7 +137,7 @@ export const renderFormsView = async ({
       <div class="app-view-header mb-4">
         <div>
           <h1 class="title is-4">Forms</h1>
-          <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+          <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
         </div>
       </div>
       <div class="notification is-light">No forms found yet.</div>
@@ -151,7 +151,7 @@ export const renderFormsView = async ({
     <div class="app-view-header mb-4">
       <div>
         <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
       </div>
       <div class="app-view-actions">
         <span class="app-muted">${forms.length} total</span>

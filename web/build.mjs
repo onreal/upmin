@@ -19,6 +19,7 @@ const styleFiles = [
   "web/src/styles/editor.css",
   "web/src/styles/chat.css",
   "web/src/styles/creations.css",
+  "web/src/styles/website-build.css",
   "web/src/styles/notifications.css",
 ];
 

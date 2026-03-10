@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Manage\Application\PublicArea;
 
 use Manage\Application\Ports\DocumentRepository;
+use Manage\Application\UseCases\EnsureFormPages;
+use Manage\Application\UseCases\EnsureModuleSettings;
+use Manage\Application\UseCases\FindDocumentByWrapperId;
 use Manage\Domain\Document\Document;
 use Manage\Domain\Document\DocumentId;
 use Manage\Domain\Document\DocumentWrapper;
+use Manage\Domain\Exceptions\NotFoundException;
 use Manage\Modules\ModuleSettingsKey;
 use Manage\Application\UseCases\EnsureDocumentId;
 
@@ -15,25 +19,67 @@ final class SubmitFormEntry
 {
     private DocumentRepository $documents;
     private EnsureDocumentId $ensureDocumentId;
+    private EnsureModuleSettings $ensureModuleSettings;
+    private EnsureFormPages $ensureFormPages;
+    private FindDocumentByWrapperId $findDocument;
     private const MAX_FIELD_CHARS = 2000;
 
-    public function __construct(DocumentRepository $documents, EnsureDocumentId $ensureDocumentId)
+    public function __construct(
+        DocumentRepository $documents,
+        EnsureDocumentId $ensureDocumentId,
+        EnsureModuleSettings $ensureModuleSettings,
+        EnsureFormPages $ensureFormPages,
+        FindDocumentByWrapperId $findDocument
+    )
     {
         $this->documents = $documents;
         $this->ensureDocumentId = $ensureDocumentId;
+        $this->ensureModuleSettings = $ensureModuleSettings;
+        $this->ensureFormPages = $ensureFormPages;
+        $this->findDocument = $findDocument;
     }
 
     /** @return array{document:array,entry:array} */
-    public function handle(string $formId, array $payload, array $actor): array
+    public function handle(string $pageId, array $payload, array $actor): array
     {
-        $formId = trim($formId);
-        if ($formId === '') {
-            throw new \InvalidArgumentException('Form id is required.');
+        $pageId = $this->normalizePageId($pageId);
+        if ($pageId === null) {
+            throw new \InvalidArgumentException('Page id is invalid.');
         }
 
-        $key = $this->normalizeFormKey($formId);
-        if ($key === null) {
-            throw new \InvalidArgumentException('Form id is invalid.');
+        $pageDocument = $this->findDocument->handle($pageId);
+        if ($pageDocument === null) {
+            throw new NotFoundException('Page not found.');
+        }
+
+        $pageDocument = $this->ensureDocumentId->handle($pageDocument);
+        $wrapper = $pageDocument->wrapper();
+        if ($wrapper->type() !== 'page') {
+            throw new NotFoundException('Page not found.');
+        }
+
+        $moduleNames = $wrapper->modules();
+        if (!in_array('form', $moduleNames, true)) {
+            throw new NotFoundException('Form module not found.');
+        }
+
+        $this->ensureModuleSettings->handle($wrapper);
+        $this->ensureFormPages->handle($pageDocument);
+
+        $settingsKey = ModuleSettingsKey::forDocument($wrapper, 'form');
+        if ($settingsKey === '') {
+            throw new NotFoundException('Form settings not found.');
+        }
+
+        $settingsDocument = $this->loadSettingsDocument($settingsKey);
+        if ($settingsDocument === null) {
+            throw new NotFoundException('Form settings not found.');
+        }
+        $settingsDocument = $this->ensureDocumentId->handle($settingsDocument);
+        $settingsWrapper = $settingsDocument->wrapper();
+        $settingsId = $settingsWrapper->id();
+        if (!is_string($settingsId) || trim($settingsId) === '') {
+            throw new NotFoundException('Form settings not found.');
         }
 
         $entryData = $payload['entry'] ?? null;
@@ -52,7 +98,15 @@ final class SubmitFormEntry
             throw new \InvalidArgumentException('Name must be a string.');
         }
 
-        $path = 'system/forms/' . $key . '.json';
+        $settingsData = $settingsWrapper->data();
+        if (!is_array($settingsData)) {
+            $settingsData = [];
+        }
+
+        $label = $this->resolveLabel($wrapper, $settingsData, $name);
+        $normalizedSettings = $this->normalizeSettings($settingsData, $label);
+
+        $path = 'system/forms/submissions/' . $settingsId . '-' . $pageId . '.json';
         $id = DocumentId::fromParts('private', $path);
         $document = $this->documents->get($id);
         $now = (new \DateTimeImmutable())->format(DATE_ATOM);
@@ -71,12 +125,17 @@ final class SubmitFormEntry
             $wrapper = DocumentWrapper::fromArray([
                 'type' => 'page',
                 'page' => 'system',
-                'name' => $name && trim($name) !== '' ? trim($name) : ('Form: ' . $formId),
+                'name' => 'Form: ' . $label,
                 'order' => 0,
                 'section' => false,
                 'position' => 'system',
                 'data' => [
-                    'formId' => $key,
+                    'formSettingsId' => $settingsId,
+                    'pageId' => $pageId,
+                    'settingsKey' => $settingsKey,
+                    'label' => $label,
+                    'settings' => $normalizedSettings,
+                    'source' => $this->sourcePayload($pageDocument),
                     'properties' => $properties,
                     'entries' => [$entry],
                     'createdAt' => $now,
@@ -100,9 +159,12 @@ final class SubmitFormEntry
             $data = [];
         }
 
-        if (!isset($data['formId'])) {
-            $data['formId'] = $key;
-        }
+        $data['formSettingsId'] = $settingsId;
+        $data['pageId'] = $pageId;
+        $data['settingsKey'] = $settingsKey;
+        $data['label'] = $label;
+        $data['settings'] = $normalizedSettings;
+        $data['source'] = $this->sourcePayload($pageDocument);
         if (!isset($data['properties']) && $properties !== null) {
             $data['properties'] = $properties;
         }
@@ -158,19 +220,66 @@ final class SubmitFormEntry
         }
     }
 
-    private function normalizeFormKey(string $value): ?string
+    private function normalizePageId(string $value): ?string
     {
-        $normalized = ModuleSettingsKey::normalizeKey($value);
-        if ($normalized === null) {
+        $normalized = trim($value);
+        if ($normalized === '') {
             return null;
         }
         if (!preg_match(
-            '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-[a-z0-9-]+$/i',
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
             $normalized
         )) {
             return null;
         }
 
         return $normalized;
+    }
+
+    private function resolveLabel(DocumentWrapper $wrapper, array $settings, ?string $override): string
+    {
+        if (is_string($override) && trim($override) !== '') {
+            return trim($override);
+        }
+        $name = $settings['name'] ?? null;
+        if (is_string($name) && trim($name) !== '') {
+            return trim($name);
+        }
+
+        return $wrapper->name() . ' - form';
+    }
+
+    /** @return array{name: string, sendadminemail: bool, senduseremail: bool, captcha: bool} */
+    private function normalizeSettings(array $settings, string $label): array
+    {
+        return [
+            'name' => $label,
+            'sendadminemail' => ($settings['sendadminemail'] ?? false) === true,
+            'senduseremail' => ($settings['senduseremail'] ?? false) === true,
+            'captcha' => ($settings['captcha'] ?? false) === true,
+        ];
+    }
+
+    private function loadSettingsDocument(string $settingsKey): ?Document
+    {
+        $path = 'modules/' . $settingsKey . '.json';
+        $id = DocumentId::fromParts('private', $path);
+        return $this->documents->get($id);
+    }
+
+    /** @return array<string, mixed> */
+    private function sourcePayload(Document $document): array
+    {
+        $wrapper = $document->wrapper();
+
+        return [
+            'documentUid' => $wrapper->id(),
+            'documentId' => $document->id()->encoded(),
+            'store' => $document->store(),
+            'path' => $document->path(),
+            'page' => $wrapper->page(),
+            'name' => $wrapper->name(),
+            'section' => $wrapper->isSection(),
+        ];
     }
 }

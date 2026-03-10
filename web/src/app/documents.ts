@@ -14,6 +14,7 @@ import {
 import { ensureModuleSettingsDocument, fetchModuleSettings } from "../features/modules/settings";
 import { clearAgentState } from "../features/agents/state";
 import { isCreationsDocument, renderCreationsPage } from "../features/creations/controller";
+import { isWebsiteBuildDocument, renderWebsiteBuildPage } from "../features/website-build/controller";
 import { clearRegisteredIntegrationCleanup } from "../features/integrations/runtime";
 import { encodeDocumentId } from "../utils";
 import { refreshNavigation } from "./loaders";
@@ -28,6 +29,8 @@ export const openLoggerSettings = () => {
 
 export const renderDocumentView = (doc: RemoteDocument) => {
   const content = document.getElementById("content");
+  const isWebsiteBuild = isWebsiteBuildDocument(doc);
+  document.body?.classList.toggle("app-build-mode", isWebsiteBuild);
   const languageMatch = doc.id ? findDocumentVariants(state.navigationGroups, doc.id) : null;
   const languageOptions = languageMatch
     ? {
@@ -39,6 +42,36 @@ export const renderDocumentView = (doc: RemoteDocument) => {
         })),
       }
     : null;
+
+  if (isWebsiteBuild) {
+    clearAgentState();
+    editorRef.set(null);
+    renderWebsiteBuildPage({
+      content,
+      auth: state.auth,
+      doc,
+      renderModulePanel: (moduleDoc) =>
+        renderModulePanel({
+          auth: state.auth,
+          doc: moduleDoc,
+          editor: null,
+          normalizeModuleList,
+          fetchModuleSettings: (moduleName, payload) =>
+            fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
+          findModuleDefinition: (name) => findDefinition(state.modules, name),
+          ensureModuleSettingsDocument: (module, payload) =>
+            ensureModuleSettingsDocument(state.auth, payload, module, state.moduleSettingsCache),
+          openModuleSettings: (settingsId) => {
+            if (!moduleDoc?.id) {
+              return;
+            }
+            state.returnToDocumentId = moduleDoc.id;
+            loadDocument(settingsId);
+          },
+        }),
+    });
+    return;
+  }
 
   if (isCreationsDocument(doc)) {
     clearAgentState();

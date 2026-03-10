@@ -1,6 +1,5 @@
 import type { ModuleRenderContext } from "../types";
 import { isRecord } from "../../utils";
-import { moduleSettingsKey } from "../utils";
 
 const resolveLabel = (settings: Record<string, unknown> | null, fallback: string) => {
   const name = settings?.name;
@@ -17,7 +16,7 @@ const resolveFlag = (settings: Record<string, unknown> | null, key: string) => {
 export const renderFormModule = (panel: HTMLElement, context: ModuleRenderContext) => {
   const settings = isRecord(context.settings) ? context.settings : null;
   const label = resolveLabel(settings, context.payload.name);
-  const formId = moduleSettingsKey(context.payload, context.module.name);
+  const pageId = typeof context.payload.id === "string" ? context.payload.id : "";
 
   const wrapper = document.createElement("div");
   wrapper.className = "app-module";
@@ -39,7 +38,7 @@ export const renderFormModule = (panel: HTMLElement, context: ModuleRenderContex
     <div class="app-module-header">
       <div>
         <h3 class="title is-6">${label}</h3>
-        <p class="app-muted">Form id: <code>${formId}</code></p>
+        <p class="app-muted">Form page id: <code>${pageId || "missing"}</code></p>
       </div>
       <div class="buttons">
         <button class="button app-button app-ghost" data-form-settings>Settings</button>

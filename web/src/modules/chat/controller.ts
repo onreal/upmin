@@ -11,7 +11,7 @@ import {
   conversationHasPendingResponse,
   markConversationPending,
 } from "../../features/chat/conversation";
-import { getConversationProgress } from "../../features/chat/progress";
+import { getConversationProgress, type ConversationProgress } from "../../features/chat/progress";
 import { createProcessingStatus } from "../../features/chat/processing";
 import { registerModuleChatCleanup } from "../../features/chat/runtime";
 import {
@@ -129,6 +129,27 @@ export const mountChatController = (runtime: ChatRuntime) => {
     disposeRealtimeStatus = null;
   };
 
+  const emitProgress = (
+    conversation: RemoteDocument | null,
+    pending: boolean,
+    progress: ConversationProgress | null
+  ) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("app:chat-progress", {
+        detail: {
+          moduleName: runtime.moduleName,
+          settingsKey: runtime.settingsKey,
+          conversationId: conversation?.id ?? null,
+          pending,
+          progress,
+        },
+      })
+    );
+  };
+
   const syncConversation = (conversation: RemoteDocument | null, forceScroll = false) => {
     currentConversation = conversation;
     updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
@@ -136,6 +157,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
     renderCurrentMessages();
     const pending = conversationHasPendingResponse(conversation);
     const progress = getConversationProgress(conversation);
+    emitProgress(conversation, pending, progress);
     updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
 
     if (conversation) {

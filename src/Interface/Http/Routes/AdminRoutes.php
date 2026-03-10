@@ -30,6 +30,8 @@ final class AdminRoutes
         $router->add('DELETE', '/api/creations/{id}', [$controllers['creations'], 'delete']);
         $router->add('GET', '/api/creations/{id}/download', [$controllers['creations'], 'download']);
         $router->add('GET', '/api/creations/{id}/image', [$controllers['creations'], 'image']);
+        $router->add('POST', '/api/website-build/publish', [$controllers['websiteBuild'], 'publish']);
+        $router->add('POST', '/api/website-build/clean', [$controllers['websiteBuild'], 'clean']);
         $router->add('GET', '/api/agents/{id}/conversations', [$controllers['agentConversations'], 'index']);
         $router->add('POST', '/api/agents/{id}/conversations', [$controllers['agentConversations'], 'create']);
         $router->add('GET', '/api/agents/conversations/{id}', [$controllers['agentConversations'], 'show']);

@@ -15,7 +15,7 @@ use Manage\Modules\ModuleSettingsStore;
 final class EnsureFormPages
 {
     private const MODULE_NAME = 'form';
-    private const FORMS_ROOT = 'system/forms';
+    private const FORMS_ROOT = 'system/forms/submissions';
 
     private DocumentRepository $documents;
     private ModuleRegistry $modules;
@@ -37,6 +37,7 @@ final class EnsureFormPages
 
     public function handle(Document $document): void
     {
+        $document = $this->ensureDocumentId->handle($document);
         $wrapper = $document->wrapper();
         if ($wrapper->type() !== 'page') {
             return;
@@ -54,15 +55,43 @@ final class EnsureFormPages
         if ($settingsKey === '') {
             return;
         }
+
+        $definition = $this->modules->definition(self::MODULE_NAME);
+        if ($definition === null) {
+            return;
+        }
+
         $settings = $this->settings->read($settingsKey);
         if (!is_array($settings)) {
             $settings = [];
         }
 
+        $this->settings->ensureDefaults(
+            $settingsKey,
+            array_merge($definition->parameters(), ['name' => $wrapper->name() . ' - form']),
+            $wrapper->name() . ' · ' . $definition->name()
+        );
+
+        $settingsDocument = $this->loadSettingsDocument($settingsKey);
+        if ($settingsDocument === null) {
+            return;
+        }
+        $settingsDocument = $this->ensureDocumentId->handle($settingsDocument);
+        $settingsWrapper = $settingsDocument->wrapper();
+        $settingsId = $settingsWrapper->id();
+        if (!is_string($settingsId) || trim($settingsId) === '') {
+            return;
+        }
+
+        $pageId = $wrapper->id();
+        if (!is_string($pageId) || trim($pageId) === '') {
+            return;
+        }
+
         $label = $this->resolveLabel($wrapper, $settings);
         $normalizedSettings = $this->normalizeSettings($settings, $label);
 
-        $path = self::FORMS_ROOT . '/' . $settingsKey . '.json';
+        $path = self::FORMS_ROOT . '/' . $settingsId . '-' . $pageId . '.json';
         $id = DocumentId::fromParts('private', $path);
         $existing = $this->documents->get($id);
 
@@ -77,7 +106,8 @@ final class EnsureFormPages
                 'section' => false,
                 'position' => 'system',
                 'data' => [
-                    'formId' => $settingsKey,
+                    'formSettingsId' => $settingsId,
+                    'pageId' => $pageId,
                     'label' => $label,
                     'settingsKey' => $settingsKey,
                     'settings' => $normalizedSettings,
@@ -110,7 +140,8 @@ final class EnsureFormPages
         $updatedAt = is_string($existingData['updatedAt'] ?? null) ? $existingData['updatedAt'] : $now;
 
         $nextData = $existingData;
-        $nextData['formId'] = $settingsKey;
+        $nextData['formSettingsId'] = $settingsId;
+        $nextData['pageId'] = $pageId;
         $nextData['label'] = $label;
         $nextData['settingsKey'] = $settingsKey;
         $nextData['settings'] = $normalizedSettings;
@@ -178,5 +209,12 @@ final class EnsureFormPages
             'name' => $wrapper->name(),
             'section' => $wrapper->isSection(),
         ];
+    }
+
+    private function loadSettingsDocument(string $settingsKey): ?Document
+    {
+        $path = 'modules/' . $settingsKey . '.json';
+        $id = DocumentId::fromParts('private', $path);
+        return $this->documents->get($id);
     }
 }

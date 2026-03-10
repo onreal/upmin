@@ -97,6 +97,7 @@ export const renderModuleSettingsForm = ({
   let agentIdInput: HTMLInputElement | null = null;
   let agentProviderInput: HTMLInputElement | null = null;
   let pendingAgentId = "";
+  let pendingAgentProvider = "";
 
   const renderField = (
     parent: HTMLElement,
@@ -160,9 +161,9 @@ export const renderModuleSettingsForm = ({
           return;
         }
         const selected = agentsByName.get(select.value);
-        agentIdInput.value = selected?.uid ?? "";
+        agentIdInput.value = selected?.uid ?? pendingAgentId;
         if (agentProviderInput) {
-          agentProviderInput.value = selected?.provider ?? "";
+          agentProviderInput.value = selected?.provider ?? pendingAgentProvider;
         }
       });
       const selectWrapper = document.createElement("div");
@@ -198,6 +199,7 @@ export const renderModuleSettingsForm = ({
       input.value = typeof currentValue === "string" ? currentValue : "";
       input.readOnly = true;
       agentProviderInput = input;
+      pendingAgentProvider = input.value;
       control.append(input);
       field.append(control);
       parent.append(field);
@@ -304,14 +306,21 @@ export const renderModuleSettingsForm = ({
     }
     if (linkedAgentNameSelect.value) {
       const match = agentsByName.get(linkedAgentNameSelect.value);
-      linkedAgentIdInput.value = match?.uid ?? "";
-      if (linkedAgentProviderInput) {
-        linkedAgentProviderInput.value = match?.provider ?? "";
+      if (match) {
+        linkedAgentIdInput.value = match?.uid ?? "";
+        if (linkedAgentProviderInput) {
+          linkedAgentProviderInput.value = match?.provider ?? "";
+        }
+      } else {
+        linkedAgentIdInput.value = pendingAgentId;
+        if (linkedAgentProviderInput) {
+          linkedAgentProviderInput.value = pendingAgentProvider;
+        }
       }
     } else {
-      linkedAgentIdInput.value = "";
+      linkedAgentIdInput.value = pendingAgentId;
       if (linkedAgentProviderInput) {
-        linkedAgentProviderInput.value = "";
+        linkedAgentProviderInput.value = pendingAgentProvider;
       }
     }
   }

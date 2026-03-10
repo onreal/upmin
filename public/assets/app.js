@@ -419,6 +419,17 @@ var init_creations = __esm({
   }
 });
 
+// web/src/api/website-build.ts
+var publishWebsiteBuild, cleanWebsiteBuild;
+var init_website_build = __esm({
+  "web/src/api/website-build.ts"() {
+    "use strict";
+    init_client();
+    publishWebsiteBuild = (auth) => request("/api/website-build/publish", { method: "POST" }, auth);
+    cleanWebsiteBuild = (auth) => request("/api/website-build/clean", { method: "POST" }, auth);
+  }
+});
+
 // web/src/api/realtime.ts
 var fetchRealtimeTicket;
 var init_realtime = __esm({
@@ -434,6 +445,7 @@ var api_exports = {};
 __export(api_exports, {
   appendAgentMessage: () => appendAgentMessage,
   appendChatMessage: () => appendChatMessage,
+  cleanWebsiteBuild: () => cleanWebsiteBuild,
   clearWebsiteWithSnapshot: () => clearWebsiteWithSnapshot,
   createAgent: () => createAgent,
   createAgentConversation: () => createAgentConversation,
@@ -466,6 +478,7 @@ __export(api_exports, {
   loadAuth: () => loadAuth,
   loginWithApiKey: () => loginWithApiKey,
   loginWithPassword: () => loginWithPassword,
+  publishWebsiteBuild: () => publishWebsiteBuild,
   request: () => request,
   requestAsset: () => requestAsset,
   requestBlob: () => requestBlob,
@@ -494,6 +507,7 @@ var init_api = __esm({
     init_forms();
     init_agents();
     init_creations();
+    init_website_build();
     init_realtime();
   }
 });
@@ -3589,6 +3603,22 @@ var mountChatController = (runtime) => {
     disposeRealtime = null;
     disposeRealtimeStatus = null;
   };
+  const emitProgress = (conversation, pending, progress) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("app:chat-progress", {
+        detail: {
+          moduleName: runtime.moduleName,
+          settingsKey: runtime.settingsKey,
+          conversationId: conversation?.id ?? null,
+          pending,
+          progress
+        }
+      })
+    );
+  };
   const syncConversation = (conversation, forceScroll = false) => {
     currentConversation = conversation;
     updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
@@ -3596,6 +3626,7 @@ var mountChatController = (runtime) => {
     renderCurrentMessages();
     const pending = conversationHasPendingResponse(conversation);
     const progress = getConversationProgress(conversation);
+    emitProgress(conversation, pending, progress);
     updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
     if (conversation) {
       runtime.dom.select.value = conversation.id;
@@ -3901,7 +3932,7 @@ var resolveFlag = (settings, key) => {
 var renderFormModule = (panel, context) => {
   const settings = isRecord(context.settings) ? context.settings : null;
   const label = resolveLabel(settings, context.payload.name);
-  const formId = moduleSettingsKey(context.payload, context.module.name);
+  const pageId = typeof context.payload.id === "string" ? context.payload.id : "";
   const wrapper = document.createElement("div");
   wrapper.className = "app-module";
   const flags = [
@@ -3917,7 +3948,7 @@ var renderFormModule = (panel, context) => {
     <div class="app-module-header">
       <div>
         <h3 class="title is-6">${label}</h3>
-        <p class="app-muted">Form id: <code>${formId}</code></p>
+        <p class="app-muted">Form page id: <code>${pageId || "missing"}</code></p>
       </div>
       <div class="buttons">
         <button class="button app-button app-ghost" data-form-settings>Settings</button>
@@ -4810,7 +4841,7 @@ var renderFormsView = async ({
     <div class="app-view-header mb-4">
       <div>
         <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
       </div>
     </div>
     <div class="notification is-light">Loading forms...</div>
@@ -4828,7 +4859,7 @@ var renderFormsView = async ({
       <div class="app-view-header mb-4">
         <div>
           <h1 class="title is-4">Forms</h1>
-          <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+          <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
         </div>
       </div>
       <div class="notification is-light">No forms found yet.</div>
@@ -4840,7 +4871,7 @@ var renderFormsView = async ({
     <div class="app-view-header mb-4">
       <div>
         <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms.</p>
+        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
       </div>
       <div class="app-view-actions">
         <span class="app-muted">${forms.length} total</span>
@@ -5182,6 +5213,7 @@ var renderModuleSettingsForm = ({
   let agentIdInput = null;
   let agentProviderInput = null;
   let pendingAgentId = "";
+  let pendingAgentProvider = "";
   const renderField = (parent, path, defaultValue, currentValue) => {
     const field = document.createElement("div");
     field.className = "field";
@@ -5235,9 +5267,9 @@ var renderModuleSettingsForm = ({
           return;
         }
         const selected = agentsByName.get(select.value);
-        agentIdInput.value = selected?.uid ?? "";
+        agentIdInput.value = selected?.uid ?? pendingAgentId;
         if (agentProviderInput) {
-          agentProviderInput.value = selected?.provider ?? "";
+          agentProviderInput.value = selected?.provider ?? pendingAgentProvider;
         }
       });
       const selectWrapper = document.createElement("div");
@@ -5271,6 +5303,7 @@ var renderModuleSettingsForm = ({
       input2.value = typeof currentValue === "string" ? currentValue : "";
       input2.readOnly = true;
       agentProviderInput = input2;
+      pendingAgentProvider = input2.value;
       control.append(input2);
       field.append(control);
       parent.append(field);
@@ -5353,14 +5386,21 @@ var renderModuleSettingsForm = ({
     }
     if (linkedAgentNameSelect.value) {
       const match = agentsByName.get(linkedAgentNameSelect.value);
-      linkedAgentIdInput.value = match?.uid ?? "";
-      if (linkedAgentProviderInput) {
-        linkedAgentProviderInput.value = match?.provider ?? "";
+      if (match) {
+        linkedAgentIdInput.value = match?.uid ?? "";
+        if (linkedAgentProviderInput) {
+          linkedAgentProviderInput.value = match?.provider ?? "";
+        }
+      } else {
+        linkedAgentIdInput.value = pendingAgentId;
+        if (linkedAgentProviderInput) {
+          linkedAgentProviderInput.value = pendingAgentProvider;
+        }
       }
     } else {
-      linkedAgentIdInput.value = "";
+      linkedAgentIdInput.value = pendingAgentId;
       if (linkedAgentProviderInput) {
-        linkedAgentProviderInput.value = "";
+        linkedAgentProviderInput.value = pendingAgentProvider;
       }
     }
   }
@@ -6352,6 +6392,216 @@ var renderCreationsPage = ({
   });
 };
 
+// web/src/features/website-build/controller.ts
+init_api();
+
+// web/src/views/website-build.ts
+var escapeHtml3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var runButtonAction2 = async (button, pendingLabel, action) => {
+  const originalLabel = button.textContent ?? pendingLabel;
+  button.disabled = true;
+  button.textContent = pendingLabel;
+  try {
+    await action();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+};
+var renderWebsiteBuildView = ({
+  content,
+  doc,
+  onVisit,
+  onPublish,
+  onClean,
+  onTabChange
+}) => {
+  if (!content) {
+    return;
+  }
+  content.innerHTML = `
+    <section class="app-build-shell">
+      <div class="app-build-header">
+        <div>
+          <p class="app-build-kicker app-muted">System page</p>
+          <h1 class="title is-4">${escapeHtml3(doc.payload.name)}</h1>
+          <p class="app-muted app-build-subtitle">Chat with the builder and preview the output.</p>
+        </div>
+        <div class="app-build-actions buttons">
+          <button id="build-visit" class="button app-button app-ghost">Visit</button>
+          <button id="build-publish" class="button app-button app-primary">Publish</button>
+          <button id="build-clean" class="button app-button app-danger">Clean</button>
+        </div>
+      </div>
+      <div class="tabs is-toggle is-small app-build-tabs">
+        <ul>
+          <li class="is-active"><a data-build-tab="chat">Chat</a></li>
+          <li><a data-build-tab="preview">Preview</a></li>
+        </ul>
+      </div>
+      <div class="app-build-body">
+        <div id="build-chat" class="app-build-panel is-active">
+          <div id="module-panel"></div>
+        </div>
+        <div id="build-preview" class="app-build-panel">
+          <div class="app-build-preview">
+            <div id="build-preview-loading" class="app-build-preview-loading is-hidden">
+              <div class="app-build-spinner" aria-hidden="true"></div>
+              <div class="app-build-preview-copy">
+                <div class="app-build-preview-title">Codex is working</div>
+                <div id="build-preview-reasoning" class="app-build-preview-reasoning">Waiting for updates...</div>
+              </div>
+            </div>
+            <div id="build-preview-frame" class="app-build-preview-frame">
+              <iframe id="build-preview-iframe" title="Build preview"></iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+  const visitButton = document.getElementById("build-visit");
+  const publishButton = document.getElementById("build-publish");
+  const cleanButton = document.getElementById("build-clean");
+  visitButton?.addEventListener("click", onVisit);
+  publishButton?.addEventListener("click", () => {
+    if (!publishButton) {
+      return;
+    }
+    void runButtonAction2(publishButton, "Publishing...", onPublish);
+  });
+  cleanButton?.addEventListener("click", () => {
+    if (!cleanButton) {
+      return;
+    }
+    void runButtonAction2(cleanButton, "Cleaning...", onClean);
+  });
+  const tabLinks = Array.from(content.querySelectorAll("[data-build-tab]"));
+  const panels = {
+    chat: document.getElementById("build-chat"),
+    preview: document.getElementById("build-preview")
+  };
+  const activate = (tab) => {
+    tabLinks.forEach((link) => {
+      const parent = link.closest("li");
+      if (!parent) {
+        return;
+      }
+      parent.classList.toggle("is-active", link.dataset.buildTab === tab);
+    });
+    Object.entries(panels).forEach(([key, panel]) => {
+      panel?.classList.toggle("is-active", key === tab);
+    });
+    onTabChange?.(tab);
+  };
+  tabLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const tab = link.dataset.buildTab === "preview" ? "preview" : "chat";
+      activate(tab);
+    });
+  });
+};
+
+// web/src/features/website-build/controller.ts
+var isWebsiteBuildDocument = (doc) => doc.store === "private" && doc.path === "website-build.json";
+var disposeProgressListener = null;
+var renderWebsiteBuildPage = ({
+  content,
+  auth,
+  doc,
+  renderModulePanel: renderModulePanel2
+}) => {
+  const buildUrl = `${window.location.origin}/build/`;
+  const settingsKey = moduleSettingsKey(doc.payload, "chat");
+  renderWebsiteBuildView({
+    content,
+    doc,
+    onVisit: () => {
+      window.open(buildUrl, "_blank", "noopener");
+    },
+    onPublish: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        await publishWebsiteBuild(auth);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onClean: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        await cleanWebsiteBuild(auth);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onTabChange: (tab) => {
+      if (tab === "preview") {
+        refreshPreviewIfReady();
+      }
+    }
+  });
+  const previewLoading = document.getElementById("build-preview-loading");
+  const previewReasoning = document.getElementById("build-preview-reasoning");
+  const previewFrameWrap = document.getElementById("build-preview-frame");
+  const previewIframe = document.getElementById("build-preview-iframe");
+  const previewPanel = document.getElementById("build-preview");
+  const refreshPreview = () => {
+    if (!previewIframe) {
+      return;
+    }
+    const cacheBuster = `cb=${Date.now()}`;
+    previewIframe.src = buildUrl.includes("?") ? `${buildUrl}&${cacheBuster}` : `${buildUrl}?${cacheBuster}`;
+  };
+  const refreshPreviewIfReady = () => {
+    if (!previewPanel?.classList.contains("is-active")) {
+      return;
+    }
+    if (previewLoading?.classList.contains("is-hidden")) {
+      refreshPreview();
+    }
+  };
+  const setPreviewPending = (pending, progress) => {
+    if (previewLoading) {
+      previewLoading.classList.toggle("is-hidden", !pending);
+    }
+    if (previewFrameWrap) {
+      previewFrameWrap.classList.toggle("is-hidden", pending);
+    }
+    if (previewReasoning) {
+      const latestItem = progress?.items?.[progress.items.length - 1]?.message;
+      const message = progress?.status || latestItem || "Working...";
+      previewReasoning.textContent = pending ? message : "Ready.";
+    }
+    if (!pending) {
+      refreshPreviewIfReady();
+    }
+  };
+  if (disposeProgressListener) {
+    disposeProgressListener();
+    disposeProgressListener = null;
+  }
+  const onProgress = (event) => {
+    const detail = event.detail;
+    if (!detail || detail.settingsKey !== settingsKey) {
+      return;
+    }
+    setPreviewPending(Boolean(detail.pending), detail.progress ?? null);
+  };
+  window.addEventListener("app:chat-progress", onProgress);
+  disposeProgressListener = () => {
+    window.removeEventListener("app:chat-progress", onProgress);
+  };
+  void renderModulePanel2(doc).catch((err) => {
+    alert(err.message);
+  });
+};
+
 // web/src/app/documents.ts
 var openLoggerSettings = () => {
   if (!state.auth) {
@@ -6362,6 +6612,8 @@ var openLoggerSettings = () => {
 };
 var renderDocumentView = (doc) => {
   const content = document.getElementById("content");
+  const isWebsiteBuild = isWebsiteBuildDocument(doc);
+  document.body?.classList.toggle("app-build-mode", isWebsiteBuild);
   const languageMatch = doc.id ? findDocumentVariants(state.navigationGroups, doc.id) : null;
   const languageOptions = languageMatch ? {
     currentLanguage: normalizeLanguageValue(doc.payload.language),
@@ -6371,6 +6623,32 @@ var renderDocumentView = (doc) => {
       label: normalizeLanguageValue(variant.language) ?? "default"
     }))
   } : null;
+  if (isWebsiteBuild) {
+    clearAgentState();
+    editorRef.set(null);
+    renderWebsiteBuildPage({
+      content,
+      auth: state.auth,
+      doc,
+      renderModulePanel: (moduleDoc) => renderModulePanel({
+        auth: state.auth,
+        doc: moduleDoc,
+        editor: null,
+        normalizeModuleList,
+        fetchModuleSettings: (moduleName, payload) => fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
+        findModuleDefinition: (name) => findModuleDefinition(state.modules, name),
+        ensureModuleSettingsDocument: (module, payload) => ensureModuleSettingsDocument(state.auth, payload, module, state.moduleSettingsCache),
+        openModuleSettings: (settingsId) => {
+          if (!moduleDoc?.id) {
+            return;
+          }
+          state.returnToDocumentId = moduleDoc.id;
+          loadDocument(settingsId);
+        }
+      })
+    });
+    return;
+  }
   if (isCreationsDocument(doc)) {
     clearAgentState();
     renderCreationsPage({

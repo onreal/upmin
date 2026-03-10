@@ -92,6 +92,13 @@ export type CreationActionResponse = {
   creation?: CreationRecord;
 };
 
+export type WebsiteBuildActionResponse = {
+  status: string;
+  entries?: number;
+  publishedAt?: string;
+  cleanedAt?: string;
+};
+
 export type AgentSummary = {
   id: string;
   uid?: string | null;
@@ -177,6 +184,8 @@ export type LogSummary = {
 export type FormSummary = {
   id: string;
   formId: string;
+  pageId?: string | null;
+  formSettingsId?: string | null;
   name: string;
   label?: string | null;
   store: string;

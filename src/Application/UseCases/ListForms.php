@@ -24,7 +24,7 @@ final class ListForms
             if ($document->store() !== 'private') {
                 continue;
             }
-            if (!str_starts_with($document->path(), 'system/forms/')) {
+            if (!str_starts_with($document->path(), 'system/forms/submissions/')) {
                 continue;
             }
 
@@ -38,8 +38,8 @@ final class ListForms
                 continue;
             }
 
-            $formId = $data['formId'] ?? null;
-            if (!is_string($formId) || trim($formId) === '') {
+            $pageId = $data['pageId'] ?? null;
+            if (!is_string($pageId) || trim($pageId) === '') {
                 continue;
             }
 
@@ -48,7 +48,9 @@ final class ListForms
 
             $forms[] = [
                 'id' => $document->id()->encoded(),
-                'formId' => trim($formId),
+                'formId' => trim($pageId),
+                'pageId' => trim($pageId),
+                'formSettingsId' => is_string($data['formSettingsId'] ?? null) ? (string) $data['formSettingsId'] : null,
                 'name' => $wrapper->name(),
                 'label' => is_string($data['label'] ?? null) ? (string) $data['label'] : null,
                 'store' => $document->store(),
