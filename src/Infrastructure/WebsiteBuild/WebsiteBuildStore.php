@@ -7,6 +7,12 @@ namespace Manage\Infrastructure\WebsiteBuild;
 final class WebsiteBuildStore
 {
     private const BUILD_DIR = 'build';
+    /** @var array<string, bool> */
+    private const EXCLUDED_ROOT_ITEMS = [
+        'AGENTS.md' => true,
+        'manage' => true,
+        'upmin' => true,
+    ];
 
     private string $projectRoot;
     private string $buildRoot;
@@ -20,12 +26,13 @@ final class WebsiteBuildStore
     /** @return array{status: string, entries: int, cleanedAt: string} */
     public function clean(): array
     {
-        $this->ensureBuildDirectory();
-        $entries = $this->listEntries($this->buildRoot);
+        $entries = $this->managedEntries($this->projectRoot);
 
         foreach ($entries as $entry) {
-            $this->deletePath($this->buildRoot . '/' . $entry);
+            $this->deletePath($this->projectRoot . '/' . $entry);
         }
+
+        $this->ensureBuildDirectory();
 
         return [
             'status' => 'cleaned',
@@ -85,6 +92,27 @@ final class WebsiteBuildStore
         }
 
         sort($entries);
+
+        return $entries;
+    }
+
+    /** @return string[] */
+    private function managedEntries(string $root): array
+    {
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->listEntries($root) as $entry) {
+            if (str_starts_with($entry, '.')) {
+                continue;
+            }
+            if (isset(self::EXCLUDED_ROOT_ITEMS[$entry])) {
+                continue;
+            }
+            $entries[] = $entry;
+        }
 
         return $entries;
     }

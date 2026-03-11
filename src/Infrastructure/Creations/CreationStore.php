@@ -19,6 +19,7 @@ final class CreationStore
     /** @var array<string, bool> */
     private const EXCLUDED_ROOT_ITEMS = [
         'manage' => true,
+        'upmin' => true,
         'media' => true,
         'router.php' => true,
         'AGENTS.md' => true,

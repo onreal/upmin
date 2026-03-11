@@ -17,6 +17,7 @@ final class ManageCreationsTest extends TestCase
         mkdir($this->root . '/manage/store', 0755, true);
         mkdir($this->root . '/media', 0755, true);
         mkdir($this->root . '/store', 0755, true);
+        mkdir($this->root . '/upmin', 0755, true);
         mkdir($this->root . '/.git', 0755, true);
 
         file_put_contents($this->root . '/index.html', '<!doctype html><html><body>Hello</body></html>');
@@ -25,6 +26,7 @@ final class ManageCreationsTest extends TestCase
         file_put_contents($this->root . '/router.php', '<?php echo "router";');
         file_put_contents($this->root . '/docker-compose.yml', 'services: {}');
         file_put_contents($this->root . '/AGENTS.md', '# agents');
+        file_put_contents($this->root . '/upmin/keep.txt', 'keep');
         file_put_contents($this->root . '/.git/config', '[core]');
         file_put_contents($this->root . '/media/keep.txt', 'keep');
     }
@@ -64,10 +66,12 @@ final class ManageCreationsTest extends TestCase
         $this->assertFileDoesNotExist($this->root . '/app.js');
         $this->assertDirectoryDoesNotExist($this->root . '/store');
         $this->assertDirectoryExists($this->root . '/manage');
+        $this->assertDirectoryExists($this->root . '/upmin');
         $this->assertDirectoryExists($this->root . '/media');
         $this->assertFileExists($this->root . '/router.php');
         $this->assertFileExists($this->root . '/docker-compose.yml');
         $this->assertFileExists($this->root . '/AGENTS.md');
+        $this->assertFileExists($this->root . '/upmin/keep.txt');
         $this->assertDirectoryExists($this->root . '/.git');
     }
 
