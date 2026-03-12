@@ -15,6 +15,7 @@ final class ManageCreationsTest extends TestCase
         parent::setUp();
         $this->root = rtrim(sys_get_temp_dir(), '/') . '/manage-creations-test-' . bin2hex(random_bytes(6));
         mkdir($this->root . '/manage/store', 0755, true);
+        mkdir($this->root . '/build/assets', 0755, true);
         mkdir($this->root . '/media', 0755, true);
         mkdir($this->root . '/store', 0755, true);
         mkdir($this->root . '/upmin', 0755, true);
@@ -22,6 +23,7 @@ final class ManageCreationsTest extends TestCase
 
         file_put_contents($this->root . '/index.html', '<!doctype html><html><body>Hello</body></html>');
         file_put_contents($this->root . '/app.js', 'console.log("hello");');
+        file_put_contents($this->root . '/build/assets/app.js', 'console.log("build");');
         file_put_contents($this->root . '/store/home.json', '{"ok":true}');
         file_put_contents($this->root . '/router.php', '<?php echo "router";');
         file_put_contents($this->root . '/docker-compose.yml', 'services: {}');
@@ -49,6 +51,7 @@ final class ManageCreationsTest extends TestCase
         $this->assertSame('private', $document['store']);
         $this->assertCount(1, $document['payload']['data']['creations']);
         $this->assertSame('manual', $creation['reason']);
+        $this->assertSame('public', $creation['target']);
         $this->assertFileExists($this->root . '/manage/store/' . $creation['snapshotPath']);
         $this->assertFileExists($this->root . '/manage/store/' . $creation['backupPath']);
     }
@@ -62,9 +65,12 @@ final class ManageCreationsTest extends TestCase
         $creation = $result['creation'];
 
         $this->assertSame('before-clear', $creation['reason']);
+        $this->assertSame('public', $creation['target']);
         $this->assertFileDoesNotExist($this->root . '/index.html');
         $this->assertFileDoesNotExist($this->root . '/app.js');
         $this->assertDirectoryDoesNotExist($this->root . '/store');
+        $this->assertDirectoryExists($this->root . '/build');
+        $this->assertFileExists($this->root . '/build/assets/app.js');
         $this->assertDirectoryExists($this->root . '/manage');
         $this->assertDirectoryExists($this->root . '/upmin');
         $this->assertDirectoryExists($this->root . '/media');
@@ -90,6 +96,21 @@ final class ManageCreationsTest extends TestCase
         $this->assertFileExists($this->root . '/index.html');
         $this->assertDirectoryExists($this->root . '/store');
         $this->assertFileDoesNotExist($this->root . '/new-file.txt');
+    }
+
+    public function testRestoreBuildSnapshotOnlyTouchesBuildDirectory(): void
+    {
+        $store = $this->creationStore();
+        $snapshot = $store->snapshot($this->snapshotDataUrl(), 'manual', CreationStore::TARGET_BUILD);
+        $id = $snapshot['creation']['id'];
+
+        file_put_contents($this->root . '/build/assets/app.js', 'console.log("changed");');
+        file_put_contents($this->root . '/index.html', '<html><body>Public changed</body></html>');
+
+        $store->restore($id);
+
+        $this->assertSame('console.log("build");', file_get_contents($this->root . '/build/assets/app.js'));
+        $this->assertStringContainsString('Public changed', (string) file_get_contents($this->root . '/index.html'));
     }
 
     public function testSnapshotAcceptsSvgImages(): void

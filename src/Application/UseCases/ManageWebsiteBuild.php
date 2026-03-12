@@ -21,9 +21,15 @@ final class ManageWebsiteBuild
         return $this->store->publish();
     }
 
-    /** @return array{status: string, entries: int, cleanedAt: string} */
-    public function clean(): array
+    /** @return array<string, mixed> */
+    public function clean(?string $snapshotDataUrl): array
     {
-        return $this->store->clean();
+        return $this->store->clean($snapshotDataUrl);
+    }
+
+    /** @return array<string, mixed> */
+    public function copyFromPublic(?string $snapshotDataUrl): array
+    {
+        return $this->store->copyFromPublic($snapshotDataUrl);
     }
 }

@@ -6,6 +6,7 @@ export type WebsiteBuildViewContext = {
   onVisit: () => void;
   onPublish: () => Promise<void>;
   onClean: () => Promise<void>;
+  onCopyFromPublic: () => Promise<void>;
   onTabChange?: (tab: "chat" | "preview") => void;
 };
 
@@ -35,6 +36,7 @@ export const renderWebsiteBuildView = ({
   onVisit,
   onPublish,
   onClean,
+  onCopyFromPublic,
   onTabChange,
 }: WebsiteBuildViewContext) => {
   if (!content) {
@@ -51,6 +53,7 @@ export const renderWebsiteBuildView = ({
         </div>
         <div class="app-build-actions buttons">
           <button id="build-visit" class="button app-button app-ghost">Visit</button>
+          <button id="build-copy-public" class="button app-button app-ghost">Copy from public</button>
           <button id="build-publish" class="button app-button app-primary">Publish</button>
           <button id="build-clean" class="button app-button app-danger">Clean</button>
         </div>
@@ -84,9 +87,16 @@ export const renderWebsiteBuildView = ({
   `;
 
   const visitButton = document.getElementById("build-visit") as HTMLButtonElement | null;
+  const copyFromPublicButton = document.getElementById("build-copy-public") as HTMLButtonElement | null;
   const publishButton = document.getElementById("build-publish") as HTMLButtonElement | null;
   const cleanButton = document.getElementById("build-clean") as HTMLButtonElement | null;
   visitButton?.addEventListener("click", onVisit);
+  copyFromPublicButton?.addEventListener("click", () => {
+    if (!copyFromPublicButton) {
+      return;
+    }
+    void runButtonAction(copyFromPublicButton, "Copying...", onCopyFromPublic);
+  });
 
   publishButton?.addEventListener("click", () => {
     if (!publishButton) {

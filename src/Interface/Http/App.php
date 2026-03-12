@@ -129,7 +129,7 @@ final class App
         $logStore = new LogStore($this->manageRoot);
         $this->errorLogger = new ErrorLogger($this->manageRoot);
         $creationStore = new CreationStore($documentRepository, $this->projectRoot, $this->manageRoot);
-        $websiteBuildStore = new WebsiteBuildStore($this->projectRoot);
+        $websiteBuildStore = new WebsiteBuildStore($this->projectRoot, $creationStore);
         $apiKeyProvider = new EnvApiKeyProvider($this->env);
         $tokenService = new HmacTokenService($this->env);
         $realtimeConfig = new RealtimeConfig($this->env);

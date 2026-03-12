@@ -37,13 +37,8 @@ final class CreationController
 
     public function clear(Request $request, array $params): Response
     {
-        $snapshot = $this->snapshotPayload($request);
-        if ($snapshot === null) {
-            return Response::json(['error' => 'Snapshot image is required.'], 400);
-        }
-
         try {
-            $result = $this->creations->clearAll($snapshot);
+            $result = $this->creations->clearAll($this->snapshotPayload($request));
         } catch (\InvalidArgumentException $exception) {
             return Response::json(['error' => $exception->getMessage()], 422);
         } catch (\RuntimeException $exception) {

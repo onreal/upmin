@@ -27,7 +27,7 @@ final class ManageCreations
     }
 
     /** @return array<string, mixed> */
-    public function clearAll(string $snapshotDataUrl): array
+    public function clearAll(?string $snapshotDataUrl): array
     {
         return $this->creations->clearAll($snapshotDataUrl);
     }

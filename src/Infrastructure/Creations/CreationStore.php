@@ -15,15 +15,22 @@ final class CreationStore
     private const PAGE_PATH = 'creations.json';
     private const CREATIONS_DIR = 'creations';
     private const MANIFEST_FILE = '.creation-manifest.json';
+    public const TARGET_PUBLIC = 'public';
+    public const TARGET_BUILD = 'build';
 
     /** @var array<string, bool> */
-    private const EXCLUDED_ROOT_ITEMS = [
+    private const EXCLUDED_PUBLIC_ROOT_ITEMS = [
         'manage' => true,
         'upmin' => true,
         'media' => true,
         'router.php' => true,
         'AGENTS.md' => true,
         'docker-compose.yml' => true,
+        'build' => true,
+    ];
+    /** @var array<string, bool> */
+    private const EXCLUDED_BUILD_CLEAN_ITEMS = [
+        'AGENTS.md' => true,
     ];
 
     private DocumentRepository $documents;
@@ -60,10 +67,11 @@ final class CreationStore
     }
 
     /** @return array<string, mixed> */
-    public function snapshot(string $snapshotDataUrl, string $reason): array
+    public function snapshot(string $snapshotDataUrl, string $reason, string $target = self::TARGET_PUBLIC): array
     {
         $page = $this->pageDocument();
         $this->ensureCreationsDirectory();
+        $target = $this->normalizeTarget($target);
 
         $createdAt = (new \DateTimeImmutable())->format(DATE_ATOM);
         $id = $this->nextCreationId();
@@ -77,7 +85,7 @@ final class CreationStore
         }
 
         try {
-            $this->createArchive($this->creationAssetPath($archiveRelative), $createdAt, $reason);
+            $this->createArchive($this->creationAssetPath($archiveRelative), $createdAt, $reason, $target);
         } catch (\Throwable $exception) {
             if (is_file($snapshotPath)) {
                 unlink($snapshotPath);
@@ -89,6 +97,7 @@ final class CreationStore
             'id' => $id,
             'createdAt' => $createdAt,
             'reason' => $reason,
+            'target' => $target,
             'snapshotPath' => $snapshotRelative,
             'snapshotMimeType' => $decoded['mimeType'],
             'backupPath' => $archiveRelative,
@@ -106,10 +115,18 @@ final class CreationStore
     }
 
     /** @return array<string, mixed> */
-    public function clearAll(string $snapshotDataUrl): array
+    public function clearAll(?string $snapshotDataUrl): array
     {
-        $result = $this->snapshot($snapshotDataUrl, 'before-clear');
-        $this->clearManagedEntries();
+        $result = [
+            'document' => $this->serializeDocument($this->pageDocument()),
+        ];
+        if ($this->shouldCreateSnapshotOnEachClean()) {
+            if (!is_string($snapshotDataUrl) || trim($snapshotDataUrl) === '') {
+                throw new \InvalidArgumentException('Snapshot image is required.');
+            }
+            $result = $this->snapshot($snapshotDataUrl, 'before-clear', self::TARGET_PUBLIC);
+        }
+        $this->clearTargetEntries(self::TARGET_PUBLIC);
 
         return $result;
     }
@@ -131,8 +148,9 @@ final class CreationStore
 
         try {
             $this->extractArchive($archive, $workspace, $extractDir);
-            $this->clearManagedEntries();
-            $this->restoreFromDirectory($extractDir);
+            $target = $this->normalizeTarget($creation['target'] ?? null);
+            $this->clearTargetEntries($target, true);
+            $this->restoreFromDirectory($extractDir, $target);
         } finally {
             $this->deletePath($workspace);
         }
@@ -226,6 +244,22 @@ final class CreationStore
         ];
     }
 
+    public function shouldCreateSnapshotOnEachClean(): bool
+    {
+        $document = $this->documents->get(DocumentId::fromParts(self::PAGE_STORE, 'system/configuration.json'));
+        if ($document === null) {
+            return true;
+        }
+
+        $data = $document->wrapper()->data();
+        if (!is_array($data)) {
+            return true;
+        }
+
+        $value = $data['createSnapshotOnEachClean'] ?? null;
+        return !is_bool($value) || $value;
+    }
+
     private function pageId(): DocumentId
     {
         return DocumentId::fromParts(self::PAGE_STORE, self::PAGE_PATH);
@@ -278,6 +312,7 @@ final class CreationStore
                 'id' => $id,
                 'createdAt' => $createdAt,
                 'reason' => is_string($record['reason'] ?? null) ? $record['reason'] : 'manual',
+                'target' => $this->normalizeTarget($record['target'] ?? null),
                 'snapshotPath' => $snapshotPath,
                 'snapshotMimeType' => is_string($record['snapshotMimeType'] ?? null) ? $record['snapshotMimeType'] : 'image/png',
                 'backupPath' => $backupPath,
@@ -367,16 +402,18 @@ final class CreationStore
         return $this->manageRoot . '/store/' . $relative;
     }
 
-    private function createArchive(string $archivePath, string $createdAt, string $reason): void
+    private function createArchive(string $archivePath, string $createdAt, string $reason, string $target): void
     {
         $workspace = $this->makeTempDirectory('creation-build-');
+        $archiveTarget = $this->normalizeTarget($target);
+        $sourceRoot = $this->targetRoot($archiveTarget);
 
         try {
-            $entries = $this->managedEntries($this->projectRoot);
+            $entries = $this->archivedEntries($sourceRoot, $archiveTarget);
             foreach ($entries as $entry) {
-                $source = $this->projectRoot . '/' . $entry;
-                $target = $workspace . '/' . $entry;
-                $this->copyPath($source, $target);
+                $source = $sourceRoot . '/' . $entry;
+                $destination = $workspace . '/' . $entry;
+                $this->copyPath($source, $destination);
             }
 
             file_put_contents(
@@ -384,6 +421,7 @@ final class CreationStore
                 json_encode([
                     'createdAt' => $createdAt,
                     'reason' => $reason,
+                    'target' => $archiveTarget,
                     'entries' => $entries,
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL
             );
@@ -457,17 +495,18 @@ final class CreationStore
         $archive->extractTo($extractDir, null, true);
     }
 
-    private function restoreFromDirectory(string $extractDir): void
+    private function restoreFromDirectory(string $extractDir, string $target): void
     {
-        foreach ($this->managedEntries($extractDir) as $entry) {
+        $restoreRoot = $this->targetRoot($target);
+        foreach ($this->archivedEntries($extractDir, $target) as $entry) {
             $source = $extractDir . '/' . $entry;
-            $target = $this->projectRoot . '/' . $entry;
-            $this->copyPath($source, $target);
+            $destination = $restoreRoot . '/' . $entry;
+            $this->copyPath($source, $destination);
         }
     }
 
     /** @return string[] */
-    private function managedEntries(string $root): array
+    private function publicManagedEntries(string $root): array
     {
         if (!is_dir($root)) {
             return [];
@@ -486,7 +525,7 @@ final class CreationStore
             if (str_starts_with($item, '.')) {
                 continue;
             }
-            if (isset(self::EXCLUDED_ROOT_ITEMS[$item])) {
+            if (isset(self::EXCLUDED_PUBLIC_ROOT_ITEMS[$item])) {
                 continue;
             }
             $entries[] = $item;
@@ -497,11 +536,104 @@ final class CreationStore
         return $entries;
     }
 
-    private function clearManagedEntries(): void
+    /** @return string[] */
+    private function buildCleanEntries(string $root): array
     {
-        foreach ($this->managedEntries($this->projectRoot) as $entry) {
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $entries = [];
+        $items = scandir($root);
+        if (!is_array($items)) {
+            return [];
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            if (str_starts_with($item, '.')) {
+                continue;
+            }
+            if (isset(self::EXCLUDED_BUILD_CLEAN_ITEMS[$item])) {
+                continue;
+            }
+            $entries[] = $item;
+        }
+
+        sort($entries);
+
+        return $entries;
+    }
+
+    /** @return string[] */
+    private function archivedEntries(string $root, string $target): array
+    {
+        $target = $this->normalizeTarget($target);
+        if ($target === self::TARGET_PUBLIC) {
+            return $this->publicManagedEntries($root);
+        }
+
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $entries = [];
+        $items = scandir($root);
+        if (!is_array($items)) {
+            return [];
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            if (str_starts_with($item, '.')) {
+                continue;
+            }
+            $entries[] = $item;
+        }
+
+        sort($entries);
+
+        return $entries;
+    }
+
+    private function clearTargetEntries(string $target, bool $forRestore = false): void
+    {
+        $target = $this->normalizeTarget($target);
+        if ($target === self::TARGET_BUILD) {
+            $buildRoot = $this->targetRoot($target);
+            if (!is_dir($buildRoot)) {
+                return;
+            }
+            $entries = $forRestore ? $this->archivedEntries($buildRoot, $target) : $this->buildCleanEntries($buildRoot);
+            foreach ($entries as $entry) {
+                $this->deletePath($buildRoot . '/' . $entry);
+            }
+            return;
+        }
+
+        foreach ($this->publicManagedEntries($this->projectRoot) as $entry) {
             $this->deletePath($this->projectRoot . '/' . $entry);
         }
+    }
+
+    private function normalizeTarget(mixed $target): string
+    {
+        $normalized = strtolower(trim(is_string($target) ? $target : ''));
+        return $normalized === self::TARGET_BUILD ? self::TARGET_BUILD : self::TARGET_PUBLIC;
+    }
+
+    private function targetRoot(string $target): string
+    {
+        $target = $this->normalizeTarget($target);
+        if ($target === self::TARGET_BUILD) {
+            return $this->projectRoot . '/build';
+        }
+
+        return $this->projectRoot;
     }
 
     private function copyPath(string $source, string $target): void

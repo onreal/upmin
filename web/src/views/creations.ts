@@ -33,6 +33,8 @@ const reasonLabel = (reason?: string | null) => {
   return "Manual snapshot";
 };
 
+const targetLabel = (target?: string | null) => (target === "build" ? "Build" : "Public");
+
 const formatTimestamp = (value?: string | null) => {
   if (!value) {
     return "Unknown time";
@@ -66,7 +68,7 @@ const buildCard = (creation: CreationRecord) => {
     </div>
     <div class="app-creation-copy">
       <div class="app-creation-copy-top">
-        <span class="app-creation-badge">${escapeHtml(reasonLabel(creation.reason))}</span>
+        <span class="app-creation-badge">${escapeHtml(`${targetLabel(creation.target)} · ${reasonLabel(creation.reason)}`)}</span>
         <span class="app-creation-date">${escapeHtml(formatTimestamp(creation.createdAt))}</span>
       </div>
       <h2 class="app-creation-title">${escapeHtml(creation.id)}</h2>
@@ -134,7 +136,7 @@ export const renderCreationsView = ({
           <button id="creation-export" class="button app-button app-ghost">Export JSON</button>
         </div>
         <p class="app-muted app-creations-note">
-          Clear All always creates a fresh snapshot first. Hidden development folders are left untouched.
+          Public snapshots restore to the public site. Build snapshots restore to the build directory.
         </p>
       </div>
       <div id="creation-grid" class="app-creation-grid"></div>

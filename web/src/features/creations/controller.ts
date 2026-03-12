@@ -48,6 +48,7 @@ const readCreations = (value: unknown): CreationRecord[] => {
       id: record.id,
       createdAt: record.createdAt,
       reason: typeof record.reason === "string" ? record.reason : null,
+      target: record.target === "build" ? "build" : "public",
       snapshotPath: record.snapshotPath,
       snapshotMimeType: typeof record.snapshotMimeType === "string" ? record.snapshotMimeType : null,
       backupPath: record.backupPath,

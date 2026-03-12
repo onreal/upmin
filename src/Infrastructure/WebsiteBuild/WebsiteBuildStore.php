@@ -4,41 +4,116 @@ declare(strict_types=1);
 
 namespace Manage\Infrastructure\WebsiteBuild;
 
+use Manage\Infrastructure\Creations\CreationStore;
+
 final class WebsiteBuildStore
 {
     private const BUILD_DIR = 'build';
     /** @var array<string, bool> */
-    private const EXCLUDED_ROOT_ITEMS = [
+    private const EXCLUDED_BUILD_ITEMS = [
         'AGENTS.md' => true,
-        'manage' => true,
         'upmin' => true,
+        'build' => true,
     ];
 
+    private CreationStore $creations;
     private string $projectRoot;
     private string $buildRoot;
+    private string $publicBuildRoot;
 
-    public function __construct(string $projectRoot)
+    public function __construct(string $projectRoot, CreationStore $creations)
     {
+        $this->creations = $creations;
         $this->projectRoot = rtrim($projectRoot, '/');
         $this->buildRoot = $this->projectRoot . '/' . self::BUILD_DIR;
+        $this->publicBuildRoot = dirname($this->projectRoot) . '/' . self::BUILD_DIR;
     }
 
-    /** @return array{status: string, entries: int, cleanedAt: string} */
-    public function clean(): array
+    /** @return array<string, mixed> */
+    public function clean(?string $snapshotDataUrl): array
     {
-        $entries = $this->managedEntries($this->projectRoot);
+        $this->ensureBuildDirectory();
+        $creation = $this->snapshotBeforeClean($snapshotDataUrl);
+        $entries = $this->managedEntries($this->buildRoot);
 
         foreach ($entries as $entry) {
-            $this->deletePath($this->projectRoot . '/' . $entry);
+            $this->deletePath($this->buildRoot . '/' . $entry);
         }
 
         $this->ensureBuildDirectory();
 
-        return [
+        $result = [
             'status' => 'cleaned',
             'entries' => count($entries),
             'cleanedAt' => (new \DateTimeImmutable())->format(DATE_ATOM),
         ];
+        if ($creation !== null) {
+            $result['creation'] = $creation;
+        }
+
+        return $result;
+    }
+
+    /** @return array<string, mixed> */
+    public function copyFromPublic(?string $snapshotDataUrl): array
+    {
+        $this->ensureBuildDirectory();
+        $creation = $this->snapshotBeforeClean($snapshotDataUrl);
+        $this->cleanBuildDirectory();
+
+        if (!is_dir($this->publicBuildRoot)) {
+            throw new \RuntimeException('Public build directory not found.');
+        }
+
+        $entries = $this->copyEntriesFromPublic();
+
+        $result = [
+            'status' => 'copied',
+            'entries' => count($entries),
+            'copiedAt' => (new \DateTimeImmutable())->format(DATE_ATOM),
+        ];
+        if ($creation !== null) {
+            $result['creation'] = $creation;
+        }
+
+        return $result;
+    }
+
+    private function cleanBuildDirectory(): void
+    {
+        foreach ($this->managedEntries($this->buildRoot) as $entry) {
+            $this->deletePath($this->buildRoot . '/' . $entry);
+        }
+    }
+
+    /** @return array<string, mixed>|null */
+    private function snapshotBeforeClean(?string $snapshotDataUrl): ?array
+    {
+        if (!$this->creations->shouldCreateSnapshotOnEachClean()) {
+            return null;
+        }
+        if (!is_string($snapshotDataUrl) || trim($snapshotDataUrl) === '') {
+            throw new \InvalidArgumentException('Snapshot image is required.');
+        }
+
+        $result = $this->creations->snapshot(
+            $snapshotDataUrl,
+            'before-clear',
+            CreationStore::TARGET_BUILD
+        );
+
+        return is_array($result['creation'] ?? null) ? $result['creation'] : null;
+    }
+
+    /** @return string[] */
+    private function copyEntriesFromPublic(): array
+    {
+        $entries = $this->sourceEntries($this->publicBuildRoot);
+        foreach ($entries as $entry) {
+            $this->copyPath($this->publicBuildRoot . '/' . $entry, $this->buildRoot . '/' . $entry);
+        }
+
+        return $entries;
     }
 
     /** @return array{status: string, entries: int, publishedAt: string} */
@@ -108,7 +183,28 @@ final class WebsiteBuildStore
             if (str_starts_with($entry, '.')) {
                 continue;
             }
-            if (isset(self::EXCLUDED_ROOT_ITEMS[$entry])) {
+            if (isset(self::EXCLUDED_BUILD_ITEMS[$entry])) {
+                continue;
+            }
+            $entries[] = $entry;
+        }
+
+        return $entries;
+    }
+
+    /** @return string[] */
+    private function sourceEntries(string $root): array
+    {
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->listEntries($root) as $entry) {
+            if (str_starts_with($entry, '.')) {
+                continue;
+            }
+            if (isset(self::EXCLUDED_BUILD_ITEMS[$entry])) {
                 continue;
             }
             $entries[] = $entry;

@@ -33,11 +33,38 @@ final class WebsiteBuildController
     public function clean(Request $request, array $params): Response
     {
         try {
-            $result = $this->build->clean();
+            $result = $this->build->clean($this->snapshotPayload($request));
+        } catch (\InvalidArgumentException $exception) {
+            return Response::json(['error' => $exception->getMessage()], 422);
         } catch (\RuntimeException $exception) {
             return Response::json(['error' => $exception->getMessage()], 500);
         }
 
         return Response::json($result);
+    }
+
+    public function copyFromPublic(Request $request, array $params): Response
+    {
+        try {
+            $result = $this->build->copyFromPublic($this->snapshotPayload($request));
+        } catch (\InvalidArgumentException $exception) {
+            return Response::json(['error' => $exception->getMessage()], 422);
+        } catch (\RuntimeException $exception) {
+            return Response::json(['error' => $exception->getMessage()], 500);
+        }
+
+        return Response::json($result);
+    }
+
+    private function snapshotPayload(Request $request): ?string
+    {
+        $payload = $request->body();
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $snapshot = $payload['snapshot'] ?? null;
+
+        return is_string($snapshot) ? trim($snapshot) : null;
     }
 }

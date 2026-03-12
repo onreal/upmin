@@ -221,9 +221,9 @@ const svgToDataUrl = (svg: string) => {
   return `data:image/svg+xml;base64,${btoa(binary)}`;
 };
 
-export const captureWebsiteSnapshot = async () => {
+export const captureWebsiteSnapshot = async (path = "/") => {
   const iframe = document.createElement("iframe");
-  iframe.src = "/";
+  iframe.src = path;
   iframe.width = String(CAPTURE_WIDTH);
   iframe.height = String(CAPTURE_HEIGHT);
   iframe.setAttribute("aria-hidden", "true");

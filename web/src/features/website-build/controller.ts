@@ -1,8 +1,9 @@
 import type { AuthState, RemoteDocument } from "../../api";
-import { cleanWebsiteBuild, publishWebsiteBuild } from "../../api";
+import { cleanWebsiteBuild, copyWebsiteBuildFromPublic, publishWebsiteBuild } from "../../api";
 import { moduleSettingsKey } from "../../modules/utils";
 import type { ConversationProgress } from "../chat/progress";
 import { renderWebsiteBuildView } from "../../views/website-build";
+import { captureWebsiteSnapshot } from "../creations/capture";
 
 export type WebsiteBuildControllerContext = {
   content: HTMLElement | null;
@@ -46,7 +47,21 @@ export const renderWebsiteBuildPage = ({
         return;
       }
       try {
-        await cleanWebsiteBuild(auth);
+        const snapshot = await captureWebsiteSnapshot("/build/");
+        await cleanWebsiteBuild(auth, snapshot);
+        refreshPreview();
+      } catch (err) {
+        alert((err as Error).message);
+      }
+    },
+    onCopyFromPublic: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const snapshot = await captureWebsiteSnapshot("/build/");
+        await copyWebsiteBuildFromPublic(auth, snapshot);
+        refreshPreview();
       } catch (err) {
         alert((err as Error).message);
       }

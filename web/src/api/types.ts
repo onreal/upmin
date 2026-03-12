@@ -82,6 +82,7 @@ export type CreationRecord = {
   id: string;
   createdAt: string;
   reason?: string | null;
+  target?: "public" | "build" | null;
   snapshotPath: string;
   snapshotMimeType?: string | null;
   backupPath: string;
@@ -97,6 +98,8 @@ export type WebsiteBuildActionResponse = {
   entries?: number;
   publishedAt?: string;
   cleanedAt?: string;
+  copiedAt?: string;
+  creation?: CreationRecord;
 };
 
 export type AgentSummary = {

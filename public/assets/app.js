@@ -420,13 +420,22 @@ var init_creations = __esm({
 });
 
 // web/src/api/website-build.ts
-var publishWebsiteBuild, cleanWebsiteBuild;
+var publishWebsiteBuild, cleanWebsiteBuild, copyWebsiteBuildFromPublic;
 var init_website_build = __esm({
   "web/src/api/website-build.ts"() {
     "use strict";
     init_client();
     publishWebsiteBuild = (auth) => request("/api/website-build/publish", { method: "POST" }, auth);
-    cleanWebsiteBuild = (auth) => request("/api/website-build/clean", { method: "POST" }, auth);
+    cleanWebsiteBuild = (auth, snapshot) => request(
+      "/api/website-build/clean",
+      { method: "POST", body: JSON.stringify({ snapshot }) },
+      auth
+    );
+    copyWebsiteBuildFromPublic = (auth, snapshot) => request(
+      "/api/website-build/copy-public",
+      { method: "POST", body: JSON.stringify({ snapshot }) },
+      auth
+    );
   }
 });
 
@@ -447,6 +456,7 @@ __export(api_exports, {
   appendChatMessage: () => appendChatMessage,
   cleanWebsiteBuild: () => cleanWebsiteBuild,
   clearWebsiteWithSnapshot: () => clearWebsiteWithSnapshot,
+  copyWebsiteBuildFromPublic: () => copyWebsiteBuildFromPublic,
   createAgent: () => createAgent,
   createAgentConversation: () => createAgentConversation,
   createCreationSnapshot: () => createCreationSnapshot,
@@ -5884,6 +5894,7 @@ var reasonLabel = (reason) => {
   }
   return "Manual snapshot";
 };
+var targetLabel = (target) => target === "build" ? "Build" : "Public";
 var formatTimestamp2 = (value) => {
   if (!value) {
     return "Unknown time";
@@ -5915,7 +5926,7 @@ var buildCard = (creation) => {
     </div>
     <div class="app-creation-copy">
       <div class="app-creation-copy-top">
-        <span class="app-creation-badge">${escapeHtml2(reasonLabel(creation.reason))}</span>
+        <span class="app-creation-badge">${escapeHtml2(`${targetLabel(creation.target)} \xB7 ${reasonLabel(creation.reason)}`)}</span>
         <span class="app-creation-date">${escapeHtml2(formatTimestamp2(creation.createdAt))}</span>
       </div>
       <h2 class="app-creation-title">${escapeHtml2(creation.id)}</h2>
@@ -5981,7 +5992,7 @@ var renderCreationsView = ({
           <button id="creation-export" class="button app-button app-ghost">Export JSON</button>
         </div>
         <p class="app-muted app-creations-note">
-          Clear All always creates a fresh snapshot first. Hidden development folders are left untouched.
+          Public snapshots restore to the public site. Build snapshots restore to the build directory.
         </p>
       </div>
       <div id="creation-grid" class="app-creation-grid"></div>
@@ -6244,9 +6255,9 @@ var svgToDataUrl = (svg) => {
   });
   return `data:image/svg+xml;base64,${btoa(binary)}`;
 };
-var captureWebsiteSnapshot = async () => {
+var captureWebsiteSnapshot = async (path = "/") => {
   const iframe = document.createElement("iframe");
-  iframe.src = "/";
+  iframe.src = path;
   iframe.width = String(CAPTURE_WIDTH);
   iframe.height = String(CAPTURE_HEIGHT);
   iframe.setAttribute("aria-hidden", "true");
@@ -6289,6 +6300,7 @@ var readCreations = (value) => {
     id: record.id,
     createdAt: record.createdAt,
     reason: typeof record.reason === "string" ? record.reason : null,
+    target: record.target === "build" ? "build" : "public",
     snapshotPath: record.snapshotPath,
     snapshotMimeType: typeof record.snapshotMimeType === "string" ? record.snapshotMimeType : null,
     backupPath: record.backupPath
@@ -6414,6 +6426,7 @@ var renderWebsiteBuildView = ({
   onVisit,
   onPublish,
   onClean,
+  onCopyFromPublic,
   onTabChange
 }) => {
   if (!content) {
@@ -6429,6 +6442,7 @@ var renderWebsiteBuildView = ({
         </div>
         <div class="app-build-actions buttons">
           <button id="build-visit" class="button app-button app-ghost">Visit</button>
+          <button id="build-copy-public" class="button app-button app-ghost">Copy from public</button>
           <button id="build-publish" class="button app-button app-primary">Publish</button>
           <button id="build-clean" class="button app-button app-danger">Clean</button>
         </div>
@@ -6461,9 +6475,16 @@ var renderWebsiteBuildView = ({
     </section>
   `;
   const visitButton = document.getElementById("build-visit");
+  const copyFromPublicButton = document.getElementById("build-copy-public");
   const publishButton = document.getElementById("build-publish");
   const cleanButton = document.getElementById("build-clean");
   visitButton?.addEventListener("click", onVisit);
+  copyFromPublicButton?.addEventListener("click", () => {
+    if (!copyFromPublicButton) {
+      return;
+    }
+    void runButtonAction2(copyFromPublicButton, "Copying...", onCopyFromPublic);
+  });
   publishButton?.addEventListener("click", () => {
     if (!publishButton) {
       return;
@@ -6535,7 +6556,21 @@ var renderWebsiteBuildPage = ({
         return;
       }
       try {
-        await cleanWebsiteBuild(auth);
+        const snapshot = await captureWebsiteSnapshot("/build/");
+        await cleanWebsiteBuild(auth, snapshot);
+        refreshPreview();
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    onCopyFromPublic: async () => {
+      if (!auth) {
+        return;
+      }
+      try {
+        const snapshot = await captureWebsiteSnapshot("/build/");
+        await copyWebsiteBuildFromPublic(auth, snapshot);
+        refreshPreview();
       } catch (err) {
         alert(err.message);
       }

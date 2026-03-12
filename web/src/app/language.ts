@@ -150,7 +150,10 @@ const compareByOrder = (a: { order?: number | null; name?: string }, b: { order?
   return (a.name || "").localeCompare(b.name || "");
 };
 
-export const filterAgentsByLanguage = (agents: Array<{ language?: string | null }>, language: string | null) => {
+export const filterAgentsByLanguage = <T extends { language?: string | null }>(
+  agents: T[],
+  language: string | null
+): T[] => {
   if (!language) {
     return agents;
   }

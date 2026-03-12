@@ -2,10 +2,11 @@
     "type": "module",
     "page": "logs",
     "name": "Logger Settings",
-    "section": true,
     "data": {
         "maxItems": 1000,
         "maxDays": 7
     },
+    "id": "1f1f2f5e-8912-435b-aff7-249f29d2f866",
+    "section": true,
     "order": 1
 }
