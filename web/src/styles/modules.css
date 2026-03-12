@@ -1,7 +1,4 @@
 .app-module {
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius-md);
-  padding: var(--app-gap-md);
   background: color-mix(in srgb, var(--app-surface) 92%, var(--app-bg));
   display: grid;
   gap: var(--app-gap-sm);

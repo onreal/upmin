@@ -98,9 +98,7 @@
 }
 
 .app-panel {
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius-md);
-  padding: var(--app-gap-md);
+  padding: var(--app-gap-lg) 0 0;
   background: var(--app-surface);
 }
 
