@@ -12,6 +12,78 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
 
   const header = headerCopy();
   const sidebar = sidebarCopy();
+  const createIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
+        <path
+          d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1z"
+          fill="currentColor"
+        ></path>
+      </svg>
+    </span>
+  `;
+  const builderIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path
+          d="M4 7.5A2.5 2.5 0 0 1 6.5 5h6A2.5 2.5 0 0 1 15 7.5v3A2.5 2.5 0 0 1 12.5 13h-6A2.5 2.5 0 0 1 4 10.5zM9 16h8.5A2.5 2.5 0 0 1 20 18.5v0A2.5 2.5 0 0 1 17.5 21H9z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M17.5 4.5l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z"
+          fill="currentColor"
+        ></path>
+      </svg>
+    </span>
+  `;
+  const downloadIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path
+          d="M7 2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M14 2v5h5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M10 7h2v2h-2V7zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2"
+          fill="currentColor"
+        ></path>
+      </svg>
+    </span>
+  `;
+  const themeIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <circle
+          cx="12"
+          cy="12"
+          r="4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+        ></circle>
+        <path
+          d="M12 3v2m0 14v2M3 12h2m14 0h2M6.5 6.5l1.4 1.4m8.2 8.2l1.4 1.4M6.5 17.5l1.4-1.4m8.2-8.2l1.4-1.4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        ></path>
+      </svg>
+    </span>
+  `;
 
   app.innerHTML = `
     <nav class="navbar app-surface is-spaced" role="navigation" aria-label="main navigation">
@@ -40,48 +112,29 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             <div class="app-nav-actions">
               <button
                 id="create-action"
-                class="button app-button app-primary"
+                class="button app-button app-primary app-icon-button"
                 data-shell-action="create"
+                aria-label="${header.createLabel}"
+                title="${header.createLabel}"
               >
-                <span class="icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
-                    <path
-                      d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1z"
-                      fill="currentColor"
-                    ></path>
-                  </svg>
-                </span>
-                <span>${header.createLabel}</span>
+                ${createIcon}
+              </button>
+              <button
+                class="button app-button app-ghost"
+                type="button"
+                data-shell-action="builder"
+              >
+                ${builderIcon}
+                <span>Builder</span>
               </button>
               <button
                 id="export-zip-header"
                 class="button app-button app-ghost"
                 data-shell-action="export"
-                aria-label="Export all documents"
-                title="Export all documents"
+                aria-label="Download content"
+                title="Download content"
               >
-                <span class="icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-                    <path
-                      d="M7 2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linejoin="round"
-                    ></path>
-                    <path
-                      d="M14 2v5h5"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linejoin="round"
-                    ></path>
-                    <path
-                      d="M10 7h2v2h-2V7zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2"
-                      fill="currentColor"
-                    ></path>
-                  </svg>
-                </span>
+                ${downloadIcon}
               </button>
               <button
                 id="theme-toggle"
@@ -90,25 +143,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 aria-label="${header.themeLabel}"
                 title="${header.themeLabel}"
               >
-                <span class="icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="4"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                    ></circle>
-                    <path
-                      d="M12 3v2m0 14v2M3 12h2m14 0h2M6.5 6.5l1.4 1.4m8.2 8.2l1.4 1.4M6.5 17.5l1.4-1.4m8.2-8.2l1.4-1.4"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linecap="round"
-                    ></path>
-                  </svg>
-                </span>
+                ${themeIcon}
               </button>
             </div>
           </div>
@@ -155,23 +190,29 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             <p class="app-mobile-drawer-eyebrow">${header.title}</p>
             <p class="app-muted">${header.subtitle}</p>
           </div>
-          <button
-            class="delete app-mobile-drawer-close"
-            type="button"
-            aria-label="Close navigation"
-            data-mobile-drawer-close
-          ></button>
+          <div class="app-mobile-drawer-header-actions">
+            <button
+              class="button app-button app-ghost app-icon-button"
+              type="button"
+              data-shell-action="theme"
+              aria-label="${header.themeLabel}"
+              title="${header.themeLabel}"
+            >
+              ${themeIcon}
+            </button>
+            <button
+              class="delete app-mobile-drawer-close"
+              type="button"
+              aria-label="Close navigation"
+              data-mobile-drawer-close
+            ></button>
+          </div>
         </div>
         <div class="app-mobile-drawer-body">
-          <div class="app-mobile-drawer-actions">
-            <button class="button app-button app-primary" type="button" data-shell-action="create">
-              ${header.createLabel}
-            </button>
-            <button class="button app-button app-ghost" type="button" data-shell-action="export">
-              Export
-            </button>
-            <button class="button app-button app-ghost" type="button" data-shell-action="theme">
-              ${header.themeLabel}
+          <div class="app-mobile-drawer-top-action">
+            <button class="button app-button app-primary app-mobile-builder-button" type="button" data-shell-action="builder">
+              ${builderIcon}
+              <span>Builder</span>
             </button>
           </div>
 
@@ -272,6 +313,19 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
             </div>
           </section>
+
+          <div class="app-mobile-drawer-footer">
+            <div class="app-mobile-drawer-footer-row">
+              <button class="button app-button app-primary" type="button" data-shell-action="create">
+                ${createIcon}
+                <span>${header.createLabel}</span>
+              </button>
+              <button class="button app-button app-ghost" type="button" data-shell-action="export">
+                ${downloadIcon}
+                <span>Download content</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

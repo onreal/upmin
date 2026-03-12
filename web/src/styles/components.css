@@ -1,5 +1,5 @@
 .button.app-button {
-  border-radius: 999px;
+  border-radius: var(--app-radius-md);
   font-weight: 600;
   padding: 0.55rem 1.1rem;
   border: 1px solid transparent;

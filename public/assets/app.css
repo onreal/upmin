@@ -194,6 +194,10 @@ body {
   white-space: nowrap;
 }
 
+.app-nav-actions .app-icon-button {
+  flex: 0 0 auto;
+}
+
 .navbar.app-surface .navbar-item:hover,
 .navbar.app-surface .navbar-link:hover,
 .navbar.app-surface .navbar-item.is-active,
@@ -320,6 +324,13 @@ body {
     margin-top: 0.2rem;
   }
 
+  .app-mobile-drawer-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-shrink: 0;
+  }
+
   .app-mobile-drawer-eyebrow {
     margin: 0 0 0.25rem;
     font-size: 0.72rem;
@@ -336,14 +347,10 @@ body {
     padding: 1rem;
   }
 
-  .app-mobile-drawer-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.6rem;
-  }
-
-  .app-mobile-drawer-actions .button:first-child {
-    grid-column: 1 / -1;
+  .app-mobile-drawer-top-action {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
   }
 
   .app-mobile-accordion-section {
@@ -471,10 +478,37 @@ body {
     padding-top: 0;
     margin-top: 0.1rem;
   }
+
+  .app-mobile-drawer-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-top: 0.35rem;
+  }
+
+  .app-mobile-drawer-footer .button {
+    min-height: 2.9rem;
+  }
+
+  .app-mobile-builder-button {
+    width: 100%;
+    justify-content: center;
+    border-color: transparent;
+  }
+
+  .app-mobile-drawer-footer-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .app-mobile-drawer-footer-row .button {
+    justify-content: center;
+  }
 }
 
 .button.app-button {
-  border-radius: 999px;
+  border-radius: var(--app-radius-md);
   font-weight: 600;
   padding: 0.55rem 1.1rem;
   border: 1px solid transparent;

@@ -10,6 +10,7 @@ export type ShellEventHandlers = {
   onShowLogs: () => void;
   onShowForms: () => void;
   onExportAll: () => void;
+  onOpenBuilder: () => void;
   onOpenCreate: () => void;
   onOpenAgentModal: () => void;
 };
@@ -22,6 +23,7 @@ export const initShellEvents = ({
   onShowLogs,
   onShowForms,
   onExportAll,
+  onOpenBuilder,
   onOpenCreate,
   onOpenAgentModal,
 }: ShellEventHandlers) => {
@@ -123,6 +125,7 @@ export const initShellEvents = ({
   bindAction("logs", onShowLogs);
   bindAction("forms", onShowForms);
   bindAction("export", onExportAll);
+  bindAction("builder", onOpenBuilder);
   bindAction("create", onOpenCreate);
   bindAction("agents-create", onOpenAgentModal);
   bindAction("theme", () => {

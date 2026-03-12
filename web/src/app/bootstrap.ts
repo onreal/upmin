@@ -17,6 +17,7 @@ import { loadDocument } from "./documents";
 import { loadAgent } from "../features/agents/controller";
 import { clearAgentState } from "../features/agents/state";
 import { refreshAgentEditControls } from "../features/agents/view";
+import { pushNotice } from "../ui/notice";
 
 const exportAll = async () => {
   if (!state.auth) {
@@ -35,6 +36,19 @@ const exportAll = async () => {
   } catch (err) {
     alert((err as Error).message);
   }
+};
+
+const openWebsiteBuilder = async () => {
+  const builderPage = state.navigationPages.find(
+    (page) => page.store === "private" && page.path === "website-build.json" && page.documentId
+  );
+
+  if (!builderPage?.documentId) {
+    pushNotice("error", "Website Builder page not found.");
+    return;
+  }
+
+  await loadDocument(builderPage.documentId);
 };
 
 const renderApp = async () => {
@@ -119,6 +133,9 @@ const renderApp = async () => {
       void showFormsView();
     },
     onExportAll: exportAll,
+    onOpenBuilder: () => {
+      void openWebsiteBuilder();
+    },
     onOpenCreate: createModal.openCreateModal,
     onOpenAgentModal: agentModalControls.openAgentModal,
   });
