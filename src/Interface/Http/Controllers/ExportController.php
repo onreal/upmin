@@ -72,7 +72,7 @@ final class ExportController
         }
 
         try {
-            $entries = $this->exportAll->handle();
+            $entries = $this->exportAll->handle('public');
         } catch (\RuntimeException $exception) {
             return Response::json(['error' => $exception->getMessage()], 500);
         }

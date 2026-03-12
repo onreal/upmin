@@ -13,6 +13,29 @@ final class ExportAllDocumentsTest extends TestCase
 {
     public function testExportsAllDocuments(): void
     {
+        $repository = $this->repository();
+
+        $useCase = new ExportAllDocuments($repository);
+        $exports = $useCase->handle();
+
+        $this->assertCount(2, $exports);
+        $paths = array_column($exports, 'path');
+        $this->assertContains('public/content.json', $paths);
+        $this->assertContains('private/settings.json', $paths);
+    }
+
+    public function testCanExportOnlyPublicDocuments(): void
+    {
+        $useCase = new ExportAllDocuments($this->repository());
+
+        $exports = $useCase->handle('public');
+
+        $this->assertCount(1, $exports);
+        $this->assertSame('public/content.json', $exports[0]['path']);
+    }
+
+    private function repository(): DocumentRepository
+    {
         $documents = [
             new Document(
                 DocumentId::fromParts('public', 'content.json'),
@@ -40,7 +63,7 @@ final class ExportAllDocumentsTest extends TestCase
             ),
         ];
 
-        $repository = new class($documents) implements DocumentRepository {
+        return new class($documents) implements DocumentRepository {
             /** @var Document[] */
             private array $documents;
 
@@ -63,13 +86,5 @@ final class ExportAllDocumentsTest extends TestCase
             {
             }
         };
-
-        $useCase = new ExportAllDocuments($repository);
-        $exports = $useCase->handle();
-
-        $this->assertCount(2, $exports);
-        $paths = array_column($exports, 'path');
-        $this->assertContains('public/content.json', $paths);
-        $this->assertContains('private/settings.json', $paths);
     }
 }

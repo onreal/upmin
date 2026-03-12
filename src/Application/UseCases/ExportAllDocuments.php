@@ -17,11 +17,15 @@ final class ExportAllDocuments
     }
 
     /** @return array<int, array{path: string, content: string}> */
-    public function handle(): array
+    public function handle(?string $store = null): array
     {
         $exports = [];
 
         foreach ($this->documents->listAll() as $document) {
+            if (is_string($store) && trim($store) !== '' && $document->store() !== trim($store)) {
+                continue;
+            }
+
             $content = json_encode(
                 $document->wrapper()->toArray(),
                 JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
