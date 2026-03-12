@@ -618,7 +618,13 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
         <a class="navbar-item">
           <span class="title is-5 mb-0">${header.title}</span>
         </a>
-        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="adminNavbar">
+        <a
+          role="button"
+          class="navbar-burger"
+          aria-label="Open navigation"
+          aria-expanded="false"
+          aria-controls="mobileNavDrawer"
+        >
           <span aria-hidden="true"></span>
           <span aria-hidden="true"></span>
           <span aria-hidden="true"></span>
@@ -631,7 +637,11 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
         <div class="navbar-end">
           <div class="navbar-item">
             <div class="app-nav-actions">
-              <button id="create-action" class="button app-button app-primary">
+              <button
+                id="create-action"
+                class="button app-button app-primary"
+                data-shell-action="create"
+              >
                 <span class="icon" aria-hidden="true">
                   <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
                     <path
@@ -645,6 +655,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <button
                 id="export-zip-header"
                 class="button app-button app-ghost"
+                data-shell-action="export"
                 aria-label="Export all documents"
                 title="Export all documents"
               >
@@ -674,6 +685,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <button
                 id="theme-toggle"
                 class="button app-button app-ghost"
+                data-shell-action="theme"
                 aria-label="${header.themeLabel}"
                 title="${header.themeLabel}"
               >
@@ -702,10 +714,10 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           <div class="navbar-item has-dropdown" id="private-dropdown">
             <a class="navbar-link">${header.settingsLabel}</a>
             <div class="navbar-dropdown">
-              <a class="navbar-item" id="modules-link">Modules</a>
-              <a class="navbar-item" id="integrations-link">Integrations</a>
-              <a class="navbar-item" id="logs-link">Logs</a>
-              <a class="navbar-item is-hidden" id="forms-link">Forms</a>
+              <a class="navbar-item" id="modules-link" data-shell-action="modules">Modules</a>
+              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">Integrations</a>
+              <a class="navbar-item" id="logs-link" data-shell-action="logs">Logs</a>
+              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">Forms</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>
@@ -715,24 +727,157 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
             <div class="navbar-dropdown">
               <div id="nav-agents"></div>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link">Create agent</a>
+              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">Create agent</a>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="user-dropdown">
             <a class="navbar-link" id="user-label">${getUserLabel()}</a>
             <div class="navbar-dropdown">
-              <a class="navbar-item" id="profile-link">${header.profileLabel}</a>
+              <a class="navbar-item" id="profile-link" data-shell-action="profile">${header.profileLabel}</a>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="logout">${header.logoutLabel}</a>
+              <a class="navbar-item" id="logout" data-shell-action="logout">${header.logoutLabel}</a>
             </div>
           </div>
         </div>
       </div>
     </nav>
+    <div id="mobileNavDrawer" class="app-mobile-drawer" aria-hidden="true">
+      <button
+        class="app-mobile-drawer-backdrop"
+        type="button"
+        aria-label="Close navigation"
+        data-mobile-drawer-close
+      ></button>
+      <div class="app-mobile-drawer-panel app-surface" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div class="app-mobile-drawer-header">
+          <div>
+            <p class="app-mobile-drawer-eyebrow">${header.title}</p>
+            <p class="app-muted">${header.subtitle}</p>
+          </div>
+          <button
+            class="delete app-mobile-drawer-close"
+            type="button"
+            aria-label="Close navigation"
+            data-mobile-drawer-close
+          ></button>
+        </div>
+        <div class="app-mobile-drawer-body">
+          <div class="app-mobile-drawer-actions">
+            <button class="button app-button app-primary" type="button" data-shell-action="create">
+              ${header.createLabel}
+            </button>
+            <button class="button app-button app-ghost" type="button" data-shell-action="export">
+              Export
+            </button>
+            <button class="button app-button app-ghost" type="button" data-shell-action="theme">
+              ${header.themeLabel}
+            </button>
+          </div>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-public-panel"
+            >
+              <span>${sidebar.publicLabel}</span>
+            </button>
+            <div id="mobile-public-panel" class="app-mobile-accordion-panel">
+              <ul id="nav-mobile-public" class="menu-list app-mobile-nav-list"></ul>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-private-panel"
+            >
+              <span>${sidebar.privateLabel}</span>
+            </button>
+            <div id="mobile-private-panel" class="app-mobile-accordion-panel">
+              <ul id="nav-mobile-private" class="menu-list app-mobile-nav-list"></ul>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-settings-panel"
+            >
+              <span>${header.settingsLabel}</span>
+            </button>
+            <div id="mobile-settings-panel" class="app-mobile-accordion-panel">
+              <div class="app-mobile-action-list">
+                <a href="#" class="app-mobile-action-link" data-shell-action="modules">Modules</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="integrations">Integrations</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="logs">Logs</a>
+                <a
+                  href="#"
+                  id="forms-link-mobile"
+                  class="app-mobile-action-link is-hidden"
+                  data-shell-action="forms"
+                >
+                  Forms
+                </a>
+              </div>
+              <div id="nav-system-pages-mobile" class="app-mobile-action-list app-mobile-system-pages"></div>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-agents-panel"
+            >
+              <span>Agents</span>
+            </button>
+            <div id="mobile-agents-panel" class="app-mobile-accordion-panel">
+              <div id="nav-agents-mobile" class="app-mobile-action-list"></div>
+              <div class="app-mobile-action-list">
+                <a href="#" class="app-mobile-action-link" data-shell-action="agents-create">Create agent</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-account-panel"
+            >
+              <span>${getUserLabel()}</span>
+            </button>
+            <div id="mobile-account-panel" class="app-mobile-accordion-panel">
+              <div class="app-mobile-action-list">
+                <a href="#" class="app-mobile-action-link" data-shell-action="profile">
+                  ${header.profileLabel}
+                </a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="logout">
+                  ${header.logoutLabel}
+                </a>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
     <section class="section pt-4">
-      <div class="container is-fluid">
+      <div class="container">
         <div class="columns is-variable is-4">
-          <aside class="column is-one-quarter">
+          <aside class="column is-one-quarter app-sidebar-column">
             <div class="box app-surface">
               <aside class="menu">
                 <p class="menu-label">${sidebar.publicLabel}</p>
@@ -1387,6 +1532,7 @@ var renderProfile = async () => {
 };
 
 // web/src/app/shell-events.ts
+var MOBILE_DRAWER_CLOSE_EVENT = "app:mobile-drawer-close";
 var initShellEvents = ({
   onLogout,
   onShowProfile,
@@ -1399,16 +1545,59 @@ var initShellEvents = ({
   onOpenAgentModal
 }) => {
   const burger = document.querySelector(".navbar-burger");
-  const menu = document.getElementById("adminNavbar");
-  burger?.addEventListener("click", () => {
-    burger.classList.toggle("is-active");
-    menu?.classList.toggle("is-active");
-  });
+  const drawer = document.getElementById("mobileNavDrawer");
   const dropdowns = [
     document.getElementById("private-dropdown"),
     document.getElementById("agents-dropdown"),
     document.getElementById("user-dropdown")
   ];
+  const closeDropdowns = () => {
+    dropdowns.forEach((dropdown) => dropdown?.classList.remove("is-active"));
+  };
+  const setMobileDrawerOpen = (isOpen) => {
+    burger?.classList.toggle("is-active", isOpen);
+    burger?.setAttribute("aria-expanded", String(isOpen));
+    drawer?.classList.toggle("is-open", isOpen);
+    drawer?.setAttribute("aria-hidden", String(!isOpen));
+    document.body.classList.toggle("app-mobile-drawer-open", isOpen);
+  };
+  const closeAllNavigation = () => {
+    closeDropdowns();
+    setMobileDrawerOpen(false);
+  };
+  burger?.addEventListener("click", () => {
+    const isOpen = !(drawer?.classList.contains("is-open") ?? false);
+    closeDropdowns();
+    setMobileDrawerOpen(isOpen);
+  });
+  drawer?.querySelectorAll("[data-mobile-drawer-close]").forEach((element) => {
+    element.addEventListener("click", () => {
+      setMobileDrawerOpen(false);
+    });
+  });
+  document.addEventListener(MOBILE_DRAWER_CLOSE_EVENT, () => {
+    setMobileDrawerOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeAllNavigation();
+    }
+  });
+  window.matchMedia("(min-width: 1024px)").addEventListener("change", (event) => {
+    if (event.matches) {
+      setMobileDrawerOpen(false);
+    }
+  });
+  drawer?.querySelectorAll("[data-mobile-accordion]").forEach((button) => {
+    const section = button.closest(".app-mobile-accordion-section");
+    button.addEventListener("click", () => {
+      if (!section) {
+        return;
+      }
+      const isOpen = section.classList.toggle("is-open");
+      button.setAttribute("aria-expanded", String(isOpen));
+    });
+  });
   dropdowns.forEach((dropdown) => {
     const link = dropdown?.querySelector(".navbar-link");
     link?.addEventListener("click", (event) => {
@@ -1424,42 +1613,27 @@ var initShellEvents = ({
       dropdown.classList.remove("is-active");
     });
   });
-  document.getElementById("logout")?.addEventListener("click", onLogout);
-  document.getElementById("theme-toggle")?.addEventListener("click", () => {
+  const bindAction = (action, handler) => {
+    document.querySelectorAll(`[data-shell-action="${action}"]`).forEach((element) => {
+      element.addEventListener("click", (event) => {
+        event.preventDefault();
+        closeAllNavigation();
+        handler();
+      });
+    });
+  };
+  bindAction("logout", onLogout);
+  bindAction("profile", onShowProfile);
+  bindAction("modules", onShowModules);
+  bindAction("integrations", onShowIntegrations);
+  bindAction("logs", onShowLogs);
+  bindAction("forms", onShowForms);
+  bindAction("export", onExportAll);
+  bindAction("create", onOpenCreate);
+  bindAction("agents-create", onOpenAgentModal);
+  bindAction("theme", () => {
     const next = getCurrentTheme() === "light" ? "dark" : "light";
     setTheme(next);
-  });
-  document.getElementById("profile-link")?.addEventListener("click", () => {
-    onShowProfile();
-  });
-  document.getElementById("modules-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    onShowModules();
-    document.getElementById("private-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("integrations-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    onShowIntegrations();
-    document.getElementById("private-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("logs-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    onShowLogs();
-    document.getElementById("private-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("forms-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    onShowForms();
-    document.getElementById("private-dropdown")?.classList.remove("is-active");
-  });
-  document.getElementById("export-zip-header")?.addEventListener("click", () => {
-    onExportAll();
-  });
-  document.getElementById("create-action")?.addEventListener("click", onOpenCreate);
-  document.getElementById("agents-create-link")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    onOpenAgentModal();
-    document.getElementById("agents-dropdown")?.classList.remove("is-active");
   });
 };
 
@@ -2245,6 +2419,7 @@ var subscribeRealtimeStatus = (listener) => {
 init_api();
 
 // web/src/app/navigation.ts
+var MOBILE_DRAWER_CLOSE_EVENT2 = "app:mobile-drawer-close";
 var findAuthDocumentId = (pages) => {
   for (const page of pages) {
     if (page.store === "private" && page.path?.endsWith("auth.json") && page.documentId) {
@@ -2258,15 +2433,20 @@ var findAuthDocumentId = (pages) => {
   }
   return null;
 };
-var renderNavList = (container, pages, mode, onSelectDocument) => {
+var closeMobileDrawer = () => {
+  document.dispatchEvent(new CustomEvent(MOBILE_DRAWER_CLOSE_EVENT2));
+};
+var isCurrentDocument = (documentId, variants) => {
+  const currentId = state.currentDocument?.id;
+  return !!currentId && (documentId === currentId || (variants ?? []).some((variant) => variant.id === currentId));
+};
+var renderDesktopNavList = (container, pages, mode, onSelectDocument) => {
   container.innerHTML = "";
   pages.filter((page) => page.store === mode && page.position !== "system").forEach((page) => {
     const pageItem = document.createElement("li");
     const pageLink = document.createElement("a");
     pageLink.textContent = page.name;
-    const currentId = state.currentDocument?.id;
-    const pageMatches = !!currentId && (page.documentId === currentId || (page.variants ?? []).some((variant) => variant.id === currentId));
-    if (pageMatches) {
+    if (isCurrentDocument(page.documentId, page.variants)) {
       pageLink.classList.add("is-active");
     }
     pageLink.addEventListener("click", () => {
@@ -2284,8 +2464,7 @@ var renderNavList = (container, pages, mode, onSelectDocument) => {
         const sectionItem = document.createElement("li");
         const sectionLink = document.createElement("a");
         sectionLink.textContent = section.name;
-        const sectionMatches = !!currentId && (section.id === currentId || (section.variants ?? []).some((variant) => variant.id === currentId));
-        if (sectionMatches) {
+        if (isCurrentDocument(section.id, section.variants)) {
           sectionLink.classList.add("is-active");
         }
         sectionLink.addEventListener("click", () => {
@@ -2299,19 +2478,100 @@ var renderNavList = (container, pages, mode, onSelectDocument) => {
     container.append(pageItem);
   });
 };
+var renderMobileNavList = (container, pages, mode, onSelectDocument) => {
+  container.innerHTML = "";
+  pages.filter((page) => page.store === mode && page.position !== "system").forEach((page, index) => {
+    const pageItem = document.createElement("li");
+    pageItem.className = "app-mobile-nav-item";
+    const pageLink = document.createElement("a");
+    pageLink.className = "app-mobile-nav-link";
+    pageLink.href = "#";
+    pageLink.textContent = page.name;
+    if (isCurrentDocument(page.documentId, page.variants)) {
+      pageLink.classList.add("is-active");
+    }
+    pageLink.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (!page.documentId) {
+        return;
+      }
+      onSelectDocument(page.documentId);
+      closeMobileDrawer();
+    });
+    const sections = page.sections.filter(
+      (section) => section.store === mode && section.position !== "system"
+    );
+    if (sections.length === 0) {
+      pageItem.append(pageLink);
+      container.append(pageItem);
+      return;
+    }
+    const row = document.createElement("div");
+    row.className = "app-mobile-nav-row";
+    row.append(pageLink);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "app-mobile-nav-disclosure";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", `mobile-nav-submenu-${mode}-${index}`);
+    toggle.setAttribute("aria-label", `Toggle ${page.name} sections`);
+    toggle.innerHTML = `<span aria-hidden="true">+</span>`;
+    toggle.addEventListener("click", () => {
+      const isOpen = pageItem.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", String(isOpen));
+      toggle.innerHTML = `<span aria-hidden="true">${isOpen ? "-" : "+"}</span>`;
+    });
+    row.append(toggle);
+    pageItem.append(row);
+    const sectionList = document.createElement("ul");
+    sectionList.id = `mobile-nav-submenu-${mode}-${index}`;
+    sectionList.className = "app-mobile-nav-submenu";
+    sections.forEach((section) => {
+      const sectionItem = document.createElement("li");
+      const sectionLink = document.createElement("a");
+      sectionLink.className = "app-mobile-nav-sublink";
+      sectionLink.href = "#";
+      sectionLink.textContent = section.name;
+      if (isCurrentDocument(section.id, section.variants)) {
+        sectionLink.classList.add("is-active");
+      }
+      sectionLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        onSelectDocument(section.id);
+        closeMobileDrawer();
+      });
+      sectionItem.append(sectionLink);
+      sectionList.append(sectionItem);
+    });
+    pageItem.append(sectionList);
+    container.append(pageItem);
+  });
+};
 var renderNavigation = (pages, onSelectDocument) => {
   const navPublic = document.getElementById("nav-public");
   const navPrivate = document.getElementById("nav-private");
+  const navPublicMobile = document.getElementById("nav-mobile-public");
+  const navPrivateMobile = document.getElementById("nav-mobile-private");
   const navSystem = document.getElementById("nav-system-pages");
+  const navSystemMobile = document.getElementById("nav-system-pages-mobile");
   if (!navPublic || !navPrivate || !navSystem) {
     return;
   }
   state.authDocumentId = findAuthDocumentId(pages);
-  renderNavList(navPublic, pages, "public", onSelectDocument);
-  renderNavList(navPrivate, pages, "private", onSelectDocument);
-  renderSystemPages(navSystem, pages, onSelectDocument);
+  renderDesktopNavList(navPublic, pages, "public", onSelectDocument);
+  renderDesktopNavList(navPrivate, pages, "private", onSelectDocument);
+  if (navPublicMobile) {
+    renderMobileNavList(navPublicMobile, pages, "public", onSelectDocument);
+  }
+  if (navPrivateMobile) {
+    renderMobileNavList(navPrivateMobile, pages, "private", onSelectDocument);
+  }
+  renderSystemPages(navSystem, pages, onSelectDocument, "desktop");
+  if (navSystemMobile) {
+    renderSystemPages(navSystemMobile, pages, onSelectDocument, "mobile");
+  }
 };
-var renderSystemPages = (container, pages, onSelectDocument) => {
+var renderSystemPages = (container, pages, onSelectDocument, variant) => {
   container.innerHTML = "";
   const systemPages = pages.filter((page) => page.store === "private" && page.position === "system").sort((a, b) => {
     const orderA = typeof a.order === "number" ? a.order : Number.MAX_SAFE_INTEGER;
@@ -2323,7 +2583,7 @@ var renderSystemPages = (container, pages, onSelectDocument) => {
   });
   if (systemPages.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "navbar-item is-size-7 app-muted";
+    empty.className = variant === "desktop" ? "navbar-item is-size-7 app-muted" : "app-mobile-empty app-muted";
     empty.textContent = "No system pages.";
     container.append(empty);
     return;
@@ -2333,14 +2593,17 @@ var renderSystemPages = (container, pages, onSelectDocument) => {
       return;
     }
     const link = document.createElement("a");
-    link.className = "navbar-item";
+    link.className = variant === "desktop" ? "navbar-item" : "app-mobile-action-link";
+    link.href = "#";
     link.textContent = page.name;
     if (state.currentDocument?.id === page.documentId) {
       link.classList.add("is-active");
     }
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
       onSelectDocument(page.documentId);
       document.getElementById("private-dropdown")?.classList.remove("is-active");
+      closeMobileDrawer();
     });
     container.append(link);
   });
@@ -2348,39 +2611,52 @@ var renderSystemPages = (container, pages, onSelectDocument) => {
 
 // web/src/features/agents/menu.ts
 var renderAgentsMenu = (agents, onSelectAgent) => {
-  const container = document.getElementById("nav-agents");
-  if (!container) {
+  const containers = [
+    document.getElementById("nav-agents"),
+    document.getElementById("nav-agents-mobile")
+  ].filter((container) => !!container);
+  if (!containers.length) {
     return;
   }
-  container.innerHTML = "";
-  if (!agents.length) {
-    container.innerHTML = `<div class="navbar-item is-size-7 app-muted">No agents found.</div>`;
-    return;
-  }
-  agents.forEach((agent) => {
-    const link = document.createElement("a");
-    link.className = "navbar-item";
-    link.textContent = agent.name;
-    link.addEventListener("click", () => {
-      onSelectAgent(agent.id);
-      document.getElementById("agents-dropdown")?.classList.remove("is-active");
+  containers.forEach((container) => {
+    container.innerHTML = "";
+    if (!agents.length) {
+      container.innerHTML = container.id === "nav-agents" ? `<div class="navbar-item is-size-7 app-muted">No agents found.</div>` : `<div class="app-mobile-empty app-muted">No agents found.</div>`;
+      return;
+    }
+    agents.forEach((agent) => {
+      const link = document.createElement("a");
+      link.className = container.id === "nav-agents" ? "navbar-item" : "app-mobile-action-link";
+      link.href = "#";
+      link.textContent = agent.name;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        onSelectAgent(agent.id);
+        document.getElementById("agents-dropdown")?.classList.remove("is-active");
+        document.dispatchEvent(new CustomEvent("app:mobile-drawer-close"));
+      });
+      container.append(link);
     });
-    container.append(link);
   });
 };
 
 // web/src/features/forms/menu.ts
 var renderFormsMenu = (forms) => {
-  const link = document.getElementById("forms-link");
-  if (!link) {
+  const links = [
+    document.getElementById("forms-link"),
+    document.getElementById("forms-link-mobile")
+  ].filter((link) => !!link);
+  if (!links.length) {
     return;
   }
   if (!forms.length) {
-    link.classList.add("is-hidden");
+    links.forEach((link) => link.classList.add("is-hidden"));
     return;
   }
-  link.classList.remove("is-hidden");
-  link.textContent = "Forms";
+  links.forEach((link) => {
+    link.classList.remove("is-hidden");
+    link.textContent = "Forms";
+  });
 };
 
 // web/src/app/language.ts

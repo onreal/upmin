@@ -19,7 +19,13 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         <a class="navbar-item">
           <span class="title is-5 mb-0">${header.title}</span>
         </a>
-        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="adminNavbar">
+        <a
+          role="button"
+          class="navbar-burger"
+          aria-label="Open navigation"
+          aria-expanded="false"
+          aria-controls="mobileNavDrawer"
+        >
           <span aria-hidden="true"></span>
           <span aria-hidden="true"></span>
           <span aria-hidden="true"></span>
@@ -32,7 +38,11 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         <div class="navbar-end">
           <div class="navbar-item">
             <div class="app-nav-actions">
-              <button id="create-action" class="button app-button app-primary">
+              <button
+                id="create-action"
+                class="button app-button app-primary"
+                data-shell-action="create"
+              >
                 <span class="icon" aria-hidden="true">
                   <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
                     <path
@@ -46,6 +56,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               <button
                 id="export-zip-header"
                 class="button app-button app-ghost"
+                data-shell-action="export"
                 aria-label="Export all documents"
                 title="Export all documents"
               >
@@ -75,6 +86,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               <button
                 id="theme-toggle"
                 class="button app-button app-ghost"
+                data-shell-action="theme"
                 aria-label="${header.themeLabel}"
                 title="${header.themeLabel}"
               >
@@ -103,10 +115,10 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           <div class="navbar-item has-dropdown" id="private-dropdown">
             <a class="navbar-link">${header.settingsLabel}</a>
             <div class="navbar-dropdown">
-              <a class="navbar-item" id="modules-link">Modules</a>
-              <a class="navbar-item" id="integrations-link">Integrations</a>
-              <a class="navbar-item" id="logs-link">Logs</a>
-              <a class="navbar-item is-hidden" id="forms-link">Forms</a>
+              <a class="navbar-item" id="modules-link" data-shell-action="modules">Modules</a>
+              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">Integrations</a>
+              <a class="navbar-item" id="logs-link" data-shell-action="logs">Logs</a>
+              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">Forms</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>
@@ -116,24 +128,157 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             <div class="navbar-dropdown">
               <div id="nav-agents"></div>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link">Create agent</a>
+              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">Create agent</a>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="user-dropdown">
             <a class="navbar-link" id="user-label">${getUserLabel()}</a>
             <div class="navbar-dropdown">
-              <a class="navbar-item" id="profile-link">${header.profileLabel}</a>
+              <a class="navbar-item" id="profile-link" data-shell-action="profile">${header.profileLabel}</a>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="logout">${header.logoutLabel}</a>
+              <a class="navbar-item" id="logout" data-shell-action="logout">${header.logoutLabel}</a>
             </div>
           </div>
         </div>
       </div>
     </nav>
+    <div id="mobileNavDrawer" class="app-mobile-drawer" aria-hidden="true">
+      <button
+        class="app-mobile-drawer-backdrop"
+        type="button"
+        aria-label="Close navigation"
+        data-mobile-drawer-close
+      ></button>
+      <div class="app-mobile-drawer-panel app-surface" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div class="app-mobile-drawer-header">
+          <div>
+            <p class="app-mobile-drawer-eyebrow">${header.title}</p>
+            <p class="app-muted">${header.subtitle}</p>
+          </div>
+          <button
+            class="delete app-mobile-drawer-close"
+            type="button"
+            aria-label="Close navigation"
+            data-mobile-drawer-close
+          ></button>
+        </div>
+        <div class="app-mobile-drawer-body">
+          <div class="app-mobile-drawer-actions">
+            <button class="button app-button app-primary" type="button" data-shell-action="create">
+              ${header.createLabel}
+            </button>
+            <button class="button app-button app-ghost" type="button" data-shell-action="export">
+              Export
+            </button>
+            <button class="button app-button app-ghost" type="button" data-shell-action="theme">
+              ${header.themeLabel}
+            </button>
+          </div>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-public-panel"
+            >
+              <span>${sidebar.publicLabel}</span>
+            </button>
+            <div id="mobile-public-panel" class="app-mobile-accordion-panel">
+              <ul id="nav-mobile-public" class="menu-list app-mobile-nav-list"></ul>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-private-panel"
+            >
+              <span>${sidebar.privateLabel}</span>
+            </button>
+            <div id="mobile-private-panel" class="app-mobile-accordion-panel">
+              <ul id="nav-mobile-private" class="menu-list app-mobile-nav-list"></ul>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-settings-panel"
+            >
+              <span>${header.settingsLabel}</span>
+            </button>
+            <div id="mobile-settings-panel" class="app-mobile-accordion-panel">
+              <div class="app-mobile-action-list">
+                <a href="#" class="app-mobile-action-link" data-shell-action="modules">Modules</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="integrations">Integrations</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="logs">Logs</a>
+                <a
+                  href="#"
+                  id="forms-link-mobile"
+                  class="app-mobile-action-link is-hidden"
+                  data-shell-action="forms"
+                >
+                  Forms
+                </a>
+              </div>
+              <div id="nav-system-pages-mobile" class="app-mobile-action-list app-mobile-system-pages"></div>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-agents-panel"
+            >
+              <span>Agents</span>
+            </button>
+            <div id="mobile-agents-panel" class="app-mobile-accordion-panel">
+              <div id="nav-agents-mobile" class="app-mobile-action-list"></div>
+              <div class="app-mobile-action-list">
+                <a href="#" class="app-mobile-action-link" data-shell-action="agents-create">Create agent</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="app-mobile-accordion-section">
+            <button
+              class="app-mobile-accordion-toggle"
+              type="button"
+              data-mobile-accordion
+              aria-expanded="false"
+              aria-controls="mobile-account-panel"
+            >
+              <span>${getUserLabel()}</span>
+            </button>
+            <div id="mobile-account-panel" class="app-mobile-accordion-panel">
+              <div class="app-mobile-action-list">
+                <a href="#" class="app-mobile-action-link" data-shell-action="profile">
+                  ${header.profileLabel}
+                </a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="logout">
+                  ${header.logoutLabel}
+                </a>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
     <section class="section pt-4">
-      <div class="container is-fluid">
+      <div class="container">
         <div class="columns is-variable is-4">
-          <aside class="column is-one-quarter">
+          <aside class="column is-one-quarter app-sidebar-column">
             <div class="box app-surface">
               <aside class="menu">
                 <p class="menu-label">${sidebar.publicLabel}</p>

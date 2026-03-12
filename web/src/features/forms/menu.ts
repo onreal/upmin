@@ -1,16 +1,22 @@
 import type { FormSummary } from "../../api";
 
 export const renderFormsMenu = (forms: FormSummary[]) => {
-  const link = document.getElementById("forms-link");
-  if (!link) {
+  const links = [
+    document.getElementById("forms-link"),
+    document.getElementById("forms-link-mobile"),
+  ].filter((link): link is HTMLElement => !!link);
+
+  if (!links.length) {
     return;
   }
 
   if (!forms.length) {
-    link.classList.add("is-hidden");
+    links.forEach((link) => link.classList.add("is-hidden"));
     return;
   }
 
-  link.classList.remove("is-hidden");
-  link.textContent = "Forms";
+  links.forEach((link) => {
+    link.classList.remove("is-hidden");
+    link.textContent = "Forms";
+  });
 };
