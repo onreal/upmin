@@ -1315,62 +1315,29 @@ var renderLogin = (context, error) => {
         <div class="box app-surface">
           <div class="mb-4">
             <h1 class="title is-4">Admin Login</h1>
-            <p class="app-muted">\u03A3\u03C5\u03BD\u03B4\u03B5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BC\u03B5 API key \u03AE email/password.</p>
+            <p class="app-muted">\u03A3\u03C5\u03BD\u03B4\u03B5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BC\u03B5 email \u03BA\u03B1\u03B9 password.</p>
           </div>
           ${error ? `<div class="notification is-danger is-light">${error}</div>` : ""}
-          <div class="columns is-variable is-4">
-            <div class="column">
-              <form id="api-key-form">
-                <div class="field">
-                  <label class="label">API Key</label>
-                  <div class="control">
-                    <input class="input" type="password" name="apiKey" required />
-                  </div>
-                </div>
-                <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7 \u03BC\u03B5 API Key</button>
-              </form>
+          <form id="user-form">
+            <div class="field">
+              <label class="label">Email</label>
+              <div class="control">
+                <input class="input" type="email" name="email" required />
+              </div>
             </div>
-            <div class="column">
-              <form id="user-form">
-                <div class="field">
-                  <label class="label">Email</label>
-                  <div class="control">
-                    <input class="input" type="email" name="email" required />
-                  </div>
-                </div>
-                <div class="field">
-                  <label class="label">Password</label>
-                  <div class="control">
-                    <input class="input" type="password" name="password" required />
-                  </div>
-                </div>
-                <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7 \u03C7\u03C1\u03AE\u03C3\u03C4\u03B7</button>
-              </form>
+            <div class="field">
+              <label class="label">Password</label>
+              <div class="control">
+                <input class="input" type="password" name="password" required />
+              </div>
             </div>
-          </div>
+            <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7</button>
+          </form>
         </div>
       </div>
     </section>
   `;
-  const apiKeyForm = document.getElementById("api-key-form");
   const userForm = document.getElementById("user-form");
-  apiKeyForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(apiKeyForm);
-    const apiKey = String(form.get("apiKey") || "");
-    if (!apiKey) {
-      return;
-    }
-    try {
-      await loginWithApiKey(apiKey);
-      const nextAuth = { type: "apiKey", value: apiKey };
-      onAuth(nextAuth);
-      saveAuth(nextAuth);
-      await onSuccess();
-    } catch (err) {
-      renderLogin(context, err.message);
-    }
-  });
   userForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(userForm);
@@ -7726,6 +7693,10 @@ var renderApp = async () => {
   const app = document.getElementById("app");
   if (!app) {
     throw new Error("Missing app container");
+  }
+  if (state.auth?.type === "apiKey") {
+    state.auth = null;
+    saveAuth(null);
   }
   if (!state.auth) {
     renderLogin({

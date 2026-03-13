@@ -57,6 +57,11 @@ const renderApp = async () => {
     throw new Error("Missing app container");
   }
 
+  if (state.auth?.type === "apiKey") {
+    state.auth = null;
+    saveAuth(null);
+  }
+
   if (!state.auth) {
     renderLogin({
       container: app,
