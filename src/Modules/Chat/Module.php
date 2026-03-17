@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Manage\Modules\Chat;
 
 use Manage\Domain\Module\ModuleDefinition;
+use Manage\Infrastructure\Agents\AgentPromptResolver;
 use Manage\Infrastructure\Agents\AgentResponder;
 use Manage\Infrastructure\Config\Env;
 use Manage\Infrastructure\FileSystem\JsonDocumentRepository;
@@ -43,14 +44,16 @@ final class Module implements ModuleHandler
         $getConversation = new GetConversation($conversationStore);
         $deleteConversation = new DeleteConversation($conversationStore);
 
-        $documentRepository = new JsonDocumentRepository([
+        $storeRoots = [
             'private' => rtrim($context->manageRoot(), '/') . '/store',
             'public' => rtrim($context->projectRoot(), '/') . '/store',
-        ]);
+        ];
+        $documentRepository = new JsonDocumentRepository($storeRoots);
         $integrationContext = new IntegrationContext($context->projectRoot(), $context->manageRoot());
         $integrationRegistry = new IntegrationRegistry($context->manageRoot() . '/src/Integrations', $integrationContext);
         $integrationSettings = new IntegrationSettingsStore($integrationContext);
-        $responder = new AgentResponder($documentRepository, $integrationRegistry, $integrationSettings);
+        $promptResolver = new AgentPromptResolver($storeRoots);
+        $responder = new AgentResponder($documentRepository, $integrationRegistry, $integrationSettings, $promptResolver);
         $env = Env::load($context->manageRoot() . '/.env');
         $realtimeConfig = new RealtimeConfig($env);
         $realtimePublisher = new SocketRealtimePublisher($realtimeConfig);

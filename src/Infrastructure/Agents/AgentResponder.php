@@ -15,16 +15,19 @@ class AgentResponder
     private JsonDocumentRepository $documents;
     private IntegrationRegistry $integrations;
     private IntegrationSettingsStore $settings;
+    private AgentPromptResolver $prompts;
 
     public function __construct(
         JsonDocumentRepository $documents,
         IntegrationRegistry $integrations,
-        IntegrationSettingsStore $settings
+        IntegrationSettingsStore $settings,
+        AgentPromptResolver $prompts
     )
     {
         $this->documents = $documents;
         $this->integrations = $integrations;
         $this->settings = $settings;
+        $this->prompts = $prompts;
     }
 
     /**
@@ -100,28 +103,19 @@ class AgentResponder
         $provider = $data['provider'] ?? null;
         $providerId = $data['providerId'] ?? null;
         $model = $data['model'] ?? null;
-        $systemPrompt = $data['systemPrompt'] ?? null;
-        $adminPrompt = $data['adminPrompt'] ?? null;
-
         if (!is_string($provider) || trim($provider) === '') {
             throw new \InvalidArgumentException('Agent.provider is required.');
         }
         if (!is_string($model) || trim($model) === '') {
             throw new \InvalidArgumentException('Agent.model is required.');
         }
-        if (!is_string($systemPrompt) || trim($systemPrompt) === '') {
-            throw new \InvalidArgumentException('Agent.systemPrompt is required.');
-        }
-        if (!is_string($adminPrompt) || trim($adminPrompt) === '') {
-            throw new \InvalidArgumentException('Agent.adminPrompt is required.');
-        }
 
         return [
             'provider' => trim($provider),
             'providerId' => is_string($providerId) && trim($providerId) !== '' ? strtolower(trim($providerId)) : null,
             'model' => trim($model),
-            'systemPrompt' => trim($systemPrompt),
-            'adminPrompt' => trim($adminPrompt),
+            'systemPrompt' => $this->prompts->resolve($document, $data, 'systemPrompt', 'systemPromptFile'),
+            'adminPrompt' => $this->prompts->resolve($document, $data, 'adminPrompt', 'adminPromptFile'),
         ];
     }
 
