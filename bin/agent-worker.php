@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Manage\Application\UseCases\ProcessPendingAgentReply;
+use Manage\Infrastructure\Agents\AgentPromptResolver;
 use Manage\Infrastructure\Agents\AgentResponder;
 use Manage\Infrastructure\Config\Env;
 use Manage\Infrastructure\Conversations\ConversationProgressTracker;
@@ -25,14 +26,16 @@ $manageRoot = dirname(__DIR__);
 $projectRoot = dirname(__DIR__, 2);
 
 $env = Env::load($manageRoot . '/.env');
-$documents = new JsonDocumentRepository([
+$storeRoots = [
     'private' => $manageRoot . '/store',
     'public' => $projectRoot . '/store',
-]);
+];
+$documents = new JsonDocumentRepository($storeRoots);
 $integrationContext = new IntegrationContext($projectRoot, $manageRoot);
 $integrationRegistry = new IntegrationRegistry($manageRoot . '/src/Integrations', $integrationContext);
 $integrationSettings = new IntegrationSettingsStore($integrationContext);
-$responder = new AgentResponder($documents, $integrationRegistry, $integrationSettings);
+$promptResolver = new AgentPromptResolver($storeRoots);
+$responder = new AgentResponder($documents, $integrationRegistry, $integrationSettings, $promptResolver);
 $realtime = new SocketRealtimePublisher(new RealtimeConfig($env));
 $progress = new ConversationProgressTracker($documents, $realtime);
 
