@@ -15,7 +15,16 @@ export type ChatDom = {
   remove: HTMLButtonElement | null;
 };
 
-const buildHeader = (module: ModuleDefinition, agentName: string, openSettings?: () => void) => {
+const buildHeader = (
+  module: ModuleDefinition,
+  agentName: string,
+  openSettings?: () => void,
+  hideHeader?: boolean
+) => {
+  if (hideHeader) {
+    return null;
+  }
+
   const header = document.createElement("div");
   header.className = "app-module-header";
 
@@ -65,11 +74,15 @@ export const renderChatLayout = (
   panel: HTMLElement,
   module: ModuleDefinition,
   agentName: string,
-  openSettings?: () => void
+  openSettings?: () => void,
+  hideHeader?: boolean
 ): ChatDom | null => {
   const card = document.createElement("div");
   card.className = "app-module";
-  card.append(buildHeader(module, agentName, openSettings));
+  const header = buildHeader(module, agentName, openSettings, hideHeader);
+  if (header) {
+    card.append(header);
+  }
 
   const body = document.createElement("div");
   body.className = "app-module-body";
@@ -82,13 +95,30 @@ export const renderChatLayout = (
             <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
           </div>
           <div class="app-chat-actions">
-            <div class="select is-small">
+            <div class="select is-small app-chat-select-wrap">
               <select data-role="chat-select">
                 <option value="">Select chat</option>
               </select>
             </div>
-            <button class="button app-button app-ghost" data-action="new">New</button>
-            <button class="button app-button app-ghost app-icon-button" data-action="delete" title="Delete chat" aria-label="Delete chat" disabled>
+            <button
+              class="button app-button app-ghost app-chat-toolbar-button app-chat-toolbar-icon-button"
+              data-action="new"
+              title="Start a new conversation"
+              aria-label="Start a new conversation"
+            >
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+                  <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+                </svg>
+              </span>
+            </button>
+            <button
+              class="button app-button app-ghost app-icon-button app-chat-toolbar-button app-chat-toolbar-icon-button"
+              data-action="delete"
+              title="Delete the selected conversation"
+              aria-label="Delete the selected conversation"
+              disabled
+            >
               <span class="icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
                   <path d="M9 6h6M10 6V4h4v2M6 6h12M8 6v12m4-12v12m4-12v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>

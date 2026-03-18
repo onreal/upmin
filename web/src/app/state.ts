@@ -26,6 +26,14 @@ export type AppState = {
   integrationSettings: Record<string, IntegrationSettings>;
   currentIntegration: IntegrationSummary | null;
   openIntegrationModalHandler: ((integration: IntegrationSummary) => void) | null;
+  openConfirmModalHandler: ((
+    options: {
+      title: string;
+      message: string;
+      confirmLabel?: string;
+      confirmClassName?: string;
+    }
+  ) => Promise<boolean>) | null;
   agents: AgentSummary[];
   agentsAll: AgentSummary[];
   logs: LogSummary[];
@@ -52,6 +60,7 @@ export const state: AppState = {
   integrationSettings: {},
   currentIntegration: null,
   openIntegrationModalHandler: null,
+  openConfirmModalHandler: null,
   agents: [],
   agentsAll: [],
   logs: [],

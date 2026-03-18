@@ -93,6 +93,16 @@
   margin-bottom: 0.25rem;
 }
 
+.app-chat-message-preview {
+  font-size: 0.92rem;
+  line-height: 1.3;
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 6.25rem;
+}
+
 .app-chat-message.is-selected {
   border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 25%, transparent);
@@ -144,6 +154,23 @@
   white-space: pre-wrap;
 }
 
+.app-chat-message.is-folded .app-chat-message-content {
+  display: none;
+}
+
+.app-chat-message.is-folded {
+  padding-top: 0.7rem;
+  padding-bottom: 0.55rem;
+}
+
+.app-chat-message.is-folded .app-chat-message-role {
+  margin-bottom: 0.18rem;
+}
+
+.app-chat-message.is-folded .app-chat-message-actions {
+  top: 0.4rem;
+}
+
 .app-chat-progress {
   border: 1px dashed color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
   border-radius: var(--app-radius-sm);
@@ -186,11 +213,35 @@
 .app-chat-actions {
   display: flex;
   align-items: center;
-  gap: var(--app-gap-xs);
+  gap: 0.4rem;
+}
+
+.app-chat-select-wrap {
+  height: 32px;
+  margin-right: 0.35rem;
 }
 
 .app-chat-actions .select select {
   min-width: 200px;
+  height: 32px;
+  border-radius: 4px;
+}
+
+.app-chat-actions .button.app-button.app-chat-toolbar-button {
+  min-height: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  border-radius: 4px;
+}
+
+.app-chat-actions .button.app-button.app-chat-toolbar-icon-button {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
 }
 
 .app-chat-jump {

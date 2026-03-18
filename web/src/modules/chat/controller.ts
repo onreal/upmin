@@ -40,14 +40,35 @@ type ChatRuntime = {
   editor: ModuleRenderContext["editor"];
   dom: ChatDom;
   targetKey: string;
+  autoLoadLatestConversation?: boolean;
 };
 
 export const mountChatController = (runtime: ChatRuntime) => {
   let conversations: ChatConversationSummary[] = [];
   let currentConversation: RemoteDocument | null = null;
   let pendingNew = false;
+  let attemptedInitialAutoLoad = false;
+  const foldedByConversation = new Map<string, Set<string>>();
   let disposeRealtime: (() => void) | null = null;
   let disposeRealtimeStatus: (() => void) | null = null;
+
+  const latestConversationId = (items: ChatConversationSummary[]) => {
+    if (!items.length) {
+      return null;
+    }
+
+    const timestamp = (item: ChatConversationSummary) => {
+      const raw = item.updatedAt || item.createdAt || "";
+      const value = Date.parse(raw);
+      return Number.isNaN(value) ? 0 : value;
+    };
+
+    return [...items]
+      .sort((a, b) => {
+        const diff = timestamp(b) - timestamp(a);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      })[0]?.id ?? null;
+  };
 
   const ensureDataObject = () => {
     if (isRecord(runtime.payload.data)) {
@@ -76,12 +97,58 @@ export const mountChatController = (runtime: ChatRuntime) => {
     return list.some((entry) => isRecord(entry) && entry.id === message.id);
   };
 
+  const ensureFoldState = (conversation: RemoteDocument | null) => {
+    if (!conversation || foldedByConversation.has(conversation.id)) {
+      return;
+    }
+
+    const messages = extractMessages(conversation);
+    const assistantMessages = messages.filter((message) => message.role === "assistant");
+    const lastAssistantId = assistantMessages.length ? assistantMessages[assistantMessages.length - 1]?.id : null;
+    const folded = new Set<string>();
+
+    assistantMessages.forEach((message) => {
+      if (message.id !== lastAssistantId) {
+        folded.add(message.id);
+      }
+    });
+
+    foldedByConversation.set(conversation.id, folded);
+  };
+
+  const isMessageFolded = (message: ChatMessage) => {
+    if (!currentConversation || message.role !== "assistant") {
+      return false;
+    }
+    return foldedByConversation.get(currentConversation.id)?.has(message.id) ?? false;
+  };
+
+  const toggleMessageFold = (message: ChatMessage) => {
+    if (!currentConversation || message.role !== "assistant") {
+      return;
+    }
+    ensureFoldState(currentConversation);
+    const folded = foldedByConversation.get(currentConversation.id);
+    if (!folded) {
+      return;
+    }
+    if (folded.has(message.id)) {
+      folded.delete(message.id);
+    } else {
+      folded.add(message.id);
+    }
+    renderCurrentMessages();
+  };
+
   const renderCurrentMessages = () => {
     const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
+    ensureFoldState(currentConversation);
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
       progress: getConversationProgress(currentConversation),
       isSelected: (message) => isMessageSelected(message),
+      isFolded: (message) => isMessageFolded(message),
+      onToggleFold: (message) => toggleMessageFold(message),
       onToggle: (message, selected) => {
         const data = ensureDataObject();
         const list = ensureOutputList();
@@ -151,6 +218,15 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const syncConversation = (conversation: RemoteDocument | null, forceScroll = false) => {
+    if (conversation) {
+      ensureFoldState(conversation);
+      const messages = extractMessages(conversation);
+      const assistantMessages = messages.filter((message) => message.role === "assistant");
+      const latestAssistant = assistantMessages[assistantMessages.length - 1];
+      if (latestAssistant) {
+        foldedByConversation.get(conversation.id)?.delete(latestAssistant.id);
+      }
+    }
     currentConversation = conversation;
     updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
     const shouldScroll = forceScroll || isNearBottom();
@@ -208,6 +284,14 @@ export const mountChatController = (runtime: ChatRuntime) => {
       });
       conversations = Array.isArray(response.items) ? response.items : [];
       updateSelectOptions();
+      if (runtime.autoLoadLatestConversation && !currentConversation && !attemptedInitialAutoLoad) {
+        attemptedInitialAutoLoad = true;
+        const conversationId = latestConversationId(conversations);
+        if (conversationId) {
+          await loadConversation(conversationId);
+          return;
+        }
+      }
       if (!conversationHasPendingResponse(currentConversation)) {
         setStatus("");
       }

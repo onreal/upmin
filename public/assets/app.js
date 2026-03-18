@@ -16,7 +16,7 @@ var init_types = __esm({
 });
 
 // web/src/api/client.ts
-var STORAGE_KEY, notify, successMessageFor, loadAuth, saveAuth, buildHeaders, request, requestBlob, requestAsset, requestForm;
+var STORAGE_KEY, notify, notifySessionExpired, successMessageFor, handleUnauthorized, loadAuth, saveAuth, buildHeaders, request, requestBlob, requestAsset, requestForm;
 var init_client = __esm({
   "web/src/api/client.ts"() {
     "use strict";
@@ -26,6 +26,12 @@ var init_client = __esm({
         return;
       }
       window.dispatchEvent(new CustomEvent("app:notice", { detail: payload }));
+    };
+    notifySessionExpired = (payload) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("app:session-expired", { detail: payload }));
     };
     successMessageFor = (method) => {
       if (method === "GET")
@@ -37,6 +43,13 @@ var init_client = __esm({
       if (method === "DELETE")
         return "Deleted.";
       return "Done.";
+    };
+    handleUnauthorized = (response, auth, message) => {
+      if (!auth || response.status !== 401) {
+        return;
+      }
+      saveAuth(null);
+      notifySessionExpired({ message, status: response.status });
     };
     loadAuth = () => {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -80,6 +93,7 @@ var init_client = __esm({
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
         const message = error.message || error.error || response.statusText || "Request failed";
+        handleUnauthorized(response, auth, message);
         if (config.notify !== false) {
           notify({ type: "error", message });
         }
@@ -103,6 +117,7 @@ var init_client = __esm({
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
         const message = error.message || error.error || response.statusText || "Request failed";
+        handleUnauthorized(response, auth, message);
         notify({ type: "error", message });
         throw new Error(message);
       }
@@ -128,6 +143,7 @@ var init_client = __esm({
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
         const message = error.message || error.error || response.statusText || "Request failed";
+        handleUnauthorized(response, auth, message);
         if (config.notify !== false) {
           notify({ type: "error", message });
         }
@@ -153,6 +169,7 @@ var init_client = __esm({
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
         const message = error.message || error.error || response.statusText || "Request failed";
+        handleUnauthorized(response, auth, message);
         notify({ type: "error", message });
         throw new Error(message);
       }
@@ -538,6 +555,7 @@ var state = {
   integrationSettings: {},
   currentIntegration: null,
   openIntegrationModalHandler: null,
+  openConfirmModalHandler: null,
   agents: [],
   agentsAll: [],
   logs: [],
@@ -1178,6 +1196,22 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
         <footer class="modal-card-foot">
           <button id="integration-cancel" class="button app-button app-ghost">Cancel</button>
           <button form="integration-form" type="submit" class="button app-button app-primary">Save</button>
+        </footer>
+      </div>
+    </div>
+    <div class="modal" id="confirm-modal">
+      <div class="modal-background" data-close="confirm"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title" id="confirm-modal-title">Confirm action</p>
+          <button class="delete" aria-label="close" data-close="confirm"></button>
+        </header>
+        <section class="modal-card-body">
+          <p id="confirm-modal-message" class="app-muted"></p>
+        </section>
+        <footer class="modal-card-foot">
+          <button id="confirm-cancel" type="button" class="button app-button app-ghost">Cancel</button>
+          <button id="confirm-submit" type="button" class="button app-button app-primary">Confirm</button>
         </footer>
       </div>
     </div>
@@ -2304,6 +2338,61 @@ var initIntegrationModal = ({
   return { openIntegrationModal };
 };
 
+// web/src/features/modals/confirm.ts
+var initConfirmModal = () => {
+  const confirmModal = document.getElementById("confirm-modal");
+  const confirmTitle = document.getElementById("confirm-modal-title");
+  const confirmMessage = document.getElementById("confirm-modal-message");
+  const confirmButton = document.getElementById("confirm-submit");
+  const cancelButton = document.getElementById("confirm-cancel");
+  let resolver = null;
+  const defaultConfirmClassName = "button app-button app-primary";
+  const close = (confirmed) => {
+    resetConfirmButton();
+    confirmModal?.classList.remove("is-active");
+    if (resolver) {
+      resolver(confirmed);
+      resolver = null;
+    }
+  };
+  const resetConfirmButton = () => {
+    if (!confirmButton) {
+      return;
+    }
+    confirmButton.className = defaultConfirmClassName;
+    confirmButton.textContent = "Confirm";
+  };
+  const openConfirmModal = ({
+    title,
+    message,
+    confirmLabel = "Confirm",
+    confirmClassName = defaultConfirmClassName
+  }) => {
+    if (!confirmModal || !confirmTitle || !confirmMessage || !confirmButton) {
+      return Promise.resolve(false);
+    }
+    confirmTitle.textContent = title;
+    confirmMessage.textContent = message;
+    confirmButton.textContent = confirmLabel;
+    confirmButton.className = confirmClassName;
+    confirmModal.classList.add("is-active");
+    return new Promise((resolve) => {
+      resolver = resolve;
+    });
+  };
+  confirmButton?.addEventListener("click", () => close(true));
+  cancelButton?.addEventListener("click", () => close(false));
+  confirmModal?.querySelectorAll("[data-close='confirm']").forEach((el) => {
+    el.addEventListener("click", () => close(false));
+  });
+  confirmModal?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      close(false);
+    }
+  });
+  return { openConfirmModal };
+};
+
 // web/src/features/realtime/client.ts
 init_api();
 var socket = null;
@@ -3427,7 +3516,10 @@ var moduleSettingsKey = (payload, moduleName) => {
 };
 
 // web/src/modules/chat/layout.ts
-var buildHeader = (module, agentName, openSettings) => {
+var buildHeader = (module, agentName, openSettings, hideHeader) => {
+  if (hideHeader) {
+    return null;
+  }
   const header = document.createElement("div");
   header.className = "app-module-header";
   const headerRow = document.createElement("div");
@@ -3465,10 +3557,13 @@ var buildHeader = (module, agentName, openSettings) => {
   }
   return header;
 };
-var renderChatLayout = (panel, module, agentName, openSettings) => {
+var renderChatLayout = (panel, module, agentName, openSettings, hideHeader) => {
   const card = document.createElement("div");
   card.className = "app-module";
-  card.append(buildHeader(module, agentName, openSettings));
+  const header = buildHeader(module, agentName, openSettings, hideHeader);
+  if (header) {
+    card.append(header);
+  }
   const body = document.createElement("div");
   body.className = "app-module-body";
   body.innerHTML = `
@@ -3480,13 +3575,30 @@ var renderChatLayout = (panel, module, agentName, openSettings) => {
             <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
           </div>
           <div class="app-chat-actions">
-            <div class="select is-small">
+            <div class="select is-small app-chat-select-wrap">
               <select data-role="chat-select">
                 <option value="">Select chat</option>
               </select>
             </div>
-            <button class="button app-button app-ghost" data-action="new">New</button>
-            <button class="button app-button app-ghost app-icon-button" data-action="delete" title="Delete chat" aria-label="Delete chat" disabled>
+            <button
+              class="button app-button app-ghost app-chat-toolbar-button app-chat-toolbar-icon-button"
+              data-action="new"
+              title="Start a new conversation"
+              aria-label="Start a new conversation"
+            >
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
+                  <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+                </svg>
+              </span>
+            </button>
+            <button
+              class="button app-button app-ghost app-icon-button app-chat-toolbar-button app-chat-toolbar-icon-button"
+              data-action="delete"
+              title="Delete the selected conversation"
+              aria-label="Delete the selected conversation"
+              disabled
+            >
               <span class="icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
                   <path d="M9 6h6M10 6V4h4v2M6 6h12M8 6v12m4-12v12m4-12v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -3713,6 +3825,11 @@ var createProcessingStatus = (setStatus2) => {
 
 // web/src/modules/chat/utils.ts
 var messageId = (conversationId, createdAt, index) => `${conversationId}:${createdAt ?? index}`;
+var escapeHtml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var foldedPreview = (content) => {
+  const firstLine = content.split(/\r?\n/, 1)[0]?.trim() ?? "";
+  return firstLine;
+};
 var extractMessages = (conversation) => {
   if (!conversation) {
     return [];
@@ -3749,12 +3866,30 @@ var renderMessages = (container, messages, options = {}) => {
     const label = role === "assistant" ? "Agent" : "You";
     const roleClass = role === "assistant" ? "is-assistant" : "is-user";
     const selectable = enableActions && role === "assistant";
+    const foldable = role === "assistant";
+    const folded = foldable && options.isFolded ? options.isFolded(message) : false;
     const selected = selectable && options.isSelected ? options.isSelected(message) : false;
     const selectedClass = selected ? "is-selected" : "";
+    const foldedClass = folded ? "is-folded" : "";
     const toggleTitle = selected ? "Remove from data" : "Add to data";
     const toggleIcon = selected ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>` : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
+    const foldTitle = folded ? "Expand response" : "Collapse response";
+    const foldIcon = folded ? `<path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>` : `<path d="m8 14 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`;
+    const preview = folded ? foldedPreview(message.content) : "";
     const actions = selectable ? `
           <div class="app-chat-message-actions">
+            <button
+              type="button"
+              class="app-chat-action"
+              data-chat-action="fold"
+              data-message-id="${message.id}"
+              title="${foldTitle}"
+              aria-label="${foldTitle}"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                ${foldIcon}
+              </svg>
+            </button>
             <button
               type="button"
               class="app-chat-action ${selected ? "is-active" : ""}"
@@ -3787,11 +3922,27 @@ var renderMessages = (container, messages, options = {}) => {
               </svg>
             </button>
           </div>
+        ` : foldable ? `
+          <div class="app-chat-message-actions">
+            <button
+              type="button"
+              class="app-chat-action"
+              data-chat-action="fold"
+              data-message-id="${message.id}"
+              title="${foldTitle}"
+              aria-label="${foldTitle}"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                ${foldIcon}
+              </svg>
+            </button>
+          </div>
         ` : "";
     return `
-        <div class="app-chat-message ${roleClass} ${selectedClass}" data-message-id="${message.id}">
+        <div class="app-chat-message ${roleClass} ${selectedClass} ${foldedClass}" data-message-id="${message.id}">
           <div class="app-chat-message-role">${label}</div>
           ${actions}
+          ${folded ? `<div class="app-chat-message-preview">${escapeHtml(preview)}</div>` : ""}
           <div class="app-chat-message-content">${message.content}</div>
         </div>
       `;
@@ -3811,6 +3962,11 @@ var renderMessages = (container, messages, options = {}) => {
         button.addEventListener("click", () => {
           const selected = options.isSelected ? options.isSelected(message) : false;
           options.onToggle?.(message, selected);
+        });
+      }
+      if (action === "fold") {
+        button.addEventListener("click", () => {
+          options.onToggleFold?.(message);
         });
       }
       if (action === "copy") {
@@ -3843,8 +3999,24 @@ var mountChatController = (runtime) => {
   let conversations = [];
   let currentConversation = null;
   let pendingNew = false;
+  let attemptedInitialAutoLoad = false;
+  const foldedByConversation = /* @__PURE__ */ new Map();
   let disposeRealtime = null;
   let disposeRealtimeStatus = null;
+  const latestConversationId = (items) => {
+    if (!items.length) {
+      return null;
+    }
+    const timestamp = (item) => {
+      const raw = item.updatedAt || item.createdAt || "";
+      const value = Date.parse(raw);
+      return Number.isNaN(value) ? 0 : value;
+    };
+    return [...items].sort((a, b) => {
+      const diff = timestamp(b) - timestamp(a);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    })[0]?.id ?? null;
+  };
   const ensureDataObject = () => {
     if (isRecord(runtime.payload.data)) {
       return runtime.payload.data;
@@ -3867,12 +4039,52 @@ var mountChatController = (runtime) => {
     const list = Array.isArray(data[runtime.targetKey]) ? data[runtime.targetKey] : [];
     return list.some((entry) => isRecord(entry) && entry.id === message.id);
   };
+  const ensureFoldState = (conversation) => {
+    if (!conversation || foldedByConversation.has(conversation.id)) {
+      return;
+    }
+    const messages = extractMessages(conversation);
+    const assistantMessages = messages.filter((message) => message.role === "assistant");
+    const lastAssistantId = assistantMessages.length ? assistantMessages[assistantMessages.length - 1]?.id : null;
+    const folded = /* @__PURE__ */ new Set();
+    assistantMessages.forEach((message) => {
+      if (message.id !== lastAssistantId) {
+        folded.add(message.id);
+      }
+    });
+    foldedByConversation.set(conversation.id, folded);
+  };
+  const isMessageFolded = (message) => {
+    if (!currentConversation || message.role !== "assistant") {
+      return false;
+    }
+    return foldedByConversation.get(currentConversation.id)?.has(message.id) ?? false;
+  };
+  const toggleMessageFold = (message) => {
+    if (!currentConversation || message.role !== "assistant") {
+      return;
+    }
+    ensureFoldState(currentConversation);
+    const folded = foldedByConversation.get(currentConversation.id);
+    if (!folded) {
+      return;
+    }
+    if (folded.has(message.id)) {
+      folded.delete(message.id);
+    } else {
+      folded.add(message.id);
+    }
+    renderCurrentMessages();
+  };
   const renderCurrentMessages = () => {
     const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
+    ensureFoldState(currentConversation);
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
       progress: getConversationProgress(currentConversation),
       isSelected: (message) => isMessageSelected(message),
+      isFolded: (message) => isMessageFolded(message),
+      onToggleFold: (message) => toggleMessageFold(message),
       onToggle: (message, selected) => {
         const data = ensureDataObject();
         const list = ensureOutputList();
@@ -3929,6 +4141,15 @@ var mountChatController = (runtime) => {
     );
   };
   const syncConversation = (conversation, forceScroll = false) => {
+    if (conversation) {
+      ensureFoldState(conversation);
+      const messages = extractMessages(conversation);
+      const assistantMessages = messages.filter((message) => message.role === "assistant");
+      const latestAssistant = assistantMessages[assistantMessages.length - 1];
+      if (latestAssistant) {
+        foldedByConversation.get(conversation.id)?.delete(latestAssistant.id);
+      }
+    }
     currentConversation = conversation;
     updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
     const shouldScroll = forceScroll || isNearBottom();
@@ -3978,6 +4199,14 @@ var mountChatController = (runtime) => {
       });
       conversations = Array.isArray(response.items) ? response.items : [];
       updateSelectOptions();
+      if (runtime.autoLoadLatestConversation && !currentConversation && !attemptedInitialAutoLoad) {
+        attemptedInitialAutoLoad = true;
+        const conversationId = latestConversationId(conversations);
+        if (conversationId) {
+          await loadConversation(conversationId);
+          return;
+        }
+      }
       if (!conversationHasPendingResponse(currentConversation)) {
         setStatus2("");
       }
@@ -4167,35 +4396,38 @@ var renderChatModule = (panel, context) => {
   if (!agentName || !agentId) {
     const card = document.createElement("div");
     card.className = "app-module";
-    const header = document.createElement("div");
-    header.className = "app-module-header";
-    const headerRow = document.createElement("div");
-    headerRow.className = "app-module-header-row";
-    const title = document.createElement("div");
-    title.className = "app-module-title";
-    title.textContent = context.module.name;
-    headerRow.append(title);
-    if (context.openSettings) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-      button.title = "Module settings";
-      button.setAttribute("aria-label", "Module settings");
-      button.innerHTML = `
-        <span class="icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
-            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
-          </svg>
-        </span>
-      `;
-      button.addEventListener("click", context.openSettings);
-      headerRow.append(button);
+    if (!context.hideHeader) {
+      const header = document.createElement("div");
+      header.className = "app-module-header";
+      const headerRow = document.createElement("div");
+      headerRow.className = "app-module-header-row";
+      const title = document.createElement("div");
+      title.className = "app-module-title";
+      title.textContent = context.module.name;
+      headerRow.append(title);
+      if (context.openSettings) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
+        button.title = "Module settings";
+        button.setAttribute("aria-label", "Module settings");
+        button.innerHTML = `
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V21a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H3a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V3a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H21a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+            </svg>
+          </span>
+        `;
+        button.addEventListener("click", context.openSettings);
+        headerRow.append(button);
+      }
+      const meta = document.createElement("div");
+      meta.className = "app-module-meta";
+      meta.textContent = context.module.description;
+      header.append(headerRow, meta);
+      card.append(header);
     }
-    const meta = document.createElement("div");
-    meta.className = "app-module-meta";
-    meta.textContent = context.module.description;
-    header.append(headerRow, meta);
     const body = document.createElement("div");
     body.className = "app-module-body";
     const note = document.createElement("div");
@@ -4205,13 +4437,13 @@ var renderChatModule = (panel, context) => {
       <p class="app-muted">Select an agent in module settings to start chatting.</p>
     `;
     body.append(note);
-    card.append(header, body);
+    card.append(body);
     panel.append(card);
     return;
   }
   const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
   const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : context.module.name;
-  const dom = renderChatLayout(panel, context.module, agentName, context.openSettings);
+  const dom = renderChatLayout(panel, context.module, agentName, context.openSettings, context.hideHeader);
   if (!dom) {
     return;
   }
@@ -4223,7 +4455,8 @@ var renderChatModule = (panel, context) => {
     payload: context.payload,
     editor: context.editor,
     dom,
-    targetKey
+    targetKey,
+    autoLoadLatestConversation: context.autoLoadLatestConversation
   });
 };
 
@@ -4888,6 +5121,8 @@ var renderModulePanel = async ({
   auth,
   doc,
   editor,
+  hideModuleHeader,
+  autoLoadLatestConversation,
   normalizeModuleList: normalizeModuleList2,
   fetchModuleSettings: fetchModuleSettings2,
   findModuleDefinition: findModuleDefinition2,
@@ -4926,6 +5161,8 @@ var renderModulePanel = async ({
       payload: doc.payload,
       editor,
       settings,
+      hideHeader: hideModuleHeader,
+      autoLoadLatestConversation,
       openSettings: () => {
         void ensureModuleSettingsDocument2(module, doc.payload).then((resolved) => {
           openModuleSettings(resolved.id);
@@ -5066,7 +5303,7 @@ var renderModulesView = ({
 
 // web/src/views/forms.ts
 init_api();
-var escapeHtml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
+var escapeHtml2 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
 var formatTimestamp = (value) => {
   if (!value) {
     return "Unknown time";
@@ -5082,7 +5319,7 @@ var buildFormSelect = (forms, currentId) => {
     const label = form.label || form.name;
     const source = form.source?.name ? ` \xB7 ${form.source.name}` : "";
     const selected = form.id === currentId ? "selected" : "";
-    return `<option value="${form.id}" ${selected}>${escapeHtml(label)}${escapeHtml(source)}</option>`;
+    return `<option value="${form.id}" ${selected}>${escapeHtml2(label)}${escapeHtml2(source)}</option>`;
   }).join("");
   return `
     <div class="field">
@@ -5111,17 +5348,17 @@ var renderEntries = (doc, target) => {
     const actor = record.actor && typeof record.actor === "object" ? record.actor : null;
     const actorLabel = actor ? `${actor.sub ?? ""}${actor.role ? ` \xB7 ${actor.role}` : ""}`.trim() : "anonymous";
     const payload = record.data ?? {};
-    const payloadJson = escapeHtml(JSON.stringify(payload, null, 2));
+    const payloadJson = escapeHtml2(JSON.stringify(payload, null, 2));
     return `
         <article class="app-form-entry app-surface">
           <div class="app-form-entry-header">
             <div>
               <span class="app-form-entry-label">Submitted</span>
-              <span class="app-form-entry-value">${escapeHtml(submittedAt)}</span>
+              <span class="app-form-entry-value">${escapeHtml2(submittedAt)}</span>
             </div>
             <div>
               <span class="app-form-entry-label">Actor</span>
-              <span class="app-form-entry-value">${escapeHtml(actorLabel || "anonymous")}</span>
+              <span class="app-form-entry-value">${escapeHtml2(actorLabel || "anonymous")}</span>
             </div>
           </div>
           <pre class="app-form-entry-json">${payloadJson}</pre>
@@ -6186,7 +6423,7 @@ var timestampFormatter = new Intl.DateTimeFormat(void 0, {
   dateStyle: "medium",
   timeStyle: "short"
 });
-var escapeHtml2 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var escapeHtml3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var reasonLabel = (reason) => {
   if (reason === "before-clear") {
     return "Pre-clear snapshot";
@@ -6221,22 +6458,22 @@ var buildCard = (creation) => {
   article.innerHTML = `
     <div class="app-creation-preview is-loading">
       <div class="app-creation-preview-glow"></div>
-      <img alt="${escapeHtml2(creation.id)}" loading="lazy" />
+      <img alt="${escapeHtml3(creation.id)}" loading="lazy" />
     </div>
     <div class="app-creation-copy">
       <div class="app-creation-copy-top">
-        <span class="app-creation-badge">${escapeHtml2(`${targetLabel(creation.target)} \xB7 ${reasonLabel(creation.reason)}`)}</span>
-        <span class="app-creation-date">${escapeHtml2(formatTimestamp2(creation.createdAt))}</span>
+        <span class="app-creation-badge">${escapeHtml3(`${targetLabel(creation.target)} \xB7 ${reasonLabel(creation.reason)}`)}</span>
+        <span class="app-creation-date">${escapeHtml3(formatTimestamp2(creation.createdAt))}</span>
       </div>
-      <h2 class="app-creation-title">${escapeHtml2(creation.id)}</h2>
+      <h2 class="app-creation-title">${escapeHtml3(creation.id)}</h2>
       <div class="app-creation-paths">
         <div>
           <span class="app-creation-label">Backup</span>
-          <code>manage/store/${escapeHtml2(creation.backupPath)}</code>
+          <code>manage/store/${escapeHtml3(creation.backupPath)}</code>
         </div>
         <div>
           <span class="app-creation-label">Preview</span>
-          <code>manage/store/${escapeHtml2(creation.snapshotPath)}</code>
+          <code>manage/store/${escapeHtml3(creation.snapshotPath)}</code>
         </div>
       </div>
     </div>
@@ -6268,7 +6505,7 @@ var renderCreationsView = ({
       <div class="app-creations-hero app-surface">
         <div>
           <p class="app-creations-kicker">System page</p>
-          <h1 class="title is-4">${escapeHtml2(doc.payload.name)}</h1>
+          <h1 class="title is-4">${escapeHtml3(doc.payload.name)}</h1>
           <p class="app-muted app-creations-subtitle">
             Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.
           </p>
@@ -6279,7 +6516,7 @@ var renderCreationsView = ({
             <span class="app-creations-stat-label">Snapshots</span>
           </div>
           <div>
-            <span class="app-creations-stat-value">${escapeHtml2(doc.store)}</span>
+            <span class="app-creations-stat-value">${escapeHtml3(doc.store)}</span>
             <span class="app-creations-stat-label">Store</span>
           </div>
         </div>
@@ -6707,16 +6944,81 @@ var renderCreationsPage = ({
 init_api();
 
 // web/src/views/website-build.ts
-var escapeHtml3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var escapeHtml4 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var actionIcon = (name) => {
+  if (name === "visit") {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path d="M14 5h5v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M10 14 19 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+  if (name === "copy") {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path d="M8 7h8a2 2 0 0 1 2 2v8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M8 17H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M10 11h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+        <path d="m17 8 3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+  if (name === "publish") {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path d="M12 16V5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+        <path d="m8 9 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M5 17v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+  return `
+    <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+      <path d="M4 17h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+      <path d="m14 6 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+      <path d="m12 8 4 4-6.5 6.5H5v-4.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  `;
+};
+var actionButton = (id, label, icon, tooltip, extraClass = "") => {
+  const className = ["button app-button app-ghost app-build-action", extraClass].filter(Boolean).join(" ");
+  return `
+  <button
+    id="${id}"
+    class="${className}"
+    type="button"
+    data-busy-label="${escapeHtml4(label)}..."
+    data-tooltip="${escapeHtml4(tooltip)}"
+    aria-label="${escapeHtml4(tooltip)}"
+    title="${escapeHtml4(tooltip)}"
+  >
+    <span class="app-build-action-icon" aria-hidden="true">${actionIcon(icon)}</span>
+    <span class="app-build-action-label">${escapeHtml4(label)}</span>
+  </button>
+`;
+};
 var runButtonAction2 = async (button, pendingLabel, action) => {
-  const originalLabel = button.textContent ?? pendingLabel;
+  const label = button.querySelector(".app-build-action-label");
+  const originalLabel = label?.textContent ?? pendingLabel;
   button.disabled = true;
-  button.textContent = pendingLabel;
+  button.classList.add("is-busy");
+  if (label) {
+    label.textContent = pendingLabel;
+  } else {
+    button.textContent = pendingLabel;
+  }
   try {
     await action();
   } finally {
     button.disabled = false;
-    button.textContent = originalLabel;
+    button.classList.remove("is-busy");
+    if (label) {
+      label.textContent = originalLabel;
+    } else {
+      button.textContent = originalLabel;
+    }
   }
 };
 var renderWebsiteBuildView = ({
@@ -6734,16 +7036,31 @@ var renderWebsiteBuildView = ({
   content.innerHTML = `
     <section class="app-build-shell">
       <div class="app-build-header">
-        <div>
+        <div class="app-build-heading">
           <p class="app-build-kicker app-muted">System page</p>
-          <h1 class="title is-4">${escapeHtml3(doc.payload.name)}</h1>
-          <p class="app-muted app-build-subtitle">Chat with the builder and preview the output.</p>
+          <h1 class="title is-4">${escapeHtml4(doc.payload.name)}</h1>
         </div>
-        <div class="app-build-actions buttons">
-          <button id="build-visit" class="button app-button app-ghost">Visit</button>
-          <button id="build-copy-public" class="button app-button app-ghost">Copy from public</button>
-          <button id="build-publish" class="button app-button app-primary">Publish</button>
-          <button id="build-clean" class="button app-button app-danger">Clean</button>
+        <div class="app-build-actions" role="toolbar" aria-label="Website build actions">
+          ${actionButton("build-visit", "Visit", "visit", "Open the current generated build in a new tab.")}
+          ${actionButton(
+    "build-copy-public",
+    "Copy from public",
+    "copy",
+    "Import the current public website into the build workspace."
+  )}
+          ${actionButton(
+    "build-publish",
+    "Publish",
+    "publish",
+    "Replace the public website with the current build output."
+  )}
+          ${actionButton(
+    "build-clean",
+    "Clean",
+    "clean",
+    "Remove the current build output after creating a safety snapshot.",
+    "app-build-action-danger"
+  )}
         </div>
       </div>
       <div class="tabs is-toggle is-small app-build-tabs">
@@ -6830,7 +7147,8 @@ var renderWebsiteBuildPage = ({
   content,
   auth,
   doc,
-  renderModulePanel: renderModulePanel2
+  renderModulePanel: renderModulePanel2,
+  confirmAction
 }) => {
   const buildUrl = `${window.location.origin}/build/`;
   const settingsKey = moduleSettingsKey(doc.payload, "chat");
@@ -6845,6 +7163,15 @@ var renderWebsiteBuildPage = ({
         return;
       }
       try {
+        const confirmed = await confirmAction({
+          title: "Publish build",
+          message: "Publish will replace the public website with the current build output. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
+          confirmLabel: "Publish website",
+          confirmClassName: "button app-button app-primary"
+        });
+        if (!confirmed) {
+          return;
+        }
         await publishWebsiteBuild(auth);
       } catch (err) {
         alert(err.message);
@@ -6855,6 +7182,15 @@ var renderWebsiteBuildPage = ({
         return;
       }
       try {
+        const confirmed = await confirmAction({
+          title: "Clean build",
+          message: "Clean will remove the current build output after capturing a safety snapshot. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
+          confirmLabel: "Clean build",
+          confirmClassName: "button app-button app-danger"
+        });
+        if (!confirmed) {
+          return;
+        }
         const snapshot = await captureWebsiteSnapshot("/build/");
         await cleanWebsiteBuild(auth, snapshot);
         refreshPreview();
@@ -6867,6 +7203,15 @@ var renderWebsiteBuildPage = ({
         return;
       }
       try {
+        const confirmed = await confirmAction({
+          title: "Copy from public",
+          message: "Copy from public will import the current public website into the build workspace before you continue editing. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
+          confirmLabel: "Copy website",
+          confirmClassName: "button app-button app-primary"
+        });
+        if (!confirmed) {
+          return;
+        }
         const snapshot = await captureWebsiteSnapshot("/build/");
         await copyWebsiteBuildFromPublic(auth, snapshot);
         refreshPreview();
@@ -6964,10 +7309,13 @@ var renderDocumentView = (doc) => {
       content,
       auth: state.auth,
       doc,
+      confirmAction: (options) => state.openConfirmModalHandler?.(options) ?? Promise.resolve(false),
       renderModulePanel: (moduleDoc) => renderModulePanel({
         auth: state.auth,
         doc: moduleDoc,
         editor: null,
+        hideModuleHeader: true,
+        autoLoadLatestConversation: true,
         normalizeModuleList,
         fetchModuleSettings: (moduleName, payload) => fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
         findModuleDefinition: (name) => findModuleDefinition(state.modules, name),
@@ -7661,6 +8009,16 @@ var loadAgent = async (id, reloadAgents) => {
 };
 
 // web/src/app/bootstrap.ts
+var showLogin = (app) => {
+  renderLogin({
+    container: app,
+    onAuth: (next) => {
+      state.auth = next;
+    },
+    onSuccess: renderApp,
+    onClearAgentState: clearAgentState
+  });
+};
 var exportAll = async () => {
   if (!state.auth) {
     return;
@@ -7699,14 +8057,7 @@ var renderApp = async () => {
     saveAuth(null);
   }
   if (!state.auth) {
-    renderLogin({
-      container: app,
-      onAuth: (next) => {
-        state.auth = next;
-      },
-      onSuccess: renderApp,
-      onClearAgentState: clearAgentState
-    });
+    showLogin(app);
     return;
   }
   await loadUiConfig();
@@ -7738,19 +8089,13 @@ var renderApp = async () => {
     onAfterSave: () => showIntegrationsView(refreshIntegrationControls)
   });
   state.openIntegrationModalHandler = integrationModal.openIntegrationModal;
+  state.openConfirmModalHandler = initConfirmModal().openConfirmModal;
   initShellEvents({
     onLogout: () => {
       stopRealtime();
       state.auth = null;
       saveAuth(null);
-      renderLogin({
-        container: app,
-        onAuth: (next) => {
-          state.auth = next;
-        },
-        onSuccess: renderApp,
-        onClearAgentState: clearAgentState
-      });
+      showLogin(app);
     },
     onShowProfile: () => {
       void renderProfile();
@@ -7778,20 +8123,24 @@ var renderApp = async () => {
 };
 var bootstrap = () => {
   initTheme();
+  window.addEventListener("app:session-expired", (event) => {
+    const app = document.getElementById("app");
+    if (!app) {
+      return;
+    }
+    stopRealtime();
+    state.auth = null;
+    const detail = event.detail;
+    showLogin(app);
+    pushNotice("error", detail?.message || "Your session expired. Please log in again.");
+  });
   renderApp().catch(() => {
     stopRealtime();
     const app = document.getElementById("app");
     if (!app) {
       return;
     }
-    renderLogin({
-      container: app,
-      onAuth: (next) => {
-        state.auth = next;
-      },
-      onSuccess: renderApp,
-      onClearAgentState: clearAgentState
-    });
+    showLogin(app);
   });
 };
 

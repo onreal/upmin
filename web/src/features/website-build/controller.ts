@@ -10,6 +10,12 @@ export type WebsiteBuildControllerContext = {
   auth: AuthState | null;
   doc: RemoteDocument;
   renderModulePanel: (doc: RemoteDocument) => Promise<void>;
+  confirmAction: (options: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmClassName?: string;
+  }) => Promise<boolean>;
 };
 
 export const isWebsiteBuildDocument = (doc: RemoteDocument) =>
@@ -22,6 +28,7 @@ export const renderWebsiteBuildPage = ({
   auth,
   doc,
   renderModulePanel,
+  confirmAction,
 }: WebsiteBuildControllerContext) => {
   const buildUrl = `${window.location.origin}/build/`;
   const settingsKey = moduleSettingsKey(doc.payload, "chat");
@@ -37,6 +44,16 @@ export const renderWebsiteBuildPage = ({
         return;
       }
       try {
+        const confirmed = await confirmAction({
+          title: "Publish build",
+          message:
+            "Publish will replace the public website with the current build output. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
+          confirmLabel: "Publish website",
+          confirmClassName: "button app-button app-primary",
+        });
+        if (!confirmed) {
+          return;
+        }
         await publishWebsiteBuild(auth);
       } catch (err) {
         alert((err as Error).message);
@@ -47,6 +64,16 @@ export const renderWebsiteBuildPage = ({
         return;
       }
       try {
+        const confirmed = await confirmAction({
+          title: "Clean build",
+          message:
+            "Clean will remove the current build output after capturing a safety snapshot. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
+          confirmLabel: "Clean build",
+          confirmClassName: "button app-button app-danger",
+        });
+        if (!confirmed) {
+          return;
+        }
         const snapshot = await captureWebsiteSnapshot("/build/");
         await cleanWebsiteBuild(auth, snapshot);
         refreshPreview();
@@ -59,6 +86,16 @@ export const renderWebsiteBuildPage = ({
         return;
       }
       try {
+        const confirmed = await confirmAction({
+          title: "Copy from public",
+          message:
+            "Copy from public will import the current public website into the build workspace before you continue editing. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
+          confirmLabel: "Copy website",
+          confirmClassName: "button app-button app-primary",
+        });
+        if (!confirmed) {
+          return;
+        }
         const snapshot = await captureWebsiteSnapshot("/build/");
         await copyWebsiteBuildFromPublic(auth, snapshot);
         refreshPreview();

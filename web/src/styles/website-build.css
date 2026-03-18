@@ -14,10 +14,16 @@ body.app-build-mode .section > .container > .columns > .column {
 
 .app-build-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--app-gap-lg);
   flex-wrap: wrap;
+}
+
+.app-build-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .app-build-kicker {
@@ -26,16 +32,135 @@ body.app-build-mode .section > .container > .columns > .column {
   font-size: 0.7rem;
 }
 
-.app-build-subtitle {
-  margin-top: 0.35rem;
+.app-build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-left: auto;
+}
+
+.app-build-action {
+  position: relative;
+  min-height: 36px;
+  padding: 0.45rem 0.75rem;
+  gap: 0.45rem;
+  border-radius: 999px;
+  color: var(--app-muted);
+  background: color-mix(in srgb, var(--app-surface) 88%, var(--app-text) 12%);
+  border-color: color-mix(in srgb, var(--app-border) 85%, transparent);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.app-build-action:hover,
+.app-build-action:focus-visible {
+  color: var(--app-text);
+  border-color: color-mix(in srgb, var(--app-accent) 32%, var(--app-border));
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+  transform: translateY(-1px);
+}
+
+.app-build-action:disabled {
+  opacity: 0.72;
+  transform: none;
+}
+
+.app-build-action-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.app-build-action-label {
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+.app-build-action-danger {
+  color: color-mix(in srgb, var(--app-danger) 72%, var(--app-text));
+  border-color: color-mix(in srgb, var(--app-danger) 36%, var(--app-border));
+}
+
+.app-build-action-danger:hover,
+.app-build-action-danger:focus-visible {
+  color: var(--app-danger);
+  border-color: color-mix(in srgb, var(--app-danger) 55%, var(--app-border));
+  background: color-mix(in srgb, var(--app-danger) 9%, var(--app-surface));
+}
+
+.app-build-action::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  min-width: 220px;
+  max-width: 280px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--app-text) 92%, #000 8%);
+  color: var(--app-surface);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+  z-index: 5;
+}
+
+.app-build-action::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  width: 10px;
+  height: 10px;
+  background: color-mix(in srgb, var(--app-text) 92%, #000 8%);
+  transform: translateX(-50%) rotate(45deg);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.14s ease, visibility 0.14s ease;
+  z-index: 4;
+}
+
+.app-build-action:hover::after,
+.app-build-action:hover::before,
+.app-build-action:focus-visible::after,
+.app-build-action:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+.app-build-action:hover::after,
+.app-build-action:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
 }
 
 .app-build-tabs {
   margin-bottom: 0;
 }
 
+.app-build-tabs:not(:last-child) {
+  margin-bottom: 0;
+}
+
+.app-build-tabs ul {
+  margin-bottom: 0;
+}
+
 .app-build-body {
   display: block;
+}
+
+.app-build-body .app-panel {
+  padding: 0;
 }
 
 .app-build-panel {
@@ -113,5 +238,31 @@ body.app-build-mode .section > .container > .columns > .column {
 @media (max-width: 1023px) {
   body.app-build-mode .section > .container > .columns {
     flex-direction: column;
+  }
+
+  .app-build-actions {
+    width: 100%;
+  }
+
+  .app-build-action {
+    flex: 1 1 calc(50% - 0.55rem);
+    justify-content: center;
+  }
+
+  .app-build-action::after {
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+  }
+
+  .app-build-action::before {
+    left: auto;
+    right: 18px;
+    transform: rotate(45deg);
+  }
+
+  .app-build-action:hover::after,
+  .app-build-action:focus-visible::after {
+    transform: translateY(0);
   }
 }

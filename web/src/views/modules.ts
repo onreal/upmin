@@ -7,6 +7,8 @@ export type ModulePanelContext = {
   auth: AuthState | null;
   doc: RemoteDocument;
   editor: JsonEditorHandle | null;
+  hideModuleHeader?: boolean;
+  autoLoadLatestConversation?: boolean;
   normalizeModuleList: (modulesValue?: string[] | null, fallback?: string | null) => string[];
   fetchModuleSettings: (moduleName: string, payload: DocumentPayload) => Promise<Record<string, unknown> | null>;
   findModuleDefinition: (name: string | null | undefined) => ModuleDefinition | null;
@@ -21,6 +23,8 @@ export const renderModulePanel = async ({
   auth,
   doc,
   editor,
+  hideModuleHeader,
+  autoLoadLatestConversation,
   normalizeModuleList,
   fetchModuleSettings,
   findModuleDefinition,
@@ -63,6 +67,8 @@ export const renderModulePanel = async ({
       payload: doc.payload,
       editor,
       settings,
+      hideHeader: hideModuleHeader,
+      autoLoadLatestConversation,
       openSettings: () => {
         void ensureModuleSettingsDocument(module, doc.payload)
           .then((resolved) => {

@@ -582,5 +582,21 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         </footer>
       </div>
     </div>
+    <div class="modal" id="confirm-modal">
+      <div class="modal-background" data-close="confirm"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title" id="confirm-modal-title">Confirm action</p>
+          <button class="delete" aria-label="close" data-close="confirm"></button>
+        </header>
+        <section class="modal-card-body">
+          <p id="confirm-modal-message" class="app-muted"></p>
+        </section>
+        <footer class="modal-card-foot">
+          <button id="confirm-cancel" type="button" class="button app-button app-ghost">Cancel</button>
+          <button id="confirm-submit" type="button" class="button app-button app-primary">Confirm</button>
+        </footer>
+      </div>
+    </div>
   `;
 };

@@ -3,6 +3,7 @@ import type { AuthState } from "./types";
 const STORAGE_KEY = "manage_auth";
 
 type NoticePayload = { type: "success" | "error"; message: string };
+type SessionExpiredPayload = { message: string; status: number };
 
 const notify = (payload: NoticePayload) => {
   if (typeof window === "undefined") {
@@ -11,12 +12,27 @@ const notify = (payload: NoticePayload) => {
   window.dispatchEvent(new CustomEvent<NoticePayload>("app:notice", { detail: payload }));
 };
 
+const notifySessionExpired = (payload: SessionExpiredPayload) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent<SessionExpiredPayload>("app:session-expired", { detail: payload }));
+};
+
 const successMessageFor = (method: string) => {
   if (method === "GET") return "Loaded.";
   if (method === "POST") return "Created.";
   if (method === "PUT") return "Saved.";
   if (method === "DELETE") return "Deleted.";
   return "Done.";
+};
+
+const handleUnauthorized = (response: Response, auth: AuthState, message: string) => {
+  if (!auth || response.status !== 401) {
+    return;
+  }
+  saveAuth(null);
+  notifySessionExpired({ message, status: response.status });
 };
 
 export const loadAuth = (): AuthState => {
@@ -72,6 +88,7 @@ export const request = async <T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
+    handleUnauthorized(response, auth, message);
     if (config.notify !== false) {
       notify({ type: "error", message });
     }
@@ -102,6 +119,7 @@ export const requestBlob = async (
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
+    handleUnauthorized(response, auth, message);
     notify({ type: "error", message });
     throw new Error(message);
   }
@@ -143,6 +161,7 @@ export const requestAsset = async (
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
+    handleUnauthorized(response, auth, message);
     if (config.notify !== false) {
       notify({ type: "error", message });
     }
@@ -177,6 +196,7 @@ export const requestForm = async <T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
+    handleUnauthorized(response, auth, message);
     notify({ type: "error", message });
     throw new Error(message);
   }

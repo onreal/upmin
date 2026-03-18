@@ -50,11 +50,14 @@ export const renderDocumentView = (doc: RemoteDocument) => {
       content,
       auth: state.auth,
       doc,
+      confirmAction: (options) => state.openConfirmModalHandler?.(options) ?? Promise.resolve(false),
       renderModulePanel: (moduleDoc) =>
         renderModulePanel({
           auth: state.auth,
           doc: moduleDoc,
           editor: null,
+          hideModuleHeader: true,
+          autoLoadLatestConversation: true,
           normalizeModuleList,
           fetchModuleSettings: (moduleName, payload) =>
             fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),

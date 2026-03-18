@@ -14,12 +14,27 @@ export type RenderMessageOptions = {
   isSelected?: (message: ChatMessage) => boolean;
   onToggle?: (message: ChatMessage, selected: boolean) => void;
   onCopy?: (message: ChatMessage) => void;
+  isFolded?: (message: ChatMessage) => boolean;
+  onToggleFold?: (message: ChatMessage) => void;
   emptyState?: string;
   progress?: ConversationProgress | null;
 };
 
 const messageId = (conversationId: string, createdAt: string | null, index: number) =>
   `${conversationId}:${createdAt ?? index}`;
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const foldedPreview = (content: string) => {
+  const firstLine = content.split(/\r?\n/, 1)[0]?.trim() ?? "";
+  return firstLine;
+};
 
 export const extractMessages = (conversation: RemoteDocument | null): ChatMessage[] => {
   if (!conversation) {
@@ -66,15 +81,35 @@ export const renderMessages = (
       const label = role === "assistant" ? "Agent" : "You";
       const roleClass = role === "assistant" ? "is-assistant" : "is-user";
       const selectable = enableActions && role === "assistant";
+      const foldable = role === "assistant";
+      const folded = foldable && options.isFolded ? options.isFolded(message) : false;
       const selected = selectable && options.isSelected ? options.isSelected(message) : false;
       const selectedClass = selected ? "is-selected" : "";
+      const foldedClass = folded ? "is-folded" : "";
       const toggleTitle = selected ? "Remove from data" : "Add to data";
       const toggleIcon = selected
         ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>`
         : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
+      const foldTitle = folded ? "Expand response" : "Collapse response";
+      const foldIcon = folded
+        ? `<path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`
+        : `<path d="m8 14 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`;
+      const preview = folded ? foldedPreview(message.content) : "";
       const actions = selectable
         ? `
           <div class="app-chat-message-actions">
+            <button
+              type="button"
+              class="app-chat-action"
+              data-chat-action="fold"
+              data-message-id="${message.id}"
+              title="${foldTitle}"
+              aria-label="${foldTitle}"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                ${foldIcon}
+              </svg>
+            </button>
             <button
               type="button"
               class="app-chat-action ${selected ? "is-active" : ""}"
@@ -108,12 +143,30 @@ export const renderMessages = (
             </button>
           </div>
         `
-        : "";
+        : foldable
+          ? `
+          <div class="app-chat-message-actions">
+            <button
+              type="button"
+              class="app-chat-action"
+              data-chat-action="fold"
+              data-message-id="${message.id}"
+              title="${foldTitle}"
+              aria-label="${foldTitle}"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                ${foldIcon}
+              </svg>
+            </button>
+          </div>
+        `
+          : "";
 
       return `
-        <div class="app-chat-message ${roleClass} ${selectedClass}" data-message-id="${message.id}">
+        <div class="app-chat-message ${roleClass} ${selectedClass} ${foldedClass}" data-message-id="${message.id}">
           <div class="app-chat-message-role">${label}</div>
           ${actions}
+          ${folded ? `<div class="app-chat-message-preview">${escapeHtml(preview)}</div>` : ""}
           <div class="app-chat-message-content">${message.content}</div>
         </div>
       `;
@@ -135,6 +188,11 @@ export const renderMessages = (
         button.addEventListener("click", () => {
           const selected = options.isSelected ? options.isSelected(message) : false;
           options.onToggle?.(message, selected);
+        });
+      }
+      if (action === "fold") {
+        button.addEventListener("click", () => {
+          options.onToggleFold?.(message);
         });
       }
       if (action === "copy") {

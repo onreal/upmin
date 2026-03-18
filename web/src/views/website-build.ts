@@ -18,15 +18,88 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const actionIcon = (name: "visit" | "copy" | "publish" | "clean") => {
+  if (name === "visit") {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path d="M14 5h5v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M10 14 19 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+  if (name === "copy") {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path d="M8 7h8a2 2 0 0 1 2 2v8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M8 17H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M10 11h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+        <path d="m17 8 3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+  if (name === "publish") {
+    return `
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path d="M12 16V5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+        <path d="m8 9 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M5 17v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    `;
+  }
+  return `
+    <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+      <path d="M4 17h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+      <path d="m14 6 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+      <path d="m12 8 4 4-6.5 6.5H5v-4.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  `;
+};
+
+const actionButton = (
+  id: string,
+  label: string,
+  icon: "visit" | "copy" | "publish" | "clean",
+  tooltip: string,
+  extraClass = ""
+) => {
+  const className = ["button app-button app-ghost app-build-action", extraClass].filter(Boolean).join(" ");
+  return `
+  <button
+    id="${id}"
+    class="${className}"
+    type="button"
+    data-busy-label="${escapeHtml(label)}..."
+    data-tooltip="${escapeHtml(tooltip)}"
+    aria-label="${escapeHtml(tooltip)}"
+    title="${escapeHtml(tooltip)}"
+  >
+    <span class="app-build-action-icon" aria-hidden="true">${actionIcon(icon)}</span>
+    <span class="app-build-action-label">${escapeHtml(label)}</span>
+  </button>
+`;
+};
+
 const runButtonAction = async (button: HTMLButtonElement, pendingLabel: string, action: () => Promise<void>) => {
-  const originalLabel = button.textContent ?? pendingLabel;
+  const label = button.querySelector<HTMLElement>(".app-build-action-label");
+  const originalLabel = label?.textContent ?? pendingLabel;
   button.disabled = true;
-  button.textContent = pendingLabel;
+  button.classList.add("is-busy");
+  if (label) {
+    label.textContent = pendingLabel;
+  } else {
+    button.textContent = pendingLabel;
+  }
   try {
     await action();
   } finally {
     button.disabled = false;
-    button.textContent = originalLabel;
+    button.classList.remove("is-busy");
+    if (label) {
+      label.textContent = originalLabel;
+    } else {
+      button.textContent = originalLabel;
+    }
   }
 };
 
@@ -46,16 +119,31 @@ export const renderWebsiteBuildView = ({
   content.innerHTML = `
     <section class="app-build-shell">
       <div class="app-build-header">
-        <div>
+        <div class="app-build-heading">
           <p class="app-build-kicker app-muted">System page</p>
           <h1 class="title is-4">${escapeHtml(doc.payload.name)}</h1>
-          <p class="app-muted app-build-subtitle">Chat with the builder and preview the output.</p>
         </div>
-        <div class="app-build-actions buttons">
-          <button id="build-visit" class="button app-button app-ghost">Visit</button>
-          <button id="build-copy-public" class="button app-button app-ghost">Copy from public</button>
-          <button id="build-publish" class="button app-button app-primary">Publish</button>
-          <button id="build-clean" class="button app-button app-danger">Clean</button>
+        <div class="app-build-actions" role="toolbar" aria-label="Website build actions">
+          ${actionButton("build-visit", "Visit", "visit", "Open the current generated build in a new tab.")}
+          ${actionButton(
+            "build-copy-public",
+            "Copy from public",
+            "copy",
+            "Import the current public website into the build workspace."
+          )}
+          ${actionButton(
+            "build-publish",
+            "Publish",
+            "publish",
+            "Replace the public website with the current build output."
+          )}
+          ${actionButton(
+            "build-clean",
+            "Clean",
+            "clean",
+            "Remove the current build output after creating a safety snapshot.",
+            "app-build-action-danger"
+          )}
         </div>
       </div>
       <div class="tabs is-toggle is-small app-build-tabs">

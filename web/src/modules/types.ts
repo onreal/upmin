@@ -8,6 +8,8 @@ export type ModuleRenderContext = {
   editor: JsonEditorHandle | null;
   settings?: Record<string, unknown> | null;
   openSettings?: () => void;
+  hideHeader?: boolean;
+  autoLoadLatestConversation?: boolean;
 };
 
 export type ModuleRenderer = (panel: HTMLElement, context: ModuleRenderContext) => void;
