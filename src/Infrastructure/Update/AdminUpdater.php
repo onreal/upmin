@@ -119,7 +119,7 @@ final class AdminUpdater
             $this->touchMessage('Extracting update archive.');
 
             $remoteRoot = $this->extractArchive($archivePath, $extractRoot);
-            $remoteManageRoot = $remoteRoot . '/' . $this->adminRelativePath;
+            $remoteManageRoot = $this->resolveRemoteAdminRoot($remoteRoot);
             $remoteStoreRoot = $remoteRoot . '/store';
 
             if (!is_dir($remoteManageRoot)) {
@@ -220,6 +220,34 @@ final class AdminUpdater
         $state = $this->stateStore->read();
         $state['message'] = $message;
         $this->stateStore->write($state);
+    }
+
+    private function resolveRemoteAdminRoot(string $remoteRoot): string
+    {
+        $candidates = [];
+
+        if ($this->adminRelativePath !== '') {
+            $candidates[] = $remoteRoot . '/' . $this->adminRelativePath;
+        }
+        $candidates[] = $remoteRoot;
+
+        foreach ($candidates as $candidate) {
+            if (!is_dir($candidate)) {
+                continue;
+            }
+
+            if (!is_file($candidate . '/store/version.json')) {
+                continue;
+            }
+
+            if (!is_dir($candidate . '/src') && !is_dir($candidate . '/public') && !is_file($candidate . '/index.php')) {
+                continue;
+            }
+
+            return $candidate;
+        }
+
+        throw new \RuntimeException('Update archive does not contain a supported admin root.');
     }
 
     private function resolveAdminRelativePath(string $projectRoot, string $manageRoot): string

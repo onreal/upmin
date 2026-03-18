@@ -6,7 +6,7 @@ namespace Manage\Infrastructure\Update;
 
 final class GitHubRepositorySource implements RepositorySource
 {
-    private const REMOTE_VERSION_URL_TEMPLATE = 'https://raw.githubusercontent.com/onreal/upmin/main/%s/store/version.json';
+    private const REMOTE_VERSION_URL_TEMPLATE = 'https://raw.githubusercontent.com/onreal/upmin/main/%s';
     private const ARCHIVE_URL = 'https://codeload.github.com/onreal/upmin/zip/refs/heads/main';
 
     private string $adminRelativePath;
@@ -24,13 +24,25 @@ final class GitHubRepositorySource implements RepositorySource
     /** @return array<string, mixed> */
     public function fetchVersion(): array
     {
-        $response = $this->fetch(sprintf(self::REMOTE_VERSION_URL_TEMPLATE, $this->adminRelativePath));
-        $decoded = json_decode($response, true);
-        if (!is_array($decoded)) {
-            throw new \RuntimeException('Remote version file is invalid.');
+        foreach ($this->versionCandidates() as $candidate) {
+            try {
+                $response = $this->fetch(sprintf(self::REMOTE_VERSION_URL_TEMPLATE, $candidate));
+            } catch (\RuntimeException $exception) {
+                if (!str_contains($exception->getMessage(), 'status 404')) {
+                    throw $exception;
+                }
+                continue;
+            }
+
+            $decoded = json_decode($response, true);
+            if (!is_array($decoded)) {
+                throw new \RuntimeException('Remote version file is invalid.');
+            }
+
+            return $decoded;
         }
 
-        return $decoded;
+        throw new \RuntimeException('Remote version file was not found in any supported repository path.');
     }
 
     public function downloadArchive(string $destination): void
@@ -80,5 +92,17 @@ final class GitHubRepositorySource implements RepositorySource
         }
 
         return $response;
+    }
+
+    /** @return string[] */
+    private function versionCandidates(): array
+    {
+        $candidates = [];
+        if ($this->adminRelativePath !== '') {
+            $candidates[] = $this->adminRelativePath . '/store/version.json';
+        }
+        $candidates[] = 'store/version.json';
+
+        return array_values(array_unique($candidates));
     }
 }
