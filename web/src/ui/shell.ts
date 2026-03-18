@@ -1,4 +1,5 @@
 import { headerCopy, sidebarCopy, getUserLabel } from "../app/layout";
+import { state } from "../app/state";
 
 export type ShellContext = {
   moduleChecklistHtml: (selected?: string[]) => string;
@@ -59,6 +60,20 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         <path
           d="M10 7h2v2h-2V7zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2"
           fill="currentColor"
+        ></path>
+      </svg>
+    </span>
+  `;
+  const updateIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
+        <path
+          d="M12 4v10m0 0 4-4m-4 4-4-4M5 18h14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         ></path>
       </svg>
     </span>
@@ -127,6 +142,18 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 ${builderIcon}
                 <span>Builder</span>
               </button>
+              <div id="system-update-status-chip" class="app-update-status-chip is-hidden">
+                <span id="system-update-status-text">Version unknown</span>
+              </div>
+              <button
+                id="system-update-action"
+                class="button app-button app-ghost is-hidden"
+                type="button"
+                data-shell-action="system-update"
+              >
+                ${updateIcon}
+                <span id="system-update-label">Update</span>
+              </button>
               <button
                 id="export-zip-header"
                 class="button app-button app-ghost"
@@ -154,6 +181,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               <a class="navbar-item" id="integrations-link" data-shell-action="integrations">Integrations</a>
               <a class="navbar-item" id="logs-link" data-shell-action="logs">Logs</a>
               <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">Forms</a>
+              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">Update admin</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>
@@ -258,6 +286,9 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             </button>
             <div id="mobile-settings-panel" class="app-mobile-accordion-panel">
               <div class="app-mobile-action-list">
+                <a href="#" id="mobile-system-update-link" class="app-mobile-action-link is-hidden" data-shell-action="system-update">
+                  Update admin
+                </a>
                 <a href="#" class="app-mobile-action-link" data-shell-action="modules">Modules</a>
                 <a href="#" class="app-mobile-action-link" data-shell-action="integrations">Integrations</a>
                 <a href="#" class="app-mobile-action-link" data-shell-action="logs">Logs</a>
@@ -598,5 +629,89 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         </footer>
       </div>
     </div>
+    <div id="system-update-lock" class="app-update-lock" hidden>
+      <div class="app-update-lock-card app-surface">
+        <p class="app-update-lock-eyebrow">System Update</p>
+        <h2 id="system-update-lock-title" class="title is-5">Admin update in progress</h2>
+        <p id="system-update-lock-message" class="app-muted">Please wait while the admin files are replaced.</p>
+        <div class="app-update-lock-meta">
+          <span id="system-update-current-version">Current version: ${state.systemUpdate?.currentVersion ?? "unknown"}</span>
+          <span id="system-update-latest-version">Latest version: ${state.systemUpdate?.latestVersion ?? "unknown"}</span>
+        </div>
+      </div>
+    </div>
   `;
+};
+
+export const renderSystemUpdateControls = () => {
+  const statusChip = document.getElementById("system-update-status-chip");
+  const statusText = document.getElementById("system-update-status-text");
+  const button = document.getElementById("system-update-action");
+  const buttonLabel = document.getElementById("system-update-label");
+  const menuLink = document.getElementById("system-update-menu-link");
+  const mobileLink = document.getElementById("mobile-system-update-link");
+  const lock = document.getElementById("system-update-lock");
+  const lockTitle = document.getElementById("system-update-lock-title");
+  const lockMessage = document.getElementById("system-update-lock-message");
+  const currentVersion = document.getElementById("system-update-current-version");
+  const latestVersion = document.getElementById("system-update-latest-version");
+  const status = state.systemUpdate;
+
+  if (
+    !statusChip ||
+    !statusText ||
+    !button ||
+    !buttonLabel ||
+    !menuLink ||
+    !mobileLink ||
+    !lock ||
+    !lockTitle ||
+    !lockMessage ||
+    !currentVersion ||
+    !latestVersion
+  ) {
+    return;
+  }
+
+  const showAction = Boolean(status?.updateAvailable) || Boolean(status?.locked);
+  button.classList.toggle("is-hidden", !showAction);
+  menuLink.classList.toggle("is-hidden", !showAction);
+  mobileLink.classList.toggle("is-hidden", !showAction);
+
+  const isRunning = Boolean(status?.locked);
+  const isReady = Boolean(status?.updateAvailable);
+  const hasStatus = Boolean(status?.currentVersion || status?.latestVersion || status?.message || status?.error);
+  button.toggleAttribute("disabled", isRunning || !isReady);
+  buttonLabel.textContent = isRunning
+    ? "Updating..."
+    : isReady
+      ? `Update ${status?.latestVersion ?? ""}`.trim()
+      : "Update";
+  menuLink.textContent = isRunning
+    ? "Admin update in progress"
+    : isReady
+      ? `Update admin to ${status?.latestVersion ?? "latest"}`
+      : "Update admin";
+  mobileLink.textContent = menuLink.textContent;
+
+  statusChip.classList.toggle("is-hidden", !hasStatus);
+  statusChip.classList.toggle("is-error", Boolean(status?.error) && !isRunning);
+  statusChip.classList.toggle("is-ready", isReady && !isRunning);
+  if (isRunning) {
+    statusText.textContent = status?.message || "Updating admin...";
+  } else if (status?.error) {
+    statusText.textContent = `Update check failed. Current ${status?.currentVersion ?? "unknown"}.`;
+  } else if (isReady) {
+    statusText.textContent = `Update available: ${status?.currentVersion ?? "unknown"} -> ${status?.latestVersion ?? "unknown"}`;
+  } else if (status?.currentVersion) {
+    statusText.textContent = `Admin ${status.currentVersion}`;
+  } else {
+    statusText.textContent = "Version unknown";
+  }
+
+  lock.hidden = !isRunning;
+  lockTitle.textContent = "Admin update in progress";
+  lockMessage.textContent = status?.message || "Please wait while the admin files are replaced.";
+  currentVersion.textContent = `Current version: ${status?.currentVersion ?? "unknown"}`;
+  latestVersion.textContent = `Latest version: ${status?.latestVersion ?? "unknown"}`;
 };

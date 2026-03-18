@@ -102,6 +102,19 @@ export type WebsiteBuildActionResponse = {
   creation?: CreationRecord;
 };
 
+export type SystemUpdateStatus = {
+  status: "idle" | "checking" | "ready" | "running" | "failed" | "completed";
+  locked: boolean;
+  currentVersion?: string | null;
+  latestVersion?: string | null;
+  updateAvailable: boolean;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  message?: string | null;
+  error?: string | null;
+  systemPagesSynced?: number;
+};
+
 export type AgentSummary = {
   id: string;
   uid?: string | null;

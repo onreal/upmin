@@ -37,6 +37,68 @@
   flex: 0 0 auto;
 }
 
+.app-update-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%);
+  color: var(--app-text);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.app-update-status-chip.is-ready {
+  border-color: color-mix(in srgb, var(--app-accent) 48%, var(--app-border));
+}
+
+.app-update-status-chip.is-error {
+  border-color: color-mix(in srgb, #d14343 52%, var(--app-border));
+  color: color-mix(in srgb, var(--app-text) 86%, #d14343);
+}
+
+.app-update-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(7 13 20 / 0.56);
+  backdrop-filter: blur(8px);
+}
+
+.app-update-lock[hidden] {
+  display: none !important;
+}
+
+.app-update-lock-card {
+  width: min(32rem, 100%);
+  padding: 1.4rem;
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow);
+}
+
+.app-update-lock-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+.app-update-lock-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  font-size: 0.92rem;
+  color: var(--app-muted);
+}
+
 .navbar.app-surface .navbar-item:hover,
 .navbar.app-surface .navbar-link:hover,
 .navbar.app-surface .navbar-item.is-active,

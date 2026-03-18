@@ -1,0 +1,11 @@
+{
+    "status": "failed",
+    "locked": false,
+    "currentVersion": "0.0.0",
+    "latestVersion": null,
+    "updateAvailable": false,
+    "startedAt": null,
+    "finishedAt": null,
+    "message": "Failed to check for updates.",
+    "error": "Update request failed with status 404."
+}

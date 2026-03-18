@@ -11,6 +11,7 @@ import type {
   NavigationPage,
   NavigationPageGroup,
   RemoteDocument,
+  SystemUpdateStatus,
 } from "../api";
 import type { JsonEditorHandle } from "../json-editor";
 import type { DocumentEditorRef } from "../views/documents";
@@ -47,6 +48,7 @@ export type AppState = {
   currentConversation: RemoteDocument | null;
   returnToDocumentId: string | null;
   onSelectAgentMenu: ((id: string) => void) | null;
+  systemUpdate: SystemUpdateStatus | null;
 };
 
 export const state: AppState = {
@@ -74,6 +76,7 @@ export const state: AppState = {
   currentConversation: null,
   returnToDocumentId: null,
   onSelectAgentMenu: null,
+  systemUpdate: null,
 };
 
 export const editorRef: DocumentEditorRef = {

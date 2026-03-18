@@ -17,6 +17,7 @@ use Manage\Application\UseCases\GetAgent;
 use Manage\Application\UseCases\GetAgentConversation;
 use Manage\Application\UseCases\GetDocument;
 use Manage\Application\UseCases\GetLayoutConfig;
+use Manage\Application\UseCases\GetSystemUpdateStatus;
 use Manage\Application\UseCases\ManageCreations;
 use Manage\Application\UseCases\ManageWebsiteBuild;
 use Manage\Application\UseCases\GetUiConfig;
@@ -35,6 +36,7 @@ use Manage\Application\UseCases\ListForms;
 use Manage\Application\UseCases\QueueIntegrationModelSync;
 use Manage\Application\UseCases\ReorderDocuments;
 use Manage\Application\UseCases\SendAgentMessage;
+use Manage\Application\UseCases\RunSystemUpdate;
 use Manage\Application\UseCases\UpdateAgent;
 use Manage\Application\UseCases\UpdateDocument;
 use Manage\Application\UseCases\UpsertIntegrationSettings;
@@ -53,6 +55,9 @@ use Manage\Infrastructure\Creations\CreationStore;
 use Manage\Infrastructure\WebsiteBuild\WebsiteBuildStore;
 use Manage\Infrastructure\Logging\ErrorLogger;
 use Manage\Infrastructure\Logging\LogStore;
+use Manage\Infrastructure\Update\AdminUpdater;
+use Manage\Infrastructure\Update\GitHubRepositorySource;
+use Manage\Infrastructure\Update\UpdaterStateStore;
 use Manage\Infrastructure\Workers\ReplyWorkerLauncher;
 use Manage\Interface\Http\Controllers\AuthController;
 use Manage\Interface\Http\Controllers\AgentController;
@@ -69,6 +74,7 @@ use Manage\Interface\Http\Controllers\ModuleController;
 use Manage\Interface\Http\Controllers\ModuleRequestController;
 use Manage\Interface\Http\Controllers\NavigationController;
 use Manage\Interface\Http\Controllers\RealtimeController;
+use Manage\Interface\Http\Controllers\SystemUpdateController;
 use Manage\Interface\Http\Controllers\UiConfigController;
 use Manage\Interface\Http\Controllers\Public\ModuleRequestController as PublicModuleRequestController;
 use Manage\Interface\Http\Middleware\AuthMiddleware;
@@ -94,6 +100,7 @@ final class App
     private ErrorLogger $errorLogger;
     private ManageCreations $manageCreations;
     private AuthMiddleware $authMiddleware;
+    private AdminUpdater $adminUpdater;
     private Router $adminRouter;
     private Router $publicRouter;
 
@@ -135,6 +142,10 @@ final class App
         $realtimeConfig = new RealtimeConfig($this->env);
         $realtimeTicketService = new RealtimeTicketService($realtimeConfig->secret());
         $hasher = new BcryptPasswordHasher();
+        $updaterStateStore = new UpdaterStateStore($this->manageRoot);
+        $adminRelativePath = ltrim(str_replace($this->projectRoot, '', $this->manageRoot), '/');
+        $updaterSource = new GitHubRepositorySource($adminRelativePath);
+        $this->adminUpdater = new AdminUpdater($this->projectRoot, $this->manageRoot, $updaterSource, $updaterStateStore);
 
         $ensureModuleSettings = new EnsureModuleSettings($this->moduleRegistry, $moduleSettingsStore);
         $ensureDocumentId = new EnsureDocumentId($documentRepository);
@@ -177,6 +188,8 @@ final class App
         $this->manageCreations = new ManageCreations($creationStore);
         $manageWebsiteBuild = new ManageWebsiteBuild($websiteBuildStore);
         $getUiConfig = new GetUiConfig($documentRepository);
+        $getSystemUpdateStatus = new GetSystemUpdateStatus($this->adminUpdater);
+        $runSystemUpdate = new RunSystemUpdate($this->adminUpdater);
         $authenticateApiKey = new AuthenticateApiKey($apiKeyProvider);
         $authenticateUser = new AuthenticateUser($userRepository, $hasher, $tokenService);
 
@@ -208,6 +221,7 @@ final class App
         $layoutConfigController = new LayoutConfigController($getLayoutConfig);
         $realtimeController = new RealtimeController($authenticateApiKey, $tokenService, $realtimeTicketService, $realtimeConfig);
         $uiConfigController = new UiConfigController($getUiConfig);
+        $systemUpdateController = new SystemUpdateController($getSystemUpdateStatus, $runSystemUpdate);
 
         $submitFormEntry = new SubmitFormEntry(
             $documentRepository,
@@ -243,6 +257,7 @@ final class App
             'layout' => $layoutConfigController,
             'realtime' => $realtimeController,
             'ui' => $uiConfigController,
+            'systemUpdate' => $systemUpdateController,
             'documents' => $documentController,
             'export' => $exportController,
         ]);
@@ -280,6 +295,15 @@ final class App
             return;
         }
 
+        if ($requiresAdmin && $this->adminUpdater->isLocked() && !$this->isAllowedDuringUpdate($path)) {
+            Response::json([
+                'ok' => false,
+                'error' => 'Admin update is in progress.',
+                'locked' => true,
+            ], 423)->send();
+            return;
+        }
+
         $this->errorLogger->ensureSettings();
         $this->errorLogger->ensureLogFile();
         $this->manageCreations->ensurePage();
@@ -309,6 +333,11 @@ final class App
         }
 
         $response->send();
+    }
+
+    private function isAllowedDuringUpdate(string $path): bool
+    {
+        return $path === '/api/system/update' || $path === '/api/system/update/run';
     }
 
     private function handleStatic(Request $request): void

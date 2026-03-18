@@ -4,6 +4,7 @@ const STORAGE_KEY = "manage_auth";
 
 type NoticePayload = { type: "success" | "error"; message: string };
 type SessionExpiredPayload = { message: string; status: number };
+type UpdateLockedPayload = { message: string; status: number };
 
 const notify = (payload: NoticePayload) => {
   if (typeof window === "undefined") {
@@ -17,6 +18,13 @@ const notifySessionExpired = (payload: SessionExpiredPayload) => {
     return;
   }
   window.dispatchEvent(new CustomEvent<SessionExpiredPayload>("app:session-expired", { detail: payload }));
+};
+
+const notifyUpdateLocked = (payload: UpdateLockedPayload) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent<UpdateLockedPayload>("app:system-update-locked", { detail: payload }));
 };
 
 const successMessageFor = (method: string) => {
@@ -33,6 +41,13 @@ const handleUnauthorized = (response: Response, auth: AuthState, message: string
   }
   saveAuth(null);
   notifySessionExpired({ message, status: response.status });
+};
+
+const handleLocked = (response: Response, message: string) => {
+  if (response.status !== 423) {
+    return;
+  }
+  notifyUpdateLocked({ message, status: response.status });
 };
 
 export const loadAuth = (): AuthState => {
@@ -89,6 +104,7 @@ export const request = async <T>(
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
     handleUnauthorized(response, auth, message);
+    handleLocked(response, message);
     if (config.notify !== false) {
       notify({ type: "error", message });
     }
@@ -120,6 +136,7 @@ export const requestBlob = async (
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
     handleUnauthorized(response, auth, message);
+    handleLocked(response, message);
     notify({ type: "error", message });
     throw new Error(message);
   }
@@ -162,6 +179,7 @@ export const requestAsset = async (
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
     handleUnauthorized(response, auth, message);
+    handleLocked(response, message);
     if (config.notify !== false) {
       notify({ type: "error", message });
     }
@@ -197,6 +215,7 @@ export const requestForm = async <T>(
     const error = await response.json().catch(() => ({ error: response.statusText }));
     const message = error.message || error.error || response.statusText || "Request failed";
     handleUnauthorized(response, auth, message);
+    handleLocked(response, message);
     notify({ type: "error", message });
     throw new Error(message);
   }

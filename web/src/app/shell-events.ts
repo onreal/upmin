@@ -13,6 +13,7 @@ export type ShellEventHandlers = {
   onOpenBuilder: () => void;
   onOpenCreate: () => void;
   onOpenAgentModal: () => void;
+  onRunSystemUpdate: () => void;
 };
 
 export const initShellEvents = ({
@@ -26,6 +27,7 @@ export const initShellEvents = ({
   onOpenBuilder,
   onOpenCreate,
   onOpenAgentModal,
+  onRunSystemUpdate,
 }: ShellEventHandlers) => {
   const burger = document.querySelector(".navbar-burger") as HTMLElement | null;
   const drawer = document.getElementById("mobileNavDrawer");
@@ -128,6 +130,7 @@ export const initShellEvents = ({
   bindAction("builder", onOpenBuilder);
   bindAction("create", onOpenCreate);
   bindAction("agents-create", onOpenAgentModal);
+  bindAction("system-update", onRunSystemUpdate);
   bindAction("theme", () => {
     const next = getCurrentTheme() === "light" ? "dark" : "light";
     setTheme(next);

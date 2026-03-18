@@ -1,6 +1,6 @@
-import { downloadArchive, saveAuth } from "../api";
+import { downloadArchive, fetchSystemUpdate, runSystemUpdate, saveAuth } from "../api";
 import { state } from "./state";
-import { renderAppShell } from "../ui/shell";
+import { renderAppShell, renderSystemUpdateControls } from "../ui/shell";
 import { initNotifications } from "../ui/notifications";
 import { initTheme } from "../ui/theme";
 import { renderLogin } from "../features/auth/login";
@@ -20,6 +20,8 @@ import { clearAgentState } from "../features/agents/state";
 import { refreshAgentEditControls } from "../features/agents/view";
 import { pushNotice } from "../ui/notice";
 
+let systemUpdatePollHandle: number | null = null;
+
 const showLogin = (app: HTMLElement) => {
   renderLogin({
     container: app,
@@ -29,6 +31,89 @@ const showLogin = (app: HTMLElement) => {
     onSuccess: renderApp,
     onClearAgentState: clearAgentState,
   });
+};
+
+const stopSystemUpdatePolling = () => {
+  if (systemUpdatePollHandle !== null) {
+    window.clearTimeout(systemUpdatePollHandle);
+    systemUpdatePollHandle = null;
+  }
+};
+
+const scheduleSystemUpdatePolling = () => {
+  stopSystemUpdatePolling();
+  systemUpdatePollHandle = window.setTimeout(() => {
+    void refreshSystemUpdateStatus(true);
+  }, 2500);
+};
+
+const refreshSystemUpdateStatus = async (pollIfRunning = false) => {
+  if (!state.auth) {
+    state.systemUpdate = null;
+    return null;
+  }
+
+  try {
+    const previous = state.systemUpdate;
+    const response = await fetchSystemUpdate(state.auth);
+    state.systemUpdate = response.update;
+    renderSystemUpdateControls();
+
+    const wasLocked = Boolean(previous?.locked);
+    const isLocked = Boolean(response.update.locked);
+    if (wasLocked && !isLocked && response.update.status === "completed") {
+      stopSystemUpdatePolling();
+      window.location.reload();
+      return response.update;
+    }
+
+    if (isLocked) {
+      if (pollIfRunning) {
+        scheduleSystemUpdatePolling();
+      }
+    } else {
+      stopSystemUpdatePolling();
+    }
+
+    return response.update;
+  } catch (err) {
+    stopSystemUpdatePolling();
+    pushNotice("error", (err as Error).message);
+    return null;
+  }
+};
+
+const startSystemUpdate = async () => {
+  if (!state.auth) {
+    return;
+  }
+
+  state.systemUpdate = {
+    ...(state.systemUpdate ?? {
+      currentVersion: null,
+      latestVersion: null,
+      updateAvailable: false,
+    }),
+    status: "running",
+    locked: true,
+    message: "Starting admin update.",
+    error: null,
+  };
+  renderSystemUpdateControls();
+  scheduleSystemUpdatePolling();
+
+  try {
+    const response = await runSystemUpdate(state.auth);
+    state.systemUpdate = response.update;
+    renderSystemUpdateControls();
+    pushNotice("success", response.update.message || "Admin updated successfully.");
+    stopSystemUpdatePolling();
+    window.location.reload();
+  } catch (err) {
+    await refreshSystemUpdateStatus(false);
+    stopSystemUpdatePolling();
+    pushNotice("error", (err as Error).message);
+  }
 };
 
 const exportAll = async () => {
@@ -79,12 +164,23 @@ const renderApp = async () => {
     return;
   }
 
+  const initialUpdateStatus = await refreshSystemUpdateStatus(true);
+  const isLocked = Boolean(initialUpdateStatus?.locked);
+
+  if (isLocked) {
+    renderAppShell({ moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected) });
+    initNotifications();
+    renderSystemUpdateControls();
+    return;
+  }
+
   await loadUiConfig();
   await loadLayoutConfig();
   await loadModules();
 
   renderAppShell({ moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected) });
   initNotifications();
+  renderSystemUpdateControls();
   startRealtime(() => state.auth);
 
   const reloadAgents = () => loadAgents((id) => loadAgent(id, reloadAgents));
@@ -142,6 +238,9 @@ const renderApp = async () => {
     },
     onOpenCreate: createModal.openCreateModal,
     onOpenAgentModal: agentModalControls.openAgentModal,
+    onRunSystemUpdate: () => {
+      void startSystemUpdate();
+    },
   });
 
   await loadIntegrations({
@@ -166,7 +265,12 @@ export const bootstrap = () => {
     pushNotice("error", detail?.message || "Your session expired. Please log in again.");
   }) as EventListener);
 
+  window.addEventListener("app:system-update-locked", (() => {
+    void refreshSystemUpdateStatus(true);
+  }) as EventListener);
+
   renderApp().catch(() => {
+    stopSystemUpdatePolling();
     stopRealtime();
     const app = document.getElementById("app");
     if (!app) {

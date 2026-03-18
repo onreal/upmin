@@ -42,6 +42,8 @@ final class AdminRoutes
         $router->add('GET', '/api/layout-config', $controllers['layout']);
         $router->add('GET', '/api/realtime/ticket', [$controllers['realtime'], 'ticket']);
         $router->add('GET', '/api/ui-config', $controllers['ui']);
+        $router->add('GET', '/api/system/update', [$controllers['systemUpdate'], 'status']);
+        $router->add('POST', '/api/system/update/run', [$controllers['systemUpdate'], 'run']);
         $router->add('GET', '/api/documents/{id}', [$controllers['documents'], 'show']);
         $router->add('PUT', '/api/documents/{id}', [$controllers['documents'], 'update']);
         $router->add('POST', '/api/documents', [$controllers['documents'], 'create']);
