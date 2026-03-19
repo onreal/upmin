@@ -5,7 +5,7 @@
     "data": {
         "defaultLanguage": "en",
         "timezone": "",
-        "adminPath": "manage",
+        "adminPath": "upmin",
         "createSnapshotOnEachClean": true
     },
     "id": "ef6c1a1b-5df2-44fd-aa50-74d1c947a4d1",

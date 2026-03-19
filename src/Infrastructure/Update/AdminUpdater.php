@@ -4,17 +4,25 @@ declare(strict_types=1);
 
 namespace Manage\Infrastructure\Update;
 
-use ZipArchive;
-
 final class AdminUpdater
 {
     /** @var array<string, bool> */
-    private const MANAGE_PRESERVE = [
+    private const PRESERVED_ADMIN_ROOT_ENTRIES = [
+        '.git' => true,
         '.env' => true,
         'media' => true,
         'node_modules' => true,
         'store' => true,
         'vendor' => true,
+    ];
+    /** @var array<string, bool> */
+    private const MANAGED_ADMIN_DIRECTORIES = [
+        'bin' => true,
+        'docker' => true,
+        'public' => true,
+        'src' => true,
+        'tests' => true,
+        'web' => true,
     ];
 
     private string $projectRoot;
@@ -112,7 +120,7 @@ final class AdminUpdater
                 throw new \RuntimeException('Failed to create temporary updater directory.');
             }
 
-            $archivePath = $tempRoot . '/update.zip';
+            $archivePath = $tempRoot . '/update.tar.gz';
             $extractRoot = $tempRoot . '/archive';
 
             $this->source->downloadArchive($archivePath);
@@ -136,7 +144,7 @@ final class AdminUpdater
             }
 
             $this->touchMessage('Replacing admin files.');
-            $this->syncDirectory($remoteManageRoot, $this->manageRoot, self::MANAGE_PRESERVE);
+            $this->syncManagedAdminRoot($remoteManageRoot, $this->manageRoot);
 
             $this->touchMessage('Replacing deployable system pages.');
             $syncedSystemPages = $this->syncDeployableSystemPages($remoteStoreRoot, $this->publicStoreRoot);
@@ -272,25 +280,29 @@ final class AdminUpdater
 
     private function extractArchive(string $archivePath, string $destination): string
     {
-        if (!class_exists(ZipArchive::class)) {
-            throw new \RuntimeException('ZipArchive is required for admin updates.');
+        if (!class_exists(\PharData::class)) {
+            throw new \RuntimeException('PharData is required for admin updates.');
         }
 
         if (!mkdir($destination, 0755, true) && !is_dir($destination)) {
             throw new \RuntimeException('Failed to create extraction directory.');
         }
 
-        $zip = new ZipArchive();
-        if ($zip->open($archivePath) !== true) {
-            throw new \RuntimeException('Failed to open update archive.');
+        $tarPath = preg_replace('/\.gz$/', '', $archivePath);
+        if (!is_string($tarPath) || trim($tarPath) === '') {
+            throw new \RuntimeException('Failed to prepare update archive extraction.');
         }
 
-        if (!$zip->extractTo($destination)) {
-            $zip->close();
-            throw new \RuntimeException('Failed to extract update archive.');
+        try {
+            if (!is_file($tarPath)) {
+                $compressed = new \PharData($archivePath);
+                $compressed->decompress();
+            }
+            $archive = new \PharData($tarPath);
+            $archive->extractTo($destination, null, true);
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException('Failed to extract update archive: ' . $exception->getMessage(), 0, $exception);
         }
-
-        $zip->close();
 
         $entries = array_values(array_filter(scandir($destination) ?: [], static fn (string $entry): bool => $entry !== '.' && $entry !== '..'));
         if (count($entries) !== 1) {
@@ -305,8 +317,65 @@ final class AdminUpdater
         return $root;
     }
 
-    /** @param array<string, bool> $preserveTopLevel */
-    private function syncDirectory(string $source, string $target, array $preserveTopLevel, string $relative = ''): void
+    private function syncManagedAdminRoot(string $sourceRoot, string $targetRoot): void
+    {
+        if (!is_dir($targetRoot) && !mkdir($targetRoot, 0755, true) && !is_dir($targetRoot)) {
+            throw new \RuntimeException('Failed to create target directory: ' . $targetRoot);
+        }
+
+        $sourceEntries = $this->listEntries($sourceRoot);
+        $targetEntries = $this->listEntries($targetRoot);
+
+        $managedRootFiles = [];
+        foreach ($sourceEntries as $entry) {
+            if ($this->shouldPreserveAdminRootEntry($entry)) {
+                continue;
+            }
+
+            $sourcePath = $sourceRoot . '/' . $entry;
+            if (is_file($sourcePath) || is_link($sourcePath)) {
+                $managedRootFiles[$entry] = true;
+            }
+        }
+
+        foreach ($targetEntries as $entry) {
+            if ($this->shouldPreserveAdminRootEntry($entry)) {
+                continue;
+            }
+
+            $targetPath = $targetRoot . '/' . $entry;
+            if (is_dir($targetPath) && !is_link($targetPath)) {
+                if (isset(self::MANAGED_ADMIN_DIRECTORIES[$entry]) && !in_array($entry, $sourceEntries, true)) {
+                    $this->deletePath($targetPath);
+                }
+                continue;
+            }
+
+            if (isset($managedRootFiles[$entry]) && !in_array($entry, $sourceEntries, true)) {
+                $this->deletePath($targetPath);
+            }
+        }
+
+        foreach ($sourceEntries as $entry) {
+            if ($this->shouldPreserveAdminRootEntry($entry)) {
+                continue;
+            }
+
+            $sourcePath = $sourceRoot . '/' . $entry;
+            $targetPath = $targetRoot . '/' . $entry;
+
+            if (is_dir($sourcePath) && !is_link($sourcePath) && isset(self::MANAGED_ADMIN_DIRECTORIES[$entry])) {
+                $this->syncDirectoryContents($sourcePath, $targetPath);
+                continue;
+            }
+
+            if (is_file($sourcePath) || is_link($sourcePath)) {
+                $this->copyFile($sourcePath, $targetPath);
+            }
+        }
+    }
+
+    private function syncDirectoryContents(string $source, string $target): void
     {
         if (!is_dir($target) && !mkdir($target, 0755, true) && !is_dir($target)) {
             throw new \RuntimeException('Failed to create target directory: ' . $target);
@@ -316,29 +385,27 @@ final class AdminUpdater
         $targetEntries = $this->listEntries($target);
 
         foreach ($targetEntries as $entry) {
-            if ($relative === '' && isset($preserveTopLevel[$entry])) {
-                continue;
-            }
             if (!in_array($entry, $sourceEntries, true)) {
                 $this->deletePath($target . '/' . $entry);
             }
         }
 
         foreach ($sourceEntries as $entry) {
-            if ($relative === '' && isset($preserveTopLevel[$entry])) {
-                continue;
-            }
-
             $sourcePath = $source . '/' . $entry;
             $targetPath = $target . '/' . $entry;
 
             if (is_dir($sourcePath) && !is_link($sourcePath)) {
-                $this->syncDirectory($sourcePath, $targetPath, [], ltrim($relative . '/' . $entry, '/'));
+                $this->syncDirectoryContents($sourcePath, $targetPath);
                 continue;
             }
 
             $this->copyFile($sourcePath, $targetPath);
         }
+    }
+
+    private function shouldPreserveAdminRootEntry(string $entry): bool
+    {
+        return isset(self::PRESERVED_ADMIN_ROOT_ENTRIES[$entry]) || str_starts_with($entry, '.git');
     }
 
     private function syncDeployableSystemPages(string $remoteStoreRoot, string $localStoreRoot): int

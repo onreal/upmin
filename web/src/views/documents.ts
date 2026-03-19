@@ -246,7 +246,7 @@ export const renderDocument = ({
       </div>
       ${
         isConfigurationPage
-          ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/manage/</strong>.</div>`
+          ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/upmin/</strong>.</div>`
           : ""
       }
       <div class="mb-4 buttons">

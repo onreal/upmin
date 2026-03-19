@@ -7,7 +7,7 @@ namespace Manage\Infrastructure\Update;
 final class GitHubRepositorySource implements RepositorySource
 {
     private const REMOTE_VERSION_URL_TEMPLATE = 'https://raw.githubusercontent.com/onreal/upmin/main/%s';
-    private const ARCHIVE_URL = 'https://codeload.github.com/onreal/upmin/zip/refs/heads/main';
+    private const ARCHIVE_URL = 'https://codeload.github.com/onreal/upmin/tar.gz/refs/heads/main';
 
     private string $adminRelativePath;
 

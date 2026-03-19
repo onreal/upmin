@@ -167,7 +167,7 @@ final class App
         $getAgentConversation = new GetAgentConversation($documentRepository);
         $appendAgentMessage = new AppendAgentMessage($documentRepository, $ensureDocumentId);
         $realtimePublisher = new SocketRealtimePublisher($realtimeConfig);
-        $integrationSyncWorker = new ReplyWorkerLauncher($this->projectRoot, $this->projectRoot . '/manage/bin/integration-sync-worker.php');
+        $integrationSyncWorker = new ReplyWorkerLauncher($this->projectRoot, $this->manageRoot . '/bin/integration-sync-worker.php');
         $queueIntegrationModelSync = new QueueIntegrationModelSync(
             $integrationRegistry,
             $integrationSettingsStore,
@@ -175,7 +175,7 @@ final class App
             $realtimePublisher,
             $integrationSyncWorker
         );
-        $agentWorker = new ReplyWorkerLauncher($this->projectRoot, $this->projectRoot . '/manage/bin/agent-worker.php');
+        $agentWorker = new ReplyWorkerLauncher($this->projectRoot, $this->manageRoot . '/bin/agent-worker.php');
         $sendAgentMessage = new SendAgentMessage($appendAgentMessage, $realtimePublisher, $agentWorker);
         $getDocument = new GetDocument($documentRepository, $ensureDocumentId);
         $reorderDocuments = new ReorderDocuments($documentRepository);

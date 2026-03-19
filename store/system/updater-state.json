@@ -1,11 +1,11 @@
 {
-    "status": "failed",
+    "status": "idle",
     "locked": false,
-    "currentVersion": "0.0.0",
-    "latestVersion": null,
+    "currentVersion": "0.0.9",
+    "latestVersion": "0.0.9",
     "updateAvailable": false,
     "startedAt": null,
     "finishedAt": null,
-    "message": "Failed to check for updates.",
-    "error": "Update request failed with status 404."
+    "message": "Admin is up to date.",
+    "error": null
 }

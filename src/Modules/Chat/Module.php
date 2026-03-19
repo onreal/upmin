@@ -57,7 +57,7 @@ final class Module implements ModuleHandler
         $env = Env::load($context->manageRoot() . '/.env');
         $realtimeConfig = new RealtimeConfig($env);
         $realtimePublisher = new SocketRealtimePublisher($realtimeConfig);
-        $workerLauncher = new ReplyWorkerLauncher($context->projectRoot(), $context->projectRoot() . '/manage/bin/chat-worker.php');
+        $workerLauncher = new ReplyWorkerLauncher($context->projectRoot(), $context->manageRoot() . '/bin/chat-worker.php');
         $sendMessage = new SendMessage($appendMessage, $realtimePublisher, $workerLauncher);
         $tokenService = new HmacTokenService($env);
 

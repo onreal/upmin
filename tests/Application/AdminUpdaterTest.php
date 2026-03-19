@@ -22,8 +22,13 @@ final class AdminUpdaterTest extends TestCase
         $this->adminRoot = $this->projectRoot . '/control-panel';
 
         mkdir($this->projectRoot . '/store/system', 0755, true);
+        mkdir($this->projectRoot . '/control-panel/.git', 0755, true);
         mkdir($this->projectRoot . '/control-panel/src', 0755, true);
+        mkdir($this->projectRoot . '/control-panel/bin', 0755, true);
+        mkdir($this->projectRoot . '/control-panel/docker', 0755, true);
         mkdir($this->projectRoot . '/control-panel/public/assets', 0755, true);
+        mkdir($this->projectRoot . '/control-panel/tests', 0755, true);
+        mkdir($this->projectRoot . '/control-panel/web', 0755, true);
         mkdir($this->projectRoot . '/control-panel/store', 0755, true);
 
         file_put_contents($this->projectRoot . '/control-panel/store/version.json', json_encode(['version' => '1.0.0'], JSON_PRETTY_PRINT));
@@ -36,8 +41,15 @@ final class AdminUpdaterTest extends TestCase
             json_encode(['position' => 'system', 'update_deploy' => false, 'title' => 'keep'], JSON_PRETTY_PRINT)
         );
         file_put_contents($this->projectRoot . '/control-panel/src/OldOnly.php', '<?php echo "old";');
+        file_put_contents($this->projectRoot . '/control-panel/bin/old-script', 'old-script');
+        file_put_contents($this->projectRoot . '/control-panel/docker/old.conf', 'old-docker');
         file_put_contents($this->projectRoot . '/control-panel/public/assets/app.js', 'old-build');
+        file_put_contents($this->projectRoot . '/control-panel/tests/OldTest.php', '<?php');
+        file_put_contents($this->projectRoot . '/control-panel/web/old.ts', 'old-web');
+        file_put_contents($this->projectRoot . '/control-panel/bootstrap.php', 'old-bootstrap');
         file_put_contents($this->projectRoot . '/control-panel/store/auth.json', '{"users":[]}');
+        file_put_contents($this->projectRoot . '/control-panel/.git/config', '[core]');
+        file_put_contents($this->projectRoot . '/control-panel/local-only.keep', 'keep-me');
     }
 
     protected function tearDown(): void
@@ -67,9 +79,18 @@ final class AdminUpdaterTest extends TestCase
         $this->assertSame('completed', $result['status']);
         $this->assertSame('1.2.0', $result['currentVersion']);
         $this->assertFileDoesNotExist($this->projectRoot . '/control-panel/src/OldOnly.php');
+        $this->assertFileDoesNotExist($this->projectRoot . '/control-panel/bin/old-script');
+        $this->assertFileDoesNotExist($this->projectRoot . '/control-panel/docker/old.conf');
+        $this->assertFileDoesNotExist($this->projectRoot . '/control-panel/tests/OldTest.php');
+        $this->assertFileDoesNotExist($this->projectRoot . '/control-panel/web/old.ts');
         $this->assertSame('<?php echo "new";', file_get_contents($this->projectRoot . '/control-panel/src/NewFile.php'));
+        $this->assertSame('new-bin', file_get_contents($this->projectRoot . '/control-panel/bin/runner'));
+        $this->assertSame('new-docker', file_get_contents($this->projectRoot . '/control-panel/docker/site.conf'));
         $this->assertSame('new-build', file_get_contents($this->projectRoot . '/control-panel/public/assets/app.js'));
+        $this->assertSame('new-root-bootstrap', file_get_contents($this->projectRoot . '/control-panel/bootstrap.php'));
         $this->assertSame('{"users":[]}', file_get_contents($this->projectRoot . '/control-panel/store/auth.json'));
+        $this->assertFileExists($this->projectRoot . '/control-panel/.git/config');
+        $this->assertSame('keep-me', file_get_contents($this->projectRoot . '/control-panel/local-only.keep'));
         $this->assertStringContainsString('"title": "remote"', (string) file_get_contents($this->projectRoot . '/store/system/local-system.json'));
         $this->assertStringContainsString('"title": "keep"', (string) file_get_contents($this->projectRoot . '/store/system/local-user.json'));
         $this->assertFileDoesNotExist($this->projectRoot . '/store/system/orphan.json');
@@ -110,15 +131,24 @@ final class AdminUpdaterTest extends TestCase
     private function buildRemoteArchive(string $version): string
     {
         $remoteRoot = $this->workspace . '/remote/upmin-main';
+        mkdir($remoteRoot . '/control-panel/bin', 0755, true);
+        mkdir($remoteRoot . '/control-panel/docker', 0755, true);
         mkdir($remoteRoot . '/control-panel/src', 0755, true);
         mkdir($remoteRoot . '/control-panel/public/assets', 0755, true);
         mkdir($remoteRoot . '/control-panel/store', 0755, true);
+        mkdir($remoteRoot . '/control-panel/tests', 0755, true);
+        mkdir($remoteRoot . '/control-panel/web', 0755, true);
         mkdir($remoteRoot . '/store/system', 0755, true);
 
+        file_put_contents($remoteRoot . '/control-panel/bin/runner', 'new-bin');
+        file_put_contents($remoteRoot . '/control-panel/docker/site.conf', 'new-docker');
         file_put_contents($remoteRoot . '/control-panel/src/NewFile.php', '<?php echo "new";');
         file_put_contents($remoteRoot . '/control-panel/public/assets/app.js', 'new-build');
+        file_put_contents($remoteRoot . '/control-panel/tests/NewTest.php', '<?php');
+        file_put_contents($remoteRoot . '/control-panel/web/index.ts', 'new-web');
         file_put_contents($remoteRoot . '/control-panel/store/ignored.json', '{"ignored":true}');
         file_put_contents($remoteRoot . '/control-panel/store/version.json', json_encode(['version' => $version], JSON_PRETTY_PRINT));
+        file_put_contents($remoteRoot . '/control-panel/bootstrap.php', 'new-root-bootstrap');
         file_put_contents(
             $remoteRoot . '/store/system/local-system.json',
             json_encode(['position' => 'system', 'update_deploy' => true, 'title' => 'remote'], JSON_PRETTY_PRINT)
@@ -132,9 +162,9 @@ final class AdminUpdaterTest extends TestCase
             json_encode(['position' => 'system', 'update_deploy' => true, 'title' => 'remove'], JSON_PRETTY_PRINT)
         );
 
-        $archivePath = $this->workspace . '/remote.zip';
-        $zip = new ZipArchive();
-        $zip->open($archivePath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $archivePath = $this->workspace . '/remote.tar.gz';
+        $tarPath = $this->workspace . '/remote.tar';
+        $phar = new PharData($tarPath);
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(dirname($remoteRoot), FilesystemIterator::SKIP_DOTS)
@@ -146,10 +176,12 @@ final class AdminUpdaterTest extends TestCase
             }
             $fullPath = $file->getPathname();
             $relativePath = ltrim(str_replace(dirname($remoteRoot) . '/', '', $fullPath), '/');
-            $zip->addFile($fullPath, $relativePath);
+            $phar->addFile($fullPath, $relativePath);
         }
 
-        $zip->close();
+        $phar->compress(Phar::GZ);
+        unset($phar);
+        @unlink($tarPath);
 
         return $archivePath;
     }

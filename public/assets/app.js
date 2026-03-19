@@ -6281,7 +6281,7 @@ var renderDocument = ({
         ${idMeta}
         ${languageMeta}
       </div>
-      ${isConfigurationPage ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/manage/</strong>.</div>` : ""}
+      ${isConfigurationPage ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/upmin/</strong>.</div>` : ""}
       <div class="mb-4 buttons">
         <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
         <button id="export-json" class="button app-button app-ghost">Export JSON</button>
