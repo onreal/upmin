@@ -9,10 +9,18 @@ use Manage\Modules\Chat\Infrastructure\ConversationStore;
 final class StartConversation
 {
     private ConversationStore $store;
+    private InitialPromptContextResolver $contextResolver;
+    private InitialPromptContextComposer $contextComposer;
 
-    public function __construct(ConversationStore $store)
+    public function __construct(
+        ConversationStore $store,
+        InitialPromptContextResolver $contextResolver,
+        InitialPromptContextComposer $contextComposer
+    )
     {
         $this->store = $store;
+        $this->contextResolver = $contextResolver;
+        $this->contextComposer = $contextComposer;
     }
 
     /** @return array<string, mixed> */
@@ -24,6 +32,16 @@ final class StartConversation
         ?string $agentId = null
     ): array
     {
-        return $this->store->create($moduleKey, $agentName, $userId, $settings, $agentId);
+        $resolvedContext = $this->contextResolver->resolve($moduleKey);
+        return $this->store->create(
+            $moduleKey,
+            $agentName,
+            $userId,
+            $settings,
+            $agentId,
+            $resolvedContext !== null
+                ? $this->contextComposer->buildContextMessages($resolvedContext)
+                : null
+        );
     }
 }

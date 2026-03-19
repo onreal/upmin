@@ -62,12 +62,17 @@ final class ProcessPendingReply
         $agentName = is_string($data['agentName'] ?? null) ? trim((string) $data['agentName']) : '';
         $agentId = is_string($data['agentId'] ?? null) ? trim((string) $data['agentId']) : null;
         $userId = is_string($data['userId'] ?? null) ? trim((string) $data['userId']) : 'api-key';
+        $contextMessages = $data['contextMessages'] ?? [];
+        if (!is_array($contextMessages)) {
+            $contextMessages = [];
+        }
+        $messagesForReply = array_merge($contextMessages, $messages);
 
         try {
             $reply = $this->responder->reply(
                 $agentId !== '' ? $agentId : null,
                 $agentName,
-                $messages,
+                $messagesForReply,
                 $this->progressReporter($conversationId)
             );
         } catch (\Throwable $exception) {

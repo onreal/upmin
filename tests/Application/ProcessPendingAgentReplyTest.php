@@ -97,7 +97,14 @@ final class ProcessPendingAgentReplyTest extends TestCase
         $responder = $this->createMock(AgentResponder::class);
         $responder->expects($this->once())
             ->method('reply')
-            ->willReturn('Hello back.');
+            ->willReturnCallback(function (?string $agentId, string $agentName, array $messages): string {
+                self::assertSame('private:agents/assistant.json', $agentId);
+                self::assertSame('Assistant', $agentName);
+                self::assertSame('Hello', $messages[0]['content']);
+                self::assertStringNotContainsString('PAGE_DATA_JSON:', $messages[0]['content']);
+
+                return 'Hello back.';
+            });
 
         $progress = new ConversationProgressTracker($repository, $realtime);
         $useCase = new ProcessPendingAgentReply($repository, $responder, $realtime, $progress);

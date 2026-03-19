@@ -19,6 +19,8 @@ use Manage\Integrations\IntegrationSettingsStore;
 use Manage\Modules\Chat\Application\AppendMessage;
 use Manage\Modules\Chat\Application\DeleteConversation;
 use Manage\Modules\Chat\Application\GetConversation;
+use Manage\Modules\Chat\Application\InitialPromptContextComposer;
+use Manage\Modules\Chat\Application\InitialPromptContextResolver;
 use Manage\Modules\Chat\Application\ListConversations;
 use Manage\Modules\Chat\Application\SendMessage;
 use Manage\Modules\Chat\Application\StartConversation;
@@ -39,16 +41,20 @@ final class Module implements ModuleHandler
         $settingsStore = new ModuleSettingsStore($context);
         $conversationStore = new ConversationStore($context);
         $listConversations = new ListConversations($conversationStore);
-        $startConversation = new StartConversation($conversationStore);
+        $documentRepository = new JsonDocumentRepository($storeRoots = [
+            'private' => rtrim($context->manageRoot(), '/') . '/store',
+            'public' => rtrim($context->projectRoot(), '/') . '/store',
+        ]);
+        $initialPromptContextComposer = new InitialPromptContextComposer();
+        $initialPromptContextResolver = new InitialPromptContextResolver($documentRepository, $definition);
+        $startConversation = new StartConversation(
+            $conversationStore,
+            $initialPromptContextResolver,
+            $initialPromptContextComposer
+        );
         $appendMessage = new AppendMessage($conversationStore);
         $getConversation = new GetConversation($conversationStore);
         $deleteConversation = new DeleteConversation($conversationStore);
-
-        $storeRoots = [
-            'private' => rtrim($context->manageRoot(), '/') . '/store',
-            'public' => rtrim($context->projectRoot(), '/') . '/store',
-        ];
-        $documentRepository = new JsonDocumentRepository($storeRoots);
         $integrationContext = new IntegrationContext($context->projectRoot(), $context->manageRoot());
         $integrationRegistry = new IntegrationRegistry($context->manageRoot() . '/src/Integrations', $integrationContext);
         $integrationSettings = new IntegrationSettingsStore($integrationContext);

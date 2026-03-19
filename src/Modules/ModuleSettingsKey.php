@@ -42,6 +42,23 @@ final class ModuleSettingsKey
         return $value;
     }
 
+    public static function documentIdFromKey(string $key, string $moduleName): ?string
+    {
+        $normalizedKey = self::normalizeKey($key);
+        $module = self::slug($moduleName);
+        if ($normalizedKey === null || $module === '') {
+            return null;
+        }
+
+        $suffix = '-' . $module;
+        if (!str_ends_with($normalizedKey, $suffix)) {
+            return null;
+        }
+
+        $documentId = substr($normalizedKey, 0, -strlen($suffix));
+        return self::normalizeId($documentId === false ? null : $documentId);
+    }
+
     private static function normalizeId(?string $value): ?string
     {
         if (!is_string($value)) {

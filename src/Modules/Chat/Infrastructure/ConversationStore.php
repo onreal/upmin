@@ -105,7 +105,8 @@ final class ConversationStore
         string $agentName,
         string $userId,
         ?array $settings = null,
-        ?string $agentId = null
+        ?string $agentId = null,
+        ?array $contextMessages = null
     ): array
     {
         $config = $this->resolveConfig($settings);
@@ -140,6 +141,9 @@ final class ConversationStore
 
         if ($agentId !== null && trim($agentId) !== '') {
             $data['agentId'] = trim($agentId);
+        }
+        if (is_array($contextMessages) && $contextMessages !== []) {
+            $data['contextMessages'] = $contextMessages;
         }
 
         $wrapper = DocumentWrapper::fromArray([

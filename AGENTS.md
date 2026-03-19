@@ -455,6 +455,7 @@ Module rules:
 - Keep module settings backward compatible.
 - If a page enables a module, backend helpers may auto-create dependent settings or system pages.
 - If a module needs admin-side interactive UI, add or update the matching frontend renderer in `web/src/modules/registry.ts`.
+- For page-bound chat modules, page context injection belongs on the backend. The frontend should send only the normal chat payload, while the server may create one hidden conversation-context message from the owning page `data` plus the exact module schema and keep that message in model history for the whole conversation without rendering it in the visible chat UI.
 
 ### Module Settings Business
 
