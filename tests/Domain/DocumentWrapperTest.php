@@ -42,6 +42,21 @@ final class DocumentWrapperTest extends TestCase
         $this->assertSame('agents', $wrapper->page());
     }
 
+    public function testPositionViewIsAccepted(): void
+    {
+        $wrapper = DocumentWrapper::fromArray([
+            'page' => 'content',
+            'name' => 'Content',
+            'order' => 1,
+            'section' => false,
+            'position_view' => 'footer',
+            'data' => [],
+        ]);
+
+        $this->assertSame('footer', $wrapper->positionView());
+        $this->assertSame('footer', $wrapper->toArray()['position_view']);
+    }
+
     public function testInvalidWrapperThrows(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -49,6 +64,19 @@ final class DocumentWrapperTest extends TestCase
             'name' => 'Missing page',
             'order' => 1,
             'section' => true,
+            'data' => [],
+        ]);
+    }
+
+    public function testInvalidPositionViewThrows(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        DocumentWrapper::fromArray([
+            'page' => 'content',
+            'name' => 'Content',
+            'order' => 1,
+            'section' => false,
+            'position_view' => 'content',
             'data' => [],
         ]);
     }

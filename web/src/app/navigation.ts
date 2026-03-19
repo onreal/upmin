@@ -3,6 +3,12 @@ import { state } from "./state";
 import { adminText } from "./translations";
 
 const MOBILE_DRAWER_CLOSE_EVENT = "app:mobile-drawer-close";
+type NavigationPlacement = "settings" | "sidebar" | "header" | "footer";
+type NavigationLinkEntry = {
+  id: string;
+  name: string;
+  variants?: { id: string }[];
+};
 
 export const findAuthDocumentId = (pages: NavigationPage[]) => {
   for (const page of pages) {
@@ -27,6 +33,46 @@ const isCurrentDocument = (documentId: string | null | undefined, variants?: { i
   return !!currentId && (documentId === currentId || (variants ?? []).some((variant) => variant.id === currentId));
 };
 
+const matchesPlacement = (
+  item: { store?: string | null; position?: string | null; position_view?: string | null },
+  placement: NavigationPlacement,
+  mode?: "public" | "private"
+) =>
+  item.position !== "system" &&
+  item.store === "private" &&
+  item.position_view === placement &&
+  (!mode || item.store === mode);
+
+const collectPlacementLinks = (
+  pages: NavigationPage[],
+  placement: NavigationPlacement,
+  mode?: "public" | "private"
+): NavigationLinkEntry[] => {
+  const seen = new Set<string>();
+  const items: NavigationLinkEntry[] = [];
+
+  const pushItem = (item: NavigationLinkEntry) => {
+    if (seen.has(item.id)) {
+      return;
+    }
+    seen.add(item.id);
+    items.push(item);
+  };
+
+  pages.forEach((page) => {
+    if (page.documentId && matchesPlacement(page, placement, mode)) {
+      pushItem({ id: page.documentId, name: page.name, variants: page.variants });
+    }
+    page.sections.forEach((section) => {
+      if (matchesPlacement(section, placement, mode)) {
+        pushItem({ id: section.id, name: section.name, variants: section.variants });
+      }
+    });
+  });
+
+  return items;
+};
+
 const renderDesktopNavList = (
   container: HTMLElement,
   pages: NavigationPage[],
@@ -36,24 +82,39 @@ const renderDesktopNavList = (
   container.innerHTML = "";
 
   pages
-    .filter((page) => page.store === mode && page.position !== "system")
     .forEach((page) => {
-      const pageItem = document.createElement("li");
-      const pageLink = document.createElement("a");
-      pageLink.textContent = page.name;
-      if (isCurrentDocument(page.documentId, page.variants)) {
-        pageLink.classList.add("is-active");
+      const pageVisible =
+        mode === "public"
+          ? page.store === "public" && page.position !== "system" && !!page.documentId
+          : !!page.documentId && matchesPlacement(page, "sidebar", mode);
+      const sections =
+        mode === "public"
+          ? page.sections.filter((section) => section.store === "public" && section.position !== "system")
+          : page.sections.filter((section) => matchesPlacement(section, "sidebar", mode));
+      if (!pageVisible && sections.length === 0) {
+        return;
       }
-      pageLink.addEventListener("click", () => {
-        if (page.documentId) {
-          onSelectDocument(page.documentId);
-        }
-      });
-      pageItem.append(pageLink);
 
-      const sections = page.sections.filter(
-        (section) => section.store === mode && section.position !== "system"
-      );
+      const pageItem = document.createElement("li");
+      if (pageVisible) {
+        const pageLink = document.createElement("a");
+        pageLink.textContent = page.name;
+        if (isCurrentDocument(page.documentId, page.variants)) {
+          pageLink.classList.add("is-active");
+        }
+        pageLink.addEventListener("click", () => {
+          if (page.documentId) {
+            onSelectDocument(page.documentId);
+          }
+        });
+        pageItem.append(pageLink);
+      } else {
+        const pageLabel = document.createElement("div");
+        pageLabel.className = "menu-label";
+        pageLabel.textContent = page.name;
+        pageItem.append(pageLabel);
+      }
+
       if (sections.length > 0) {
         const sectionList = document.createElement("ul");
         sections.forEach((section) => {
@@ -85,30 +146,41 @@ const renderMobileNavList = (
   container.innerHTML = "";
 
   pages
-    .filter((page) => page.store === mode && page.position !== "system")
     .forEach((page, index) => {
+      const pageVisible =
+        mode === "public"
+          ? page.store === "public" && page.position !== "system" && !!page.documentId
+          : !!page.documentId && matchesPlacement(page, "sidebar", mode);
+      const sections =
+        mode === "public"
+          ? page.sections.filter((section) => section.store === "public" && section.position !== "system")
+          : page.sections.filter((section) => matchesPlacement(section, "sidebar", mode));
+      if (!pageVisible && sections.length === 0) {
+        return;
+      }
+
       const pageItem = document.createElement("li");
       pageItem.className = "app-mobile-nav-item";
 
-      const pageLink = document.createElement("a");
+      const pageLink = pageVisible ? document.createElement("a") : document.createElement("div");
       pageLink.className = "app-mobile-nav-link";
-      pageLink.href = "#";
+      if (pageVisible) {
+        (pageLink as HTMLAnchorElement).href = "#";
+      }
       pageLink.textContent = page.name;
-      if (isCurrentDocument(page.documentId, page.variants)) {
+      if (pageVisible && isCurrentDocument(page.documentId, page.variants)) {
         pageLink.classList.add("is-active");
       }
-      pageLink.addEventListener("click", (event) => {
-        event.preventDefault();
-        if (!page.documentId) {
-          return;
-        }
-        onSelectDocument(page.documentId);
-        closeMobileDrawer();
-      });
-
-      const sections = page.sections.filter(
-        (section) => section.store === mode && section.position !== "system"
-      );
+      if (pageVisible) {
+        pageLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (!page.documentId) {
+            return;
+          }
+          onSelectDocument(page.documentId);
+          closeMobileDrawer();
+        });
+      }
 
       if (sections.length === 0) {
         pageItem.append(pageLink);
@@ -171,6 +243,11 @@ export const renderNavigation = (pages: NavigationPage[], onSelectDocument: (id:
   const navPrivateMobile = document.getElementById("nav-mobile-private");
   const navSystem = document.getElementById("nav-system-pages");
   const navSystemMobile = document.getElementById("nav-system-pages-mobile");
+  const navSettings = document.getElementById("nav-settings-pages");
+  const navSettingsMobile = document.getElementById("nav-settings-pages-mobile");
+  const navHeader = document.getElementById("nav-header-links");
+  const navHeaderMobile = document.getElementById("nav-header-links-mobile");
+  const navFooter = document.getElementById("nav-footer-links");
 
   if (!navPublic || !navPrivate || !navSystem) {
     return;
@@ -185,10 +262,73 @@ export const renderNavigation = (pages: NavigationPage[], onSelectDocument: (id:
   if (navPrivateMobile) {
     renderMobileNavList(navPrivateMobile, pages, "private", onSelectDocument);
   }
+  if (navSettings) {
+    renderPlacementLinks(navSettings, pages, "settings", onSelectDocument, "desktop");
+  }
+  if (navSettingsMobile) {
+    renderPlacementLinks(navSettingsMobile, pages, "settings", onSelectDocument, "mobile");
+  }
+  if (navHeader) {
+    renderPlacementLinks(navHeader, pages, "header", onSelectDocument, "header");
+  }
+  if (navHeaderMobile) {
+    renderPlacementLinks(navHeaderMobile, pages, "header", onSelectDocument, "mobile");
+  }
+  if (navFooter) {
+    renderPlacementLinks(navFooter, pages, "footer", onSelectDocument, "footer");
+  }
   renderSystemPages(navSystem, pages, onSelectDocument, "desktop");
   if (navSystemMobile) {
     renderSystemPages(navSystemMobile, pages, onSelectDocument, "mobile");
   }
+};
+
+const renderPlacementLinks = (
+  container: HTMLElement,
+  pages: NavigationPage[],
+  placement: NavigationPlacement,
+  onSelectDocument: (id: string) => void,
+  variant: "desktop" | "mobile" | "header" | "footer"
+) => {
+  container.innerHTML = "";
+  const mode: "private" = "private";
+  const items = collectPlacementLinks(pages, placement, mode);
+  container.classList.toggle("is-hidden", items.length === 0);
+
+  items.forEach((item) => {
+    const link =
+      variant === "header"
+        ? document.createElement("button")
+        : document.createElement("a");
+
+    if (variant === "header") {
+      link.className = "button app-button app-ghost";
+      link.setAttribute("type", "button");
+    } else if (variant === "mobile") {
+      link.className = "app-mobile-action-link";
+      (link as HTMLAnchorElement).href = "#";
+    } else if (variant === "footer") {
+      link.className = "app-footer-nav-link";
+      (link as HTMLAnchorElement).href = "#";
+    } else {
+      link.className = "navbar-item";
+      (link as HTMLAnchorElement).href = "#";
+    }
+
+    link.textContent = item.name;
+    if (isCurrentDocument(item.id, item.variants)) {
+      link.classList.add("is-active");
+    }
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      onSelectDocument(item.id);
+      if (variant !== "footer") {
+        document.getElementById("private-dropdown")?.classList.remove("is-active");
+      }
+      closeMobileDrawer();
+    });
+    container.append(link);
+  });
 };
 
 const renderSystemPages = (

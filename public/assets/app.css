@@ -198,6 +198,39 @@ body {
   flex: 0 0 auto;
 }
 
+.app-nav-shortcuts {
+  display: inline-flex;
+  gap: var(--app-gap-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.app-footer-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.app-footer-nav.is-hidden {
+  display: none !important;
+}
+
+.app-footer-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  font-size: 0.92rem;
+}
+
+.app-footer-nav-link:hover,
+.app-footer-nav-link.is-active {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  color: var(--app-text);
+}
+
 .app-update-status-chip {
   display: inline-flex;
   align-items: center;
@@ -568,6 +601,10 @@ body {
     flex-direction: column;
     gap: 0.25rem;
     padding: 0.5rem;
+  }
+
+  .app-nav-shortcuts {
+    display: none;
   }
 
   .app-update-status-chip-mobile {

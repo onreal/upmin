@@ -963,6 +963,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
                 ${builderIcon}
                 <span>${builderLabel}</span>
               </button>
+              <div id="nav-header-links" class="app-nav-shortcuts"></div>
               <div id="system-update-status-chip" class="app-update-status-chip is-hidden">
                 <span id="system-update-status-text">${versionUnknownLabel}</span>
               </div>
@@ -1002,6 +1003,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
               <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
               <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
+              <div id="nav-settings-pages"></div>
               <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
@@ -1077,6 +1079,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               ${builderIcon}
               <span>${builderLabel}</span>
             </button>
+            <div id="nav-header-links-mobile" class="app-mobile-action-list"></div>
           </div>
 
           <section class="app-mobile-accordion-section">
@@ -1136,6 +1139,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
                   ${formsLabel}
                 </a>
               </div>
+              <div id="nav-settings-pages-mobile" class="app-mobile-action-list"></div>
               <div id="nav-system-pages-mobile" class="app-mobile-action-list app-mobile-system-pages"></div>
             </div>
           </section>
@@ -1239,6 +1243,11 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+    <section class="section pt-0">
+      <div class="container">
+        <div id="nav-footer-links" class="box app-surface app-footer-nav is-hidden"></div>
       </div>
     </section>
     <div id="app-notifications" class="app-notifications"></div>
@@ -2954,24 +2963,56 @@ var isCurrentDocument = (documentId, variants) => {
   const currentId = state.currentDocument?.id;
   return !!currentId && (documentId === currentId || (variants ?? []).some((variant) => variant.id === currentId));
 };
-var renderDesktopNavList = (container, pages, mode, onSelectDocument) => {
-  container.innerHTML = "";
-  pages.filter((page) => page.store === mode && page.position !== "system").forEach((page) => {
-    const pageItem = document.createElement("li");
-    const pageLink = document.createElement("a");
-    pageLink.textContent = page.name;
-    if (isCurrentDocument(page.documentId, page.variants)) {
-      pageLink.classList.add("is-active");
+var matchesPlacement = (item, placement, mode) => item.position !== "system" && item.store === "private" && item.position_view === placement && (!mode || item.store === mode);
+var collectPlacementLinks = (pages, placement, mode) => {
+  const seen = /* @__PURE__ */ new Set();
+  const items = [];
+  const pushItem = (item) => {
+    if (seen.has(item.id)) {
+      return;
     }
-    pageLink.addEventListener("click", () => {
-      if (page.documentId) {
-        onSelectDocument(page.documentId);
+    seen.add(item.id);
+    items.push(item);
+  };
+  pages.forEach((page) => {
+    if (page.documentId && matchesPlacement(page, placement, mode)) {
+      pushItem({ id: page.documentId, name: page.name, variants: page.variants });
+    }
+    page.sections.forEach((section) => {
+      if (matchesPlacement(section, placement, mode)) {
+        pushItem({ id: section.id, name: section.name, variants: section.variants });
       }
     });
-    pageItem.append(pageLink);
-    const sections = page.sections.filter(
-      (section) => section.store === mode && section.position !== "system"
-    );
+  });
+  return items;
+};
+var renderDesktopNavList = (container, pages, mode, onSelectDocument) => {
+  container.innerHTML = "";
+  pages.forEach((page) => {
+    const pageVisible = mode === "public" ? page.store === "public" && page.position !== "system" && !!page.documentId : !!page.documentId && matchesPlacement(page, "sidebar", mode);
+    const sections = mode === "public" ? page.sections.filter((section) => section.store === "public" && section.position !== "system") : page.sections.filter((section) => matchesPlacement(section, "sidebar", mode));
+    if (!pageVisible && sections.length === 0) {
+      return;
+    }
+    const pageItem = document.createElement("li");
+    if (pageVisible) {
+      const pageLink = document.createElement("a");
+      pageLink.textContent = page.name;
+      if (isCurrentDocument(page.documentId, page.variants)) {
+        pageLink.classList.add("is-active");
+      }
+      pageLink.addEventListener("click", () => {
+        if (page.documentId) {
+          onSelectDocument(page.documentId);
+        }
+      });
+      pageItem.append(pageLink);
+    } else {
+      const pageLabel = document.createElement("div");
+      pageLabel.className = "menu-label";
+      pageLabel.textContent = page.name;
+      pageItem.append(pageLabel);
+    }
     if (sections.length > 0) {
       const sectionList = document.createElement("ul");
       sections.forEach((section) => {
@@ -2994,27 +3035,33 @@ var renderDesktopNavList = (container, pages, mode, onSelectDocument) => {
 };
 var renderMobileNavList = (container, pages, mode, onSelectDocument) => {
   container.innerHTML = "";
-  pages.filter((page) => page.store === mode && page.position !== "system").forEach((page, index) => {
+  pages.forEach((page, index) => {
+    const pageVisible = mode === "public" ? page.store === "public" && page.position !== "system" && !!page.documentId : !!page.documentId && matchesPlacement(page, "sidebar", mode);
+    const sections = mode === "public" ? page.sections.filter((section) => section.store === "public" && section.position !== "system") : page.sections.filter((section) => matchesPlacement(section, "sidebar", mode));
+    if (!pageVisible && sections.length === 0) {
+      return;
+    }
     const pageItem = document.createElement("li");
     pageItem.className = "app-mobile-nav-item";
-    const pageLink = document.createElement("a");
+    const pageLink = pageVisible ? document.createElement("a") : document.createElement("div");
     pageLink.className = "app-mobile-nav-link";
-    pageLink.href = "#";
+    if (pageVisible) {
+      pageLink.href = "#";
+    }
     pageLink.textContent = page.name;
-    if (isCurrentDocument(page.documentId, page.variants)) {
+    if (pageVisible && isCurrentDocument(page.documentId, page.variants)) {
       pageLink.classList.add("is-active");
     }
-    pageLink.addEventListener("click", (event) => {
-      event.preventDefault();
-      if (!page.documentId) {
-        return;
-      }
-      onSelectDocument(page.documentId);
-      closeMobileDrawer();
-    });
-    const sections = page.sections.filter(
-      (section) => section.store === mode && section.position !== "system"
-    );
+    if (pageVisible) {
+      pageLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (!page.documentId) {
+          return;
+        }
+        onSelectDocument(page.documentId);
+        closeMobileDrawer();
+      });
+    }
     if (sections.length === 0) {
       pageItem.append(pageLink);
       container.append(pageItem);
@@ -3071,6 +3118,11 @@ var renderNavigation = (pages, onSelectDocument) => {
   const navPrivateMobile = document.getElementById("nav-mobile-private");
   const navSystem = document.getElementById("nav-system-pages");
   const navSystemMobile = document.getElementById("nav-system-pages-mobile");
+  const navSettings = document.getElementById("nav-settings-pages");
+  const navSettingsMobile = document.getElementById("nav-settings-pages-mobile");
+  const navHeader = document.getElementById("nav-header-links");
+  const navHeaderMobile = document.getElementById("nav-header-links-mobile");
+  const navFooter = document.getElementById("nav-footer-links");
   if (!navPublic || !navPrivate || !navSystem) {
     return;
   }
@@ -3083,10 +3135,60 @@ var renderNavigation = (pages, onSelectDocument) => {
   if (navPrivateMobile) {
     renderMobileNavList(navPrivateMobile, pages, "private", onSelectDocument);
   }
+  if (navSettings) {
+    renderPlacementLinks(navSettings, pages, "settings", onSelectDocument, "desktop");
+  }
+  if (navSettingsMobile) {
+    renderPlacementLinks(navSettingsMobile, pages, "settings", onSelectDocument, "mobile");
+  }
+  if (navHeader) {
+    renderPlacementLinks(navHeader, pages, "header", onSelectDocument, "header");
+  }
+  if (navHeaderMobile) {
+    renderPlacementLinks(navHeaderMobile, pages, "header", onSelectDocument, "mobile");
+  }
+  if (navFooter) {
+    renderPlacementLinks(navFooter, pages, "footer", onSelectDocument, "footer");
+  }
   renderSystemPages(navSystem, pages, onSelectDocument, "desktop");
   if (navSystemMobile) {
     renderSystemPages(navSystemMobile, pages, onSelectDocument, "mobile");
   }
+};
+var renderPlacementLinks = (container, pages, placement, onSelectDocument, variant) => {
+  container.innerHTML = "";
+  const mode = "private";
+  const items = collectPlacementLinks(pages, placement, mode);
+  container.classList.toggle("is-hidden", items.length === 0);
+  items.forEach((item) => {
+    const link = variant === "header" ? document.createElement("button") : document.createElement("a");
+    if (variant === "header") {
+      link.className = "button app-button app-ghost";
+      link.setAttribute("type", "button");
+    } else if (variant === "mobile") {
+      link.className = "app-mobile-action-link";
+      link.href = "#";
+    } else if (variant === "footer") {
+      link.className = "app-footer-nav-link";
+      link.href = "#";
+    } else {
+      link.className = "navbar-item";
+      link.href = "#";
+    }
+    link.textContent = item.name;
+    if (isCurrentDocument(item.id, item.variants)) {
+      link.classList.add("is-active");
+    }
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      onSelectDocument(item.id);
+      if (variant !== "footer") {
+        document.getElementById("private-dropdown")?.classList.remove("is-active");
+      }
+      closeMobileDrawer();
+    });
+    container.append(link);
+  });
 };
 var renderSystemPages = (container, pages, onSelectDocument, variant) => {
   container.innerHTML = "";
@@ -3247,6 +3349,7 @@ var resolveNavigationPages = (groups, defaultLanguage, activeLanguage) => {
       store: pageVariant?.store ?? null,
       path: pageVariant?.path ?? null,
       position: pageVariant?.position ?? null,
+      position_view: pageVariant?.position_view ?? null,
       languages: pageLanguages,
       variants: group.variants,
       sections: resolvedSections
@@ -3274,6 +3377,7 @@ var resolveSection = (section, language) => {
     store: variant.store ?? "public",
     path: variant.path ?? "",
     position: variant.position ?? null,
+    position_view: variant.position_view ?? null,
     languages: collectLanguages(section.variants),
     variants: section.variants
   };
@@ -6802,6 +6906,7 @@ var renderDocument = ({
       order: orderValue,
       section: sectionInput?.value === "true",
       modules: readSelectedModules2(moduleInput2),
+      position_view: payload.position_view,
       data: editorRef2.get()?.getValue() ?? payload.data
     };
     try {

@@ -19,6 +19,7 @@ export type NavigationVariant = {
   store?: string | null;
   path?: string | null;
   position?: string | null;
+  position_view?: string | null;
 };
 
 export type NavigationSectionGroup = {
@@ -42,6 +43,7 @@ export type NavigationPage = {
   store?: string | null;
   path?: string | null;
   position?: string | null;
+  position_view?: string | null;
   languages?: string[];
   variants?: NavigationVariant[];
   sections: Array<{
@@ -52,6 +54,7 @@ export type NavigationPage = {
     store: string;
     path: string;
     position?: string | null;
+    position_view?: string | null;
     languages?: string[];
     variants?: NavigationVariant[];
   }>;
@@ -68,6 +71,7 @@ export type DocumentPayload = {
   modules?: string[] | null;
   module?: string | null;
   position?: string | null;
+  position_view?: string | null;
   data: unknown;
 };
 

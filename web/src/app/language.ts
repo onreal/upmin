@@ -81,6 +81,7 @@ export const resolveNavigationPages = (
       store: pageVariant?.store ?? null,
       path: pageVariant?.path ?? null,
       position: pageVariant?.position ?? null,
+      position_view: pageVariant?.position_view ?? null,
       languages: pageLanguages,
       variants: group.variants,
       sections: resolvedSections,
@@ -111,6 +112,7 @@ const resolveSection = (section: NavigationSectionGroup, language: string | null
     store: variant.store ?? "public",
     path: variant.path ?? "",
     position: variant.position ?? null,
+    position_view: variant.position_view ?? null,
     languages: collectLanguages(section.variants),
     variants: section.variants,
   };

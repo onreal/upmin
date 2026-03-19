@@ -234,6 +234,7 @@ Important rules:
 - `page`, `name`, `order`, and `data` are required.
 - `section` is only emitted for `page` and `module`.
 - `position` is currently only allowed to be `system`.
+- `position_view` is optional and controls where a document appears in admin navigation.
 - `modules` is the normalized module list. Legacy `module` input can still be accepted on read.
 - IDs are required in practice and are auto-enforced by the backend.
 
@@ -295,8 +296,24 @@ Important rules:
 
 - Wrapper-level `position` only supports `system`.
 - `position: "system"` hides a private page from normal page navigation and surfaces it in system/settings areas.
+- `position: "system"` marks an internal system page rather than normal editable content.
 - System pages can only update their `data`; their structural wrapper fields are protected in `UpdateDocument`.
 - System pages cannot be created through the normal create-document flow.
+- The app creates some system pages automatically, for example configuration/auth/build pages, creations pages, and generated form-submission stores.
+- Admin updater deploy filtering also keys off wrapper `position: "system"` for deployable system JSON pages.
+
+`position_view`
+
+- Wrapper-level `position_view` is optional.
+- Allowed values are `settings`, `sidebar`, `header`, and `footer`.
+- `null`, empty, or missing means the document should not appear in admin navigation.
+- This property applies only to private documents. Public navigation ignores it.
+- `settings` places the private document under the header settings submenu.
+- `sidebar` places the private document in the private sidebar navigation.
+- `header` places the private document as a direct header action/button.
+- `footer` places the private document in the footer navigation.
+- This field is intended to be managed from JSON files, not from the normal create/edit document form.
+- Preserve `position_view` when saving documents through the admin even if the form does not expose it.
 
 `data`
 
@@ -401,6 +418,9 @@ Important rules:
 - `language` identifies language variants.
 - `section: true` means the document is grouped under a page as a section entry.
 - `position: system` keeps private pages out of the normal sidebar page lists and surfaces them in settings/system areas.
+- `position_view` controls private-document placement in the sidebar, settings menu, header actions, or footer navigation.
+- Public documents keep using the normal public navigation and ignore `position_view`.
+- Documents without `position_view` are intentionally absent from admin navigation.
 
 When changing navigation behavior, inspect `ListNavigation.php` first. Do not hardcode assumptions in the frontend that bypass backend grouping rules.
 
@@ -598,7 +618,7 @@ Important nuance:
 - Wrapper `position` and agent `data.position` are different concepts.
 - Wrapper `position` only supports `system`.
 - Agent `data.position` can be `module` or `page` for normal editable agents.
-- Agent `data.position: "system"` is used by seeded system agents and makes them read-only and hidden from the regular agent list.
+- Agent `data.position: "system"` is used by seeded system agents and makes them hidden from the regular agent list and direct agent fetches.
 - The current create-agent modal does not expose every supported agent field even though the backend accepts more.
 
 ### Log Documents

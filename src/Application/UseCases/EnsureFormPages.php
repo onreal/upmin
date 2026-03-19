@@ -163,6 +163,7 @@ final class EnsureFormPages
                 'section' => $existingWrapper->isSection(),
                 'modules' => $existingWrapper->modules(),
                 'position' => $existingWrapper->position(),
+                'position_view' => $existingWrapper->positionView(),
                 'data' => $nextData,
             ]);
         } else {

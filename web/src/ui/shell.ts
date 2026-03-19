@@ -245,6 +245,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 ${builderIcon}
                 <span>${builderLabel}</span>
               </button>
+              <div id="nav-header-links" class="app-nav-shortcuts"></div>
               <div id="system-update-status-chip" class="app-update-status-chip is-hidden">
                 <span id="system-update-status-text">${versionUnknownLabel}</span>
               </div>
@@ -284,6 +285,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
               <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
               <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
+              <div id="nav-settings-pages"></div>
               <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
@@ -359,6 +361,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               ${builderIcon}
               <span>${builderLabel}</span>
             </button>
+            <div id="nav-header-links-mobile" class="app-mobile-action-list"></div>
           </div>
 
           <section class="app-mobile-accordion-section">
@@ -418,6 +421,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                   ${formsLabel}
                 </a>
               </div>
+              <div id="nav-settings-pages-mobile" class="app-mobile-action-list"></div>
               <div id="nav-system-pages-mobile" class="app-mobile-action-list app-mobile-system-pages"></div>
             </div>
           </section>
@@ -523,6 +527,11 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+    <section class="section pt-0">
+      <div class="container">
+        <div id="nav-footer-links" class="box app-surface app-footer-nav is-hidden"></div>
       </div>
     </section>
     <div id="app-notifications" class="app-notifications"></div>

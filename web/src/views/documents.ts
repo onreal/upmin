@@ -438,6 +438,7 @@ export const renderDocument = ({
       order: orderValue,
       section: sectionInput?.value === "true",
       modules: readSelectedModules(moduleInput),
+      position_view: payload.position_view,
       data: editorRef.get()?.getValue() ?? payload.data,
     };
 

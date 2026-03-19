@@ -16,6 +16,7 @@ final class DocumentWrapper
     /** @var string[] */
     private array $modules;
     private ?string $position;
+    private ?string $positionView;
     private mixed $data;
 
     private function __construct(
@@ -28,6 +29,7 @@ final class DocumentWrapper
         bool $section,
         array $modules,
         ?string $position,
+        ?string $positionView,
         mixed $data
     )
     {
@@ -40,6 +42,7 @@ final class DocumentWrapper
         $this->section = $section;
         $this->modules = $modules;
         $this->position = $position;
+        $this->positionView = $positionView;
         $this->data = $data;
     }
 
@@ -131,6 +134,19 @@ final class DocumentWrapper
             }
         }
 
+        $positionView = null;
+        if (array_key_exists('position_view', $payload) && $payload['position_view'] !== null) {
+            if (!is_string($payload['position_view'])) {
+                throw new \InvalidArgumentException('Document.position_view must be a string.');
+            }
+            $positionView = strtolower(trim($payload['position_view']));
+            if ($positionView === '') {
+                $positionView = null;
+            } elseif (!in_array($positionView, ['settings', 'sidebar', 'header', 'footer'], true)) {
+                throw new \InvalidArgumentException('Document.position_view must be one of: settings, sidebar, header, footer.');
+            }
+        }
+
         return new self(
             $id,
             $type,
@@ -141,6 +157,7 @@ final class DocumentWrapper
             $sectionValue,
             $modules,
             $position,
+            $positionView,
             $payload['data']
         );
     }
@@ -191,6 +208,11 @@ final class DocumentWrapper
         return $this->position;
     }
 
+    public function positionView(): ?string
+    {
+        return $this->positionView;
+    }
+
     public function data(): mixed
     {
         return $this->data;
@@ -198,17 +220,17 @@ final class DocumentWrapper
 
     public function withData(mixed $data): self
     {
-        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $data);
+        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->positionView, $data);
     }
 
     public function withOrder(int $order): self
     {
-        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->data);
+        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->positionView, $this->data);
     }
 
     public function withId(string $id): self
     {
-        return new self($id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->data);
+        return new self($id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->positionView, $this->data);
     }
 
     public function toArray(): array
@@ -236,6 +258,9 @@ final class DocumentWrapper
         }
         if ($this->position !== null) {
             $payload['position'] = $this->position;
+        }
+        if ($this->positionView !== null) {
+            $payload['position_view'] = $this->positionView;
         }
         $payload['order'] = $this->order;
 

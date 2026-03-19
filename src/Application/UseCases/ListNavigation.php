@@ -150,6 +150,7 @@ final class ListNavigation
             'store' => $document->store(),
             'path' => $document->path(),
             'position' => $wrapper->position(),
+            'position_view' => $wrapper->positionView(),
         ];
     }
 }
