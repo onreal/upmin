@@ -238,6 +238,20 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         </div>
         <div class="app-mobile-drawer-body">
           <div class="app-mobile-drawer-top-action">
+            <div id="mobile-system-update-panel" class="app-mobile-update-panel is-hidden">
+              <div id="mobile-system-update-status-chip" class="app-update-status-chip app-update-status-chip-mobile">
+                <span id="mobile-system-update-status-text">Version unknown</span>
+              </div>
+              <button
+                id="mobile-system-update-button"
+                class="button app-button app-ghost"
+                type="button"
+                data-shell-action="system-update"
+              >
+                ${updateIcon}
+                <span id="mobile-system-update-button-label">Update</span>
+              </button>
+            </div>
             <button class="button app-button app-primary app-mobile-builder-button" type="button" data-shell-action="builder">
               ${builderIcon}
               <span>Builder</span>
@@ -355,6 +369,9 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 ${downloadIcon}
                 <span>Download content</span>
               </button>
+            </div>
+            <div id="mobile-system-current-version" class="app-mobile-drawer-version app-muted">
+              Current version: ${state.systemUpdate?.currentVersion ?? "unknown"}
             </div>
           </div>
         </div>
@@ -646,6 +663,12 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
 export const renderSystemUpdateControls = () => {
   const statusChip = document.getElementById("system-update-status-chip");
   const statusText = document.getElementById("system-update-status-text");
+  const mobilePanel = document.getElementById("mobile-system-update-panel");
+  const mobileStatusChip = document.getElementById("mobile-system-update-status-chip");
+  const mobileStatusText = document.getElementById("mobile-system-update-status-text");
+  const mobileButton = document.getElementById("mobile-system-update-button");
+  const mobileButtonLabel = document.getElementById("mobile-system-update-button-label");
+  const mobileCurrentVersion = document.getElementById("mobile-system-current-version");
   const button = document.getElementById("system-update-action");
   const buttonLabel = document.getElementById("system-update-label");
   const menuLink = document.getElementById("system-update-menu-link");
@@ -660,6 +683,12 @@ export const renderSystemUpdateControls = () => {
   if (
     !statusChip ||
     !statusText ||
+    !mobilePanel ||
+    !mobileStatusChip ||
+    !mobileStatusText ||
+    !mobileButton ||
+    !mobileButtonLabel ||
+    !mobileCurrentVersion ||
     !button ||
     !buttonLabel ||
     !menuLink ||
@@ -677,36 +706,48 @@ export const renderSystemUpdateControls = () => {
   button.classList.toggle("is-hidden", !showAction);
   menuLink.classList.toggle("is-hidden", !showAction);
   mobileLink.classList.toggle("is-hidden", !showAction);
+  mobilePanel.classList.toggle("is-hidden", !showAction);
 
   const isRunning = Boolean(status?.locked);
   const isReady = Boolean(status?.updateAvailable);
   const hasStatus = Boolean(status?.currentVersion || status?.latestVersion || status?.message || status?.error);
   button.toggleAttribute("disabled", isRunning || !isReady);
+  mobileButton.toggleAttribute("disabled", isRunning || !isReady);
   buttonLabel.textContent = isRunning
     ? "Updating..."
     : isReady
       ? `Update ${status?.latestVersion ?? ""}`.trim()
       : "Update";
+  mobileButtonLabel.textContent = buttonLabel.textContent;
   menuLink.textContent = isRunning
     ? "Admin update in progress"
     : isReady
       ? `Update admin to ${status?.latestVersion ?? "latest"}`
       : "Update admin";
   mobileLink.textContent = menuLink.textContent;
+  mobileCurrentVersion.textContent = `Current version: ${status?.currentVersion ?? "unknown"}`;
 
   statusChip.classList.toggle("is-hidden", !hasStatus);
   statusChip.classList.toggle("is-error", Boolean(status?.error) && !isRunning);
   statusChip.classList.toggle("is-ready", isReady && !isRunning);
+  mobileStatusChip.classList.toggle("is-hidden", !showAction || !hasStatus);
+  mobileStatusChip.classList.toggle("is-error", Boolean(status?.error) && !isRunning);
+  mobileStatusChip.classList.toggle("is-ready", isReady && !isRunning);
   if (isRunning) {
     statusText.textContent = status?.message || "Updating admin...";
+    mobileStatusText.textContent = statusText.textContent;
   } else if (status?.error) {
     statusText.textContent = `Update check failed. Current ${status?.currentVersion ?? "unknown"}.`;
+    mobileStatusText.textContent = statusText.textContent;
   } else if (isReady) {
     statusText.textContent = `Update available: ${status?.currentVersion ?? "unknown"} -> ${status?.latestVersion ?? "unknown"}`;
+    mobileStatusText.textContent = statusText.textContent;
   } else if (status?.currentVersion) {
     statusText.textContent = `Admin ${status.currentVersion}`;
+    mobileStatusText.textContent = statusText.textContent;
   } else {
     statusText.textContent = "Version unknown";
+    mobileStatusText.textContent = statusText.textContent;
   }
 
   lock.hidden = !isRunning;

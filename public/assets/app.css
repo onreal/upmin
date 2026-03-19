@@ -415,6 +415,17 @@ body {
     gap: 0.7rem;
   }
 
+  .app-mobile-update-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .app-mobile-update-panel .button {
+    width: 100%;
+    justify-content: center;
+  }
+
   .app-mobile-accordion-section {
     border: 1px solid var(--app-border);
     border-radius: var(--app-radius-md);
@@ -463,6 +474,14 @@ body {
     flex-direction: column;
     gap: 0.25rem;
     padding: 0.5rem;
+  }
+
+  .app-update-status-chip-mobile {
+    width: 100%;
+    min-height: auto;
+    padding: 0.8rem 0.9rem;
+    white-space: normal;
+    line-height: 1.45;
   }
 
   .app-mobile-action-link,
@@ -546,6 +565,12 @@ body {
     flex-direction: column;
     gap: 0.7rem;
     padding-top: 0.35rem;
+  }
+
+  .app-mobile-drawer-version {
+    padding: 0 0.1rem;
+    font-size: 0.84rem;
+    line-height: 1.45;
   }
 
   .app-mobile-drawer-footer .button {
