@@ -564,6 +564,42 @@ Important facts:
 - Clean/publish/build operations intentionally exclude admin-specific paths.
 - This repository also contains agent guidance files, so do not break the exclusion rules around admin/build assets.
 
+### Creations Business Rules
+
+- The Creations area is backed by the private system page `store/creations.json`. The app ensures that page exists and stores creation records in `data.creations`.
+- A creation record is not just UI metadata. It is the source of truth for restore, delete, download, and preview-image lookup.
+- Each creation stores two artifacts under `store/creations/`:
+  - a visual snapshot image captured in the browser
+  - a restorable `.tar.gz` archive of the target files
+- Creation records are prepended newest-first.
+- Manual `Get Snapshot` creates a creation with reason `manual` and target `public`.
+- `Clear All` on Creations is a public-site operation, not a generic repo wipe.
+- When `store/system/configuration.json:data.createSnapshotOnEachClean` is enabled, public clean requires a fresh snapshot image and creates a `before-clear` creation targeting `public` before deleting public-site entries.
+- Restoring a creation clears the target area first and then restores from that creation archive. The target comes from the creation record, so a `public` creation restores public files and a `build` creation restores build files.
+- Deleting a creation removes both the stored preview image and the stored backup archive, then removes the record from `data.creations`.
+- Public-site clean/archive operations intentionally exclude admin and infrastructure paths such as `manage`, `upmin`, `media`, `router.php`, `docker-compose.yml`, `build`, and `AGENTS.md`. Agents must preserve those exclusion rules.
+- Snapshot preview images are served from the stored `snapshotPath`; do not regenerate or rewrite them unless the task is explicitly about snapshot capture/storage.
+
+### Website Builder Business Rules
+
+- The Website Builder is the private system page `store/website-build.json`.
+- The builder is a controlled workflow around the managed build workspace, not a generic document editor.
+- The builder UI has two tabs:
+  - `Chat` for the page-bound chat module
+  - `Preview` for the current generated build
+- Builder chat is page-bound, auto-loads the latest conversation on open, and must not expose the assistant-response plus action or JSON-merge action.
+- The preview pane listens to chat progress events for the builder chat settings key and shows pending status while the builder conversation is processing.
+- `Clean build` removes the managed build output, but it is safety-gated:
+  - if `createSnapshotOnEachClean` is enabled, it requires a fresh browser snapshot and creates a `before-clear` creation targeting `build` first
+  - it then deletes only managed build entries, preserving excluded admin guidance files such as `AGENTS.md`
+- `Copy from public` is also safety-gated the same way:
+  - it may create a `before-clear` build-target creation first
+  - it cleans the managed build workspace
+  - it copies the current public build into that workspace
+- `Publish` copies the managed build output into the public site and fails if the build directory is empty. It is destructive to the public site output and does not automatically create a snapshot by itself.
+- Build copy/clean/publish operations must preserve exclusion rules for admin-owned files and paths. Do not widen these operations into full-project wipes or copies.
+- When changing builder behavior, inspect both `web/src/features/website-build/controller.ts` and `src/Infrastructure/WebsiteBuild/WebsiteBuildStore.php` so the frontend workflow and backend file operations stay aligned.
+
 ## UI, Typography, and Layout
 
 This app already has a clear visual system. Extend it instead of replacing it.
