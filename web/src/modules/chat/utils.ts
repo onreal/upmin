@@ -12,6 +12,7 @@ export type ChatMessage = {
 
 export type RenderMessageOptions = {
   enableActions?: boolean;
+  assistantLabel?: string;
   isSelected?: (message: ChatMessage) => boolean;
   onToggle?: (message: ChatMessage, selected: boolean) => void;
   onCopy?: (message: ChatMessage) => void;
@@ -69,7 +70,7 @@ export const renderMessages = (
   if (!messages.length) {
     const label = options.emptyState ?? adminText("chat.selectOrCreate", "Select or create a conversation.");
     container.innerHTML = `<p class="app-muted">${label}</p>`;
-    appendConversationProgress(container, options.progress ?? null);
+    appendConversationProgress(container, options.progress ?? null, options.assistantLabel);
     return;
   }
 
@@ -79,7 +80,9 @@ export const renderMessages = (
   container.innerHTML = messages
     .map((message) => {
       const role = message.role === "assistant" ? "assistant" : "user";
-      const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
+      const label = role === "assistant"
+        ? options.assistantLabel?.trim() || adminText("agents.agent", "Agent")
+        : adminText("chat.you", "You");
       const roleClass = role === "assistant" ? "is-assistant" : "is-user";
       const selectable = enableActions && role === "assistant";
       const foldable = role === "assistant";
@@ -208,7 +211,7 @@ export const renderMessages = (
     });
   }
 
-  appendConversationProgress(container, options.progress ?? null);
+  appendConversationProgress(container, options.progress ?? null, options.assistantLabel);
 };
 
 export const updateConversationHeader = (

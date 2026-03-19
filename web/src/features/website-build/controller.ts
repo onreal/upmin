@@ -1,7 +1,7 @@
 import type { AuthState, RemoteDocument } from "../../api";
 import { cleanWebsiteBuild, copyWebsiteBuildFromPublic, publishWebsiteBuild } from "../../api";
 import { moduleSettingsKey } from "../../modules/utils";
-import type { ConversationProgress } from "../chat/progress";
+import { getConversationProgressTitle, type ConversationProgress } from "../chat/progress";
 import { renderWebsiteBuildView } from "../../views/website-build";
 import { captureWebsiteSnapshot } from "../creations/capture";
 import { adminText } from "../../app/translations";
@@ -118,6 +118,7 @@ export const renderWebsiteBuildPage = ({
   });
 
   const previewLoading = document.getElementById("build-preview-loading");
+  const previewTitle = document.getElementById("build-preview-title");
   const previewReasoning = document.getElementById("build-preview-reasoning");
   const previewFrameWrap = document.getElementById("build-preview-frame");
   const previewIframe = document.getElementById("build-preview-iframe") as HTMLIFrameElement | null;
@@ -140,9 +141,16 @@ export const renderWebsiteBuildPage = ({
     }
   };
 
-  const setPreviewPending = (pending: boolean, progress: ConversationProgress | null) => {
+  const setPreviewPending = (
+    pending: boolean,
+    progress: ConversationProgress | null,
+    agentName?: string | null
+  ) => {
     if (previewLoading) {
       previewLoading.classList.toggle("is-hidden", !pending);
+    }
+    if (previewTitle) {
+      previewTitle.textContent = getConversationProgressTitle(agentName);
     }
     if (previewFrameWrap) {
       previewFrameWrap.classList.toggle("is-hidden", pending);
@@ -166,13 +174,14 @@ export const renderWebsiteBuildPage = ({
     const detail = (event as CustomEvent).detail as {
       moduleName?: string;
       settingsKey?: string;
+      agentName?: string;
       pending?: boolean;
       progress?: ConversationProgress | null;
     } | null;
     if (!detail || detail.settingsKey !== settingsKey) {
       return;
     }
-    setPreviewPending(Boolean(detail.pending), detail.progress ?? null);
+    setPreviewPending(Boolean(detail.pending), detail.progress ?? null, detail.agentName ?? null);
   };
 
   window.addEventListener("app:chat-progress", onProgress);

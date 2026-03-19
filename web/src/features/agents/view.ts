@@ -76,6 +76,7 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
   state.currentConversation = null;
 
   const data = isRecord(agentDoc.payload.data) ? agentDoc.payload.data : {};
+  const agentName = agentDoc.payload.name || adminText("agents.agent", "Agent");
   content.innerHTML = renderAgentLayout(
     agentDoc,
     getAgentField(data, "systemPrompt"),
@@ -183,7 +184,7 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
   const syncConversation = (conversation: RemoteDocument | null) => {
     state.currentConversation = conversation;
     updateConversationHeader(conversation);
-    renderMessages(conversation);
+    renderMessages(conversation, agentName);
     renderConversations();
 
     const pending = conversationHasPendingResponse(conversation);

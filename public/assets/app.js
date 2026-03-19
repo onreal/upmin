@@ -4308,6 +4308,9 @@ var markConversationPending = (conversation, pending) => {
 
 // web/src/features/chat/progress.ts
 init_translations();
+var getConversationProgressTitle = (actorName) => adminText("chat.progress.title", "{name} is processing", {
+  name: (actorName ?? "").trim() || adminText("agents.agent", "Agent")
+});
 var getConversationProgress = (conversation) => {
   if (!conversation) {
     return null;
@@ -4341,7 +4344,7 @@ var getConversationProgress = (conversation) => {
     items: recentItems
   };
 };
-var appendConversationProgress = (container, progress) => {
+var appendConversationProgress = (container, progress, actorName) => {
   if (!progress) {
     return;
   }
@@ -4349,7 +4352,7 @@ var appendConversationProgress = (container, progress) => {
   card.className = "app-chat-progress";
   const title = document.createElement("div");
   title.className = "app-chat-progress-title";
-  title.textContent = adminText("chat.progress.title", "Codex is working");
+  title.textContent = getConversationProgressTitle(actorName);
   const status2 = document.createElement("div");
   status2.className = "app-chat-progress-status";
   status2.textContent = progress.status || adminText("chat.progress.working", "Working...");
@@ -4464,14 +4467,14 @@ var renderMessages = (container, messages, options = {}) => {
   if (!messages.length) {
     const label = options.emptyState ?? adminText("chat.selectOrCreate", "Select or create a conversation.");
     container.innerHTML = `<p class="app-muted">${label}</p>`;
-    appendConversationProgress(container, options.progress ?? null);
+    appendConversationProgress(container, options.progress ?? null, options.assistantLabel);
     return;
   }
   const enableActions = options.enableActions ?? false;
   const messageMap = new Map(messages.map((message) => [message.id, message]));
   container.innerHTML = messages.map((message) => {
     const role = message.role === "assistant" ? "assistant" : "user";
-    const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
+    const label = role === "assistant" ? options.assistantLabel?.trim() || adminText("agents.agent", "Agent") : adminText("chat.you", "You");
     const roleClass = role === "assistant" ? "is-assistant" : "is-user";
     const selectable = enableActions && role === "assistant";
     const foldable = role === "assistant";
@@ -4584,7 +4587,7 @@ var renderMessages = (container, messages, options = {}) => {
       }
     });
   }
-  appendConversationProgress(container, options.progress ?? null);
+  appendConversationProgress(container, options.progress ?? null, options.assistantLabel);
 };
 var updateConversationHeader = (titleEl, metaEl, conversation) => {
   if (!conversation) {
@@ -4690,6 +4693,7 @@ var mountChatController = (runtime) => {
     ensureFoldState(currentConversation);
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
+      assistantLabel: runtime.agentName,
       progress: getConversationProgress(currentConversation),
       isSelected: (message) => isMessageSelected(message),
       isFolded: (message) => isMessageFolded(message),
@@ -4742,6 +4746,7 @@ var mountChatController = (runtime) => {
         detail: {
           moduleName: runtime.moduleName,
           settingsKey: runtime.settingsKey,
+          agentName: runtime.agentName,
           conversationId: conversation?.id ?? null,
           pending,
           progress
@@ -7722,7 +7727,7 @@ var renderWebsiteBuildView = ({
             <div id="build-preview-loading" class="app-build-preview-loading is-hidden">
               <div class="app-build-spinner" aria-hidden="true"></div>
               <div class="app-build-preview-copy">
-                <div class="app-build-preview-title">${adminText("chat.progress.title", "Codex is working")}</div>
+                <div id="build-preview-title" class="app-build-preview-title">${getConversationProgressTitle()}</div>
                 <div id="build-preview-reasoning" class="app-build-preview-reasoning">${adminText("websiteBuild.waiting", "Waiting for updates...")}</div>
               </div>
             </div>
@@ -7880,6 +7885,7 @@ var renderWebsiteBuildPage = ({
     }
   });
   const previewLoading = document.getElementById("build-preview-loading");
+  const previewTitle = document.getElementById("build-preview-title");
   const previewReasoning = document.getElementById("build-preview-reasoning");
   const previewFrameWrap = document.getElementById("build-preview-frame");
   const previewIframe = document.getElementById("build-preview-iframe");
@@ -7899,9 +7905,12 @@ var renderWebsiteBuildPage = ({
       refreshPreview();
     }
   };
-  const setPreviewPending = (pending, progress) => {
+  const setPreviewPending = (pending, progress, agentName) => {
     if (previewLoading) {
       previewLoading.classList.toggle("is-hidden", !pending);
+    }
+    if (previewTitle) {
+      previewTitle.textContent = getConversationProgressTitle(agentName);
     }
     if (previewFrameWrap) {
       previewFrameWrap.classList.toggle("is-hidden", pending);
@@ -7924,7 +7933,7 @@ var renderWebsiteBuildPage = ({
     if (!detail || detail.settingsKey !== settingsKey) {
       return;
     }
-    setPreviewPending(Boolean(detail.pending), detail.progress ?? null);
+    setPreviewPending(Boolean(detail.pending), detail.progress ?? null, detail.agentName ?? null);
   };
   window.addEventListener("app:chat-progress", onProgress);
   disposeProgressListener = () => {
@@ -8195,7 +8204,7 @@ init_api();
 
 // web/src/features/agents/chat.ts
 init_translations();
-var renderMessages2 = (conversation) => {
+var renderMessages2 = (conversation, assistantLabel) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
   if (!messagesContainer) {
     return;
@@ -8214,7 +8223,7 @@ var renderMessages2 = (conversation) => {
     const record = isRecord(message) ? message : {};
     const role = typeof record.role === "string" ? record.role : "user";
     const content = typeof record.content === "string" ? record.content : "";
-    const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
+    const label = role === "assistant" ? assistantLabel?.trim() || adminText("agents.agent", "Agent") : adminText("chat.you", "You");
     const roleClass = role === "assistant" ? "is-assistant" : "is-user";
     return `
         <div class="app-chat-message ${roleClass}">
@@ -8223,7 +8232,7 @@ var renderMessages2 = (conversation) => {
         </div>
       `;
   }).join("");
-  appendConversationProgress(messagesContainer, getConversationProgress(conversation));
+  appendConversationProgress(messagesContainer, getConversationProgress(conversation), assistantLabel);
 };
 var updateConversationHeader2 = (conversation) => {
   const title = document.getElementById("agent-chat-title");
@@ -8418,6 +8427,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
   state.currentAgent = agentDoc;
   state.currentConversation = null;
   const data = isRecord(agentDoc.payload.data) ? agentDoc.payload.data : {};
+  const agentName = agentDoc.payload.name || adminText("agents.agent", "Agent");
   content.innerHTML = renderAgentLayout(
     agentDoc,
     getAgentField(data, "systemPrompt"),
@@ -8509,7 +8519,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
   const syncConversation = (conversation) => {
     state.currentConversation = conversation;
     updateConversationHeader2(conversation);
-    renderMessages2(conversation);
+    renderMessages2(conversation, agentName);
     renderConversations();
     const pending = conversationHasPendingResponse(conversation);
     const progress = getConversationProgress(conversation);

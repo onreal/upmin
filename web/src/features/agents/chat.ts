@@ -3,7 +3,7 @@ import { appendConversationProgress, getConversationProgress } from "../chat/pro
 import { isRecord } from "../../utils";
 import { adminText } from "../../app/translations";
 
-export const renderMessages = (conversation: RemoteDocument | null) => {
+export const renderMessages = (conversation: RemoteDocument | null, assistantLabel?: string | null) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
   if (!messagesContainer) {
     return;
@@ -24,7 +24,9 @@ export const renderMessages = (conversation: RemoteDocument | null) => {
       const record = isRecord(message) ? message : {};
       const role = typeof record.role === "string" ? record.role : "user";
       const content = typeof record.content === "string" ? record.content : "";
-      const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
+      const label = role === "assistant"
+        ? assistantLabel?.trim() || adminText("agents.agent", "Agent")
+        : adminText("chat.you", "You");
       const roleClass = role === "assistant" ? "is-assistant" : "is-user";
       return `
         <div class="app-chat-message ${roleClass}">
@@ -35,7 +37,7 @@ export const renderMessages = (conversation: RemoteDocument | null) => {
     })
     .join("");
 
-  appendConversationProgress(messagesContainer, getConversationProgress(conversation));
+  appendConversationProgress(messagesContainer, getConversationProgress(conversation), assistantLabel);
 };
 
 export const updateConversationHeader = (conversation: RemoteDocument | null) => {

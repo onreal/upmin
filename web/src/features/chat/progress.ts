@@ -13,6 +13,11 @@ export type ConversationProgress = {
   items: ConversationProgressItem[];
 };
 
+export const getConversationProgressTitle = (actorName?: string | null) =>
+  adminText("chat.progress.title", "{name} is processing", {
+    name: (actorName ?? "").trim() || adminText("agents.agent", "Agent"),
+  });
+
 export const getConversationProgress = (conversation: RemoteDocument | null): ConversationProgress | null => {
   if (!conversation) {
     return null;
@@ -56,7 +61,11 @@ export const getConversationProgress = (conversation: RemoteDocument | null): Co
   };
 };
 
-export const appendConversationProgress = (container: HTMLElement, progress: ConversationProgress | null) => {
+export const appendConversationProgress = (
+  container: HTMLElement,
+  progress: ConversationProgress | null,
+  actorName?: string | null
+) => {
   if (!progress) {
     return;
   }
@@ -66,7 +75,7 @@ export const appendConversationProgress = (container: HTMLElement, progress: Con
 
   const title = document.createElement("div");
   title.className = "app-chat-progress-title";
-  title.textContent = adminText("chat.progress.title", "Codex is working");
+  title.textContent = getConversationProgressTitle(actorName);
 
   const status = document.createElement("div");
   status.className = "app-chat-progress-status";

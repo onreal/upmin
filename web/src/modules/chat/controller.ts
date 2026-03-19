@@ -148,6 +148,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
     ensureFoldState(currentConversation);
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
+      assistantLabel: runtime.agentName,
       progress: getConversationProgress(currentConversation),
       isSelected: (message) => isMessageSelected(message),
       isFolded: (message) => isMessageFolded(message),
@@ -212,6 +213,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
         detail: {
           moduleName: runtime.moduleName,
           settingsKey: runtime.settingsKey,
+          agentName: runtime.agentName,
           conversationId: conversation?.id ?? null,
           pending,
           progress,

@@ -1,5 +1,6 @@
 import type { RemoteDocument } from "../api";
 import { adminText } from "../app/translations";
+import { getConversationProgressTitle } from "../features/chat/progress";
 
 export type WebsiteBuildViewContext = {
   content: HTMLElement | null;
@@ -162,7 +163,7 @@ export const renderWebsiteBuildView = ({
             <div id="build-preview-loading" class="app-build-preview-loading is-hidden">
               <div class="app-build-spinner" aria-hidden="true"></div>
               <div class="app-build-preview-copy">
-                <div class="app-build-preview-title">${adminText("chat.progress.title", "Codex is working")}</div>
+                <div id="build-preview-title" class="app-build-preview-title">${getConversationProgressTitle()}</div>
                 <div id="build-preview-reasoning" class="app-build-preview-reasoning">${adminText("websiteBuild.waiting", "Waiting for updates...")}</div>
               </div>
             </div>

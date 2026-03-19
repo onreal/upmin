@@ -552,6 +552,7 @@ This app already has a clear visual system. Extend it instead of replacing it.
 - Preserve the restrained neutral surface style with accent highlights.
 - Keep landing cards, settings panels, and chat panels visually consistent with current custom CSS.
 - Prefer extending the existing CSS files over adding one-off inline styles.
+- In agent and chat UI, do not hardcode provider or tool brand names into visible status copy. Use the current agent name for progress titles, assistant labels, and other active-chat identity surfaces.
 
 ## What Feature Agents Must Do
 
