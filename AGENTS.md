@@ -426,6 +426,11 @@ Important rules:
 - `language` identifies language variants.
 - `section: true` means the document is grouped under a page as a section entry.
 - `position: system` keeps private pages out of the normal sidebar page lists and surfaces them in settings/system areas.
+
+Editable page rule:
+
+- On normal editable page documents, changing the module checklist must persist immediately without waiting for the main Save button.
+- Immediate module persistence should use the same document update flow as manual save, not a separate ad hoc write path.
 - `position_view` controls private-document placement in the sidebar, settings menu, header actions, or footer navigation.
 - Public documents keep using the normal public navigation and ignore `position_view`.
 - Documents without `position_view` are intentionally absent from admin navigation.

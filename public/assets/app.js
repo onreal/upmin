@@ -6700,6 +6700,82 @@ var buildJsonEditor = (container, initialValue) => {
   };
 };
 
+// web/src/views/document-actions.ts
+init_translations();
+var bindDocumentIdCopy = () => {
+  document.querySelectorAll("[data-copy-doc-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const value = button.getAttribute("data-copy-doc-id") || "";
+      if (!value) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(value);
+        button.classList.add("is-copied");
+        window.setTimeout(() => button.classList.remove("is-copied"), 1200);
+      } catch {
+        button.classList.add("is-error");
+        window.setTimeout(() => button.classList.remove("is-error"), 1200);
+      }
+    });
+  });
+};
+var bindDocumentLanguageSelect = (languageOptions) => {
+  if (!languageOptions || languageOptions.options.length <= 1) {
+    return;
+  }
+  const select = document.getElementById("doc-language-select");
+  select?.addEventListener("change", () => {
+    const id = select.value;
+    const choice = languageOptions.options.find((option) => option.id === id) ?? null;
+    if (choice) {
+      languageOptions.onSelect(choice.id, choice.language ?? null);
+    }
+  });
+};
+var exportDocumentJson = async (auth, doc, downloadDocument2) => {
+  if (!auth) {
+    return;
+  }
+  const result = await downloadDocument2(auth, doc.id);
+  const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
+  triggerDownload(result.blob, filename);
+};
+var buildEditableDocumentPayload = ({
+  payload,
+  readSelectedModules: readSelectedModules2,
+  editor,
+  modulesOverride
+}) => {
+  const pageInput = document.getElementById("field-page");
+  const nameInput = document.getElementById("field-name");
+  const languageInput = document.getElementById("field-language");
+  const sectionInput = document.getElementById("field-section");
+  const orderInput = document.getElementById("field-order");
+  const moduleInput = document.getElementById("field-modules");
+  const orderRaw = orderInput?.value.trim() || "";
+  if (!orderRaw) {
+    return { error: adminText("documents.orderRequired", "Order is required.") };
+  }
+  const parsedOrder = Number(orderRaw);
+  if (!Number.isInteger(parsedOrder)) {
+    return { error: adminText("documents.orderInteger", "Order must be an integer.") };
+  }
+  return {
+    payload: {
+      type: payload.type ?? "page",
+      page: pageInput?.value.trim() || payload.page,
+      name: nameInput?.value.trim() || payload.name,
+      language: languageInput?.value.trim() || void 0,
+      order: parsedOrder,
+      section: sectionInput?.value === "true",
+      modules: modulesOverride ?? readSelectedModules2(moduleInput),
+      position_view: payload.position_view,
+      data: editor?.getValue() ?? payload.data
+    }
+  };
+};
+
 // web/src/features/modules/settings-form.ts
 init_translations();
 var slugify = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -6978,6 +7054,90 @@ var renderModuleSettingsForm = ({
   return { getValue };
 };
 
+// web/src/views/module-settings-view.ts
+init_translations();
+var renderModuleSettingsView = ({
+  content,
+  auth,
+  modules,
+  agents,
+  doc,
+  idMeta,
+  languageMeta,
+  languageOptions,
+  returnToDocumentId,
+  onReturnToDocument,
+  updateDocument: updateDocument2,
+  onDocumentUpdated,
+  onModuleSettingsSaved,
+  rerender,
+  refreshNavigation: refreshNavigation2,
+  downloadDocument: downloadDocument2
+}) => {
+  const payload = doc.payload;
+  const moduleDefinition = resolveModuleForSettings(modules, doc.path);
+  content.innerHTML = `
+    <div class="mb-4">
+      <h1 class="title is-4">${payload.name}</h1>
+      <p class="app-muted">${adminText("documents.moduleSettingsMeta", "Module settings")} \xB7 ${doc.store}/${doc.path}</p>
+      ${idMeta}
+      ${languageMeta}
+    </div>
+    <div class="mb-4 buttons">
+      ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">${adminText("common.back", "Back")}</button>` : ""}
+      <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+      <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
+    </div>
+    <div class="mt-4">
+      <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
+      <div id="module-settings-form" class="app-module-settings-surface"></div>
+    </div>
+  `;
+  const formContainer = document.getElementById("module-settings-form");
+  const settingsForm = formContainer && moduleDefinition ? renderModuleSettingsForm({
+    container: formContainer,
+    module: moduleDefinition,
+    settings: typeof payload.data === "object" && payload.data !== null ? payload.data : null,
+    agents
+  }) : null;
+  if (!moduleDefinition && formContainer) {
+    formContainer.innerHTML = `<div class="notification is-light">${adminText("modules.definitionNotFound", "Module definition not found.")}</div>`;
+  }
+  document.getElementById("module-back")?.addEventListener("click", () => {
+    if (returnToDocumentId) {
+      onReturnToDocument(returnToDocumentId);
+    }
+  });
+  document.getElementById("save")?.addEventListener("click", async () => {
+    if (!auth) {
+      return;
+    }
+    const payloadToSave = {
+      ...payload,
+      type: payload.type ?? "module",
+      data: settingsForm?.getValue() ?? payload.data
+    };
+    try {
+      const updated = await updateDocument2(auth, doc.id, payloadToSave);
+      onDocumentUpdated(updated);
+      onModuleSettingsSaved();
+      rerender(updated);
+      await refreshNavigation2();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  document.getElementById("export-json")?.addEventListener("click", async () => {
+    try {
+      await exportDocumentJson(auth, doc, downloadDocument2);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  bindDocumentIdCopy();
+  bindDocumentLanguageSelect(languageOptions);
+};
+
 // web/src/views/documents.ts
 init_translations();
 var renderDocument = ({
@@ -7045,110 +7205,31 @@ var renderDocument = ({
         </div>
       </div>
     ` : "";
-  const bindIdCopy = () => {
-    document.querySelectorAll("[data-copy-doc-id]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const value = button.getAttribute("data-copy-doc-id") || "";
-        if (!value) {
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(value);
-          button.classList.add("is-copied");
-          window.setTimeout(() => button.classList.remove("is-copied"), 1200);
-        } catch {
-          button.classList.add("is-error");
-          window.setTimeout(() => button.classList.remove("is-error"), 1200);
-        }
-      });
-    });
-  };
-  const bindLanguageSelect = () => {
-    if (!languageOptions || languageOptions.options.length <= 1) {
-      return;
-    }
-    const select = document.getElementById("doc-language-select");
-    select?.addEventListener("change", () => {
-      const id = select.value;
-      const choice = languageOptions.options.find((option) => option.id === id) ?? null;
-      if (choice) {
-        languageOptions.onSelect(choice.id, choice.language ?? null);
-      }
-    });
-  };
   if (isLogDocument) {
     renderLogDocument2(doc);
-    bindIdCopy();
+    bindDocumentIdCopy();
     return;
   }
   if (isModuleSettings) {
     editorRef2.set(null);
-    const moduleDefinition = resolveModuleForSettings(modules, doc.path);
-    content.innerHTML = `
-      <div class="mb-4">
-        <h1 class="title is-4">${payload.name}</h1>
-        <p class="app-muted">${adminText("documents.moduleSettingsMeta", "Module settings")} \xB7 ${doc.store}/${doc.path}</p>
-        ${idMeta}
-        ${languageMeta}
-      </div>
-      <div class="mb-4 buttons">
-        ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">${adminText("common.back", "Back")}</button>` : ""}
-        <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
-        <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
-      </div>
-      <div class="mt-4">
-        <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
-        <div id="module-settings-form" class="app-module-settings-surface"></div>
-      </div>
-    `;
-    const formContainer = document.getElementById("module-settings-form");
-    const settingsForm = formContainer && moduleDefinition ? renderModuleSettingsForm({
-      container: formContainer,
-      module: moduleDefinition,
-      settings: typeof payload.data === "object" && payload.data !== null ? payload.data : null,
-      agents
-    }) : null;
-    if (!moduleDefinition && formContainer) {
-      formContainer.innerHTML = `<div class="notification is-light">${adminText("modules.definitionNotFound", "Module definition not found.")}</div>`;
-    }
-    document.getElementById("module-back")?.addEventListener("click", () => {
-      if (returnToDocumentId) {
-        onReturnToDocument(returnToDocumentId);
-      }
+    renderModuleSettingsView({
+      content,
+      auth,
+      modules,
+      agents,
+      doc,
+      idMeta,
+      languageMeta,
+      languageOptions,
+      returnToDocumentId,
+      onReturnToDocument,
+      updateDocument: updateDocument2,
+      onDocumentUpdated,
+      onModuleSettingsSaved,
+      rerender,
+      refreshNavigation: refreshNavigation2,
+      downloadDocument: downloadDocument2
     });
-    document.getElementById("save")?.addEventListener("click", async () => {
-      if (!auth) {
-        return;
-      }
-      const payloadToSave = {
-        ...payload,
-        type: payload.type ?? "module",
-        data: settingsForm?.getValue() ?? payload.data
-      };
-      try {
-        const updated = await updateDocument2(auth, doc.id, payloadToSave);
-        onDocumentUpdated(updated);
-        onModuleSettingsSaved();
-        rerender(updated);
-        await refreshNavigation2();
-      } catch (err) {
-        alert(err.message);
-      }
-    });
-    document.getElementById("export-json")?.addEventListener("click", async () => {
-      if (!auth) {
-        return;
-      }
-      try {
-        const result = await downloadDocument2(auth, doc.id);
-        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
-        triggerDownload(result.blob, filename);
-      } catch (err) {
-        alert(err.message);
-      }
-    });
-    bindIdCopy();
-    bindLanguageSelect();
     return;
   }
   if (isSystemPage) {
@@ -7197,19 +7278,14 @@ var renderDocument = ({
       }
     });
     document.getElementById("export-json")?.addEventListener("click", async () => {
-      if (!auth) {
-        return;
-      }
       try {
-        const result = await downloadDocument2(auth, doc.id);
-        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
-        triggerDownload(result.blob, filename);
+        await exportDocumentJson(auth, doc, downloadDocument2);
       } catch (err) {
         alert(err.message);
       }
     });
-    bindIdCopy();
-    bindLanguageSelect();
+    bindDocumentIdCopy();
+    bindDocumentLanguageSelect(languageOptions);
     return;
   }
   content.innerHTML = `
@@ -7298,62 +7374,63 @@ var renderDocument = ({
     editorRef2.set(buildJsonEditor2(editorContainer, payload.data));
   }
   void renderModulePanel2(doc);
-  bindIdCopy();
-  bindLanguageSelect();
+  bindDocumentIdCopy();
+  bindDocumentLanguageSelect(languageOptions);
   const moduleInput = document.getElementById("field-modules");
-  moduleInput?.addEventListener("change", () => {
-    payload.modules = readSelectedModules2(moduleInput);
-    void renderModulePanel2(doc);
-  });
-  document.getElementById("save")?.addEventListener("click", async () => {
+  const saveButton = document.getElementById("save");
+  let isAutoSavingModules = false;
+  const setModuleInputsDisabled = (disabled) => {
+    moduleInput?.querySelectorAll("input[type='checkbox']").forEach((input) => {
+      input.disabled = disabled;
+    });
+    if (saveButton) {
+      saveButton.disabled = disabled;
+    }
+  };
+  const saveEditableDocument = async (modulesOverride) => {
     if (!auth) {
-      return;
+      return false;
     }
-    const pageInput = document.getElementById("field-page");
-    const nameInput = document.getElementById("field-name");
-    const languageInput = document.getElementById("field-language");
-    const sectionInput = document.getElementById("field-section");
-    const orderInput = document.getElementById("field-order");
-    const moduleInput2 = document.getElementById("field-modules");
-    const orderRaw = orderInput?.value.trim() || "";
-    if (!orderRaw) {
-      alert(adminText("documents.orderRequired", "Order is required."));
-      return;
+    const built = buildEditableDocumentPayload({
+      payload,
+      readSelectedModules: readSelectedModules2,
+      editor: editorRef2.get(),
+      modulesOverride
+    });
+    if ("error" in built) {
+      alert(built.error);
+      return false;
     }
-    const parsedOrder = Number(orderRaw);
-    if (!Number.isInteger(parsedOrder)) {
-      alert(adminText("documents.orderInteger", "Order must be an integer."));
-      return;
-    }
-    const orderValue = parsedOrder;
-    const payloadToSave = {
-      type: payload.type ?? "page",
-      page: pageInput?.value.trim() || payload.page,
-      name: nameInput?.value.trim() || payload.name,
-      language: languageInput?.value.trim() || void 0,
-      order: orderValue,
-      section: sectionInput?.value === "true",
-      modules: readSelectedModules2(moduleInput2),
-      position_view: payload.position_view,
-      data: editorRef2.get()?.getValue() ?? payload.data
-    };
     try {
-      const updated = await updateDocument2(auth, doc.id, payloadToSave);
+      setModuleInputsDisabled(true);
+      const updated = await updateDocument2(auth, doc.id, built.payload);
       onDocumentUpdated(updated);
       rerender(updated);
       await refreshNavigation2();
+      return true;
     } catch (err) {
       alert(err.message);
+      return false;
+    } finally {
+      setModuleInputsDisabled(false);
     }
-  });
-  document.getElementById("export-json")?.addEventListener("click", async () => {
-    if (!auth) {
+  };
+  moduleInput?.addEventListener("change", () => {
+    if (isAutoSavingModules) {
       return;
     }
+    isAutoSavingModules = true;
+    const selectedModules2 = readSelectedModules2(moduleInput);
+    void saveEditableDocument(selectedModules2).finally(() => {
+      isAutoSavingModules = false;
+    });
+  });
+  saveButton?.addEventListener("click", async () => {
+    void saveEditableDocument();
+  });
+  document.getElementById("export-json")?.addEventListener("click", async () => {
     try {
-      const result = await downloadDocument2(auth, doc.id);
-      const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
-      triggerDownload(result.blob, filename);
+      await exportDocumentJson(auth, doc, downloadDocument2);
     } catch (err) {
       alert(err.message);
     }

@@ -1,7 +1,12 @@
 import type { AgentSummary, AuthState, DocumentPayload, ModuleDefinition, RemoteDocument } from "../api";
 import type { JsonEditorHandle } from "../json-editor";
-import { triggerDownload } from "../utils";
-import { renderModuleSettingsForm, resolveModuleForSettings } from "../features/modules/settings-form";
+import {
+  bindDocumentIdCopy,
+  bindDocumentLanguageSelect,
+  buildEditableDocumentPayload,
+  exportDocumentJson,
+} from "./document-actions";
+import { renderModuleSettingsView } from "./module-settings-view";
 import { adminText } from "../app/translations";
 
 export type DocumentEditorRef = {
@@ -113,127 +118,32 @@ export const renderDocument = ({
     `
     : "";
 
-  const bindIdCopy = () => {
-    document.querySelectorAll<HTMLButtonElement>("[data-copy-doc-id]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const value = button.getAttribute("data-copy-doc-id") || "";
-        if (!value) {
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(value);
-          button.classList.add("is-copied");
-          window.setTimeout(() => button.classList.remove("is-copied"), 1200);
-        } catch {
-          button.classList.add("is-error");
-          window.setTimeout(() => button.classList.remove("is-error"), 1200);
-        }
-      });
-    });
-  };
-
-  const bindLanguageSelect = () => {
-    if (!languageOptions || languageOptions.options.length <= 1) {
-      return;
-    }
-    const select = document.getElementById("doc-language-select") as HTMLSelectElement | null;
-    select?.addEventListener("change", () => {
-      const id = select.value;
-      const choice = languageOptions.options.find((option) => option.id === id) ?? null;
-      if (choice) {
-        languageOptions.onSelect(choice.id, choice.language ?? null);
-      }
-    });
-  };
-
   if (isLogDocument) {
     renderLogDocument(doc);
-    bindIdCopy();
+    bindDocumentIdCopy();
     return;
   }
 
   if (isModuleSettings) {
     editorRef.set(null);
-    const moduleDefinition = resolveModuleForSettings(modules, doc.path);
-    content.innerHTML = `
-      <div class="mb-4">
-        <h1 class="title is-4">${payload.name}</h1>
-        <p class="app-muted">${adminText("documents.moduleSettingsMeta", "Module settings")} · ${doc.store}/${doc.path}</p>
-        ${idMeta}
-        ${languageMeta}
-      </div>
-      <div class="mb-4 buttons">
-        ${
-          returnToDocumentId
-            ? `<button id="module-back" class="button app-button app-ghost">${adminText("common.back", "Back")}</button>`
-            : ""
-        }
-        <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
-        <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
-      </div>
-      <div class="mt-4">
-        <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
-        <div id="module-settings-form" class="app-module-settings-surface"></div>
-      </div>
-    `;
-
-    const formContainer = document.getElementById("module-settings-form");
-    const settingsForm = formContainer && moduleDefinition
-      ? renderModuleSettingsForm({
-          container: formContainer,
-          module: moduleDefinition,
-          settings: (typeof payload.data === "object" && payload.data !== null ? (payload.data as Record<string, unknown>) : null),
-          agents,
-        })
-      : null;
-
-    if (!moduleDefinition && formContainer) {
-      formContainer.innerHTML = `<div class="notification is-light">${adminText("modules.definitionNotFound", "Module definition not found.")}</div>`;
-    }
-
-    document.getElementById("module-back")?.addEventListener("click", () => {
-      if (returnToDocumentId) {
-        onReturnToDocument(returnToDocumentId);
-      }
+    renderModuleSettingsView({
+      content,
+      auth,
+      modules,
+      agents,
+      doc,
+      idMeta,
+      languageMeta,
+      languageOptions,
+      returnToDocumentId,
+      onReturnToDocument,
+      updateDocument,
+      onDocumentUpdated,
+      onModuleSettingsSaved,
+      rerender,
+      refreshNavigation,
+      downloadDocument,
     });
-
-    document.getElementById("save")?.addEventListener("click", async () => {
-      if (!auth) {
-        return;
-      }
-
-      const payloadToSave: DocumentPayload = {
-        ...payload,
-        type: payload.type ?? "module",
-        data: settingsForm?.getValue() ?? payload.data,
-      };
-
-      try {
-        const updated = await updateDocument(auth, doc.id, payloadToSave);
-        onDocumentUpdated(updated);
-        onModuleSettingsSaved();
-        rerender(updated);
-        await refreshNavigation();
-      } catch (err) {
-        alert((err as Error).message);
-      }
-    });
-
-    document.getElementById("export-json")?.addEventListener("click", async () => {
-      if (!auth) {
-        return;
-      }
-      try {
-        const result = await downloadDocument(auth, doc.id);
-        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
-        triggerDownload(result.blob, filename);
-      } catch (err) {
-        alert((err as Error).message);
-      }
-    });
-
-    bindIdCopy();
-    bindLanguageSelect();
     return;
   }
 
@@ -291,20 +201,15 @@ export const renderDocument = ({
     });
 
     document.getElementById("export-json")?.addEventListener("click", async () => {
-      if (!auth) {
-        return;
-      }
       try {
-        const result = await downloadDocument(auth, doc.id);
-        const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
-        triggerDownload(result.blob, filename);
+        await exportDocumentJson(auth, doc, downloadDocument);
       } catch (err) {
         alert((err as Error).message);
       }
     });
 
-    bindIdCopy();
-    bindLanguageSelect();
+    bindDocumentIdCopy();
+    bindDocumentLanguageSelect(languageOptions);
 
     return;
   }
@@ -397,69 +302,70 @@ export const renderDocument = ({
   }
 
   void renderModulePanel(doc);
-  bindIdCopy();
-  bindLanguageSelect();
+  bindDocumentIdCopy();
+  bindDocumentLanguageSelect(languageOptions);
 
   const moduleInput = document.getElementById("field-modules");
-  moduleInput?.addEventListener("change", () => {
-    payload.modules = readSelectedModules(moduleInput);
-    void renderModulePanel(doc);
-  });
+  const saveButton = document.getElementById("save") as HTMLButtonElement | null;
+  let isAutoSavingModules = false;
 
-  document.getElementById("save")?.addEventListener("click", async () => {
+  const setModuleInputsDisabled = (disabled: boolean) => {
+    moduleInput?.querySelectorAll<HTMLInputElement>("input[type='checkbox']").forEach((input) => {
+      input.disabled = disabled;
+    });
+    if (saveButton) {
+      saveButton.disabled = disabled;
+    }
+  };
+
+  const saveEditableDocument = async (modulesOverride?: string[]) => {
     if (!auth) {
-      return;
+      return false;
     }
-
-    const pageInput = document.getElementById("field-page") as HTMLInputElement | null;
-    const nameInput = document.getElementById("field-name") as HTMLInputElement | null;
-    const languageInput = document.getElementById("field-language") as HTMLInputElement | null;
-    const sectionInput = document.getElementById("field-section") as HTMLSelectElement | null;
-    const orderInput = document.getElementById("field-order") as HTMLInputElement | null;
-    const moduleInput = document.getElementById("field-modules");
-
-    const orderRaw = orderInput?.value.trim() || "";
-    if (!orderRaw) {
-      alert(adminText("documents.orderRequired", "Order is required."));
-      return;
+    const built = buildEditableDocumentPayload({
+      payload,
+      readSelectedModules,
+      editor: editorRef.get(),
+      modulesOverride,
+    });
+    if ("error" in built) {
+      alert(built.error);
+      return false;
     }
-    const parsedOrder = Number(orderRaw);
-    if (!Number.isInteger(parsedOrder)) {
-      alert(adminText("documents.orderInteger", "Order must be an integer."));
-      return;
-    }
-    const orderValue = parsedOrder;
-
-    const payloadToSave: DocumentPayload = {
-      type: payload.type ?? "page",
-      page: pageInput?.value.trim() || payload.page,
-      name: nameInput?.value.trim() || payload.name,
-      language: languageInput?.value.trim() || undefined,
-      order: orderValue,
-      section: sectionInput?.value === "true",
-      modules: readSelectedModules(moduleInput),
-      position_view: payload.position_view,
-      data: editorRef.get()?.getValue() ?? payload.data,
-    };
 
     try {
-      const updated = await updateDocument(auth, doc.id, payloadToSave);
+      setModuleInputsDisabled(true);
+      const updated = await updateDocument(auth, doc.id, built.payload);
       onDocumentUpdated(updated);
       rerender(updated);
       await refreshNavigation();
+      return true;
     } catch (err) {
       alert((err as Error).message);
+      return false;
+    } finally {
+      setModuleInputsDisabled(false);
     }
+  };
+
+  moduleInput?.addEventListener("change", () => {
+    if (isAutoSavingModules) {
+      return;
+    }
+    isAutoSavingModules = true;
+    const selectedModules = readSelectedModules(moduleInput);
+    void saveEditableDocument(selectedModules).finally(() => {
+      isAutoSavingModules = false;
+    });
+  });
+
+  saveButton?.addEventListener("click", async () => {
+    void saveEditableDocument();
   });
 
   document.getElementById("export-json")?.addEventListener("click", async () => {
-    if (!auth) {
-      return;
-    }
     try {
-      const result = await downloadDocument(auth, doc.id);
-      const filename = result.filename ?? `${doc.path.split("/").pop() || "document"}.json`;
-      triggerDownload(result.blob, filename);
+      await exportDocumentJson(auth, doc, downloadDocument);
     } catch (err) {
       alert((err as Error).message);
     }
