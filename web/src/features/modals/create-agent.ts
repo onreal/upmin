@@ -1,5 +1,6 @@
 import { createAgent, type AuthState } from "../../api";
 import { state } from "../../app/state";
+import { adminText } from "../../app/translations";
 import { setupProviderModelControls } from "../integrations/helpers";
 
 export type AgentModalController = {
@@ -129,11 +130,11 @@ export const initAgentModal = ({ getAuth, reloadAgents, onAgentCreated }: AgentM
         : "public";
 
     if (!name || !provider || !model || !systemPrompt || !adminPrompt) {
-      showAgentError("All fields are required.");
+      showAgentError(adminText("agents.allFieldsRequired", "All fields are required."));
       return;
     }
     if (agentProviderSelect?.disabled || agentModelSelect?.disabled) {
-      showAgentError("Enable an integration and sync models first.");
+      showAgentError(adminText("agents.enableIntegrationFirst", "Enable an integration and sync models first."));
       return;
     }
 

@@ -8,7 +8,7 @@ const loadIframe = (iframe: HTMLIFrameElement) =>
   new Promise<Document>((resolve, reject) => {
     const timer = window.setTimeout(() => {
       cleanup();
-      reject(new Error("Snapshot timed out while loading the website."));
+      reject(new Error(adminText("creations.snapshotTimedOut", "Snapshot timed out while loading the website.")));
     }, CAPTURE_TIMEOUT_MS);
 
     const cleanup = () => {
@@ -21,7 +21,7 @@ const loadIframe = (iframe: HTMLIFrameElement) =>
       cleanup();
       const doc = iframe.contentDocument;
       if (!doc) {
-        reject(new Error("Snapshot failed because the website document is unavailable."));
+        reject(new Error(adminText("creations.snapshotUnavailable", "Snapshot failed because the website document is unavailable.")));
         return;
       }
       resolve(doc);
@@ -29,7 +29,7 @@ const loadIframe = (iframe: HTMLIFrameElement) =>
 
     const handleError = () => {
       cleanup();
-      reject(new Error("Snapshot failed while loading the website."));
+      reject(new Error(adminText("creations.snapshotLoadFailed", "Snapshot failed while loading the website.")));
     };
 
     iframe.addEventListener("load", handleLoad, { once: true });
@@ -184,9 +184,11 @@ const drawSvgToCanvas = async (svg: string) => {
       const img = new Image();
       img.decoding = "sync";
       img.addEventListener("load", () => resolve(img), { once: true });
-      img.addEventListener("error", () => reject(new Error("Snapshot image could not be rendered.")), {
-        once: true,
-      });
+      img.addEventListener(
+        "error",
+        () => reject(new Error(adminText("creations.snapshotImageFailed", "Snapshot image could not be rendered."))),
+        { once: true }
+      );
       img.src = url;
     });
 
@@ -195,7 +197,7 @@ const drawSvgToCanvas = async (svg: string) => {
     canvas.height = CAPTURE_HEIGHT;
     const context = canvas.getContext("2d");
     if (!context) {
-      throw new Error("Snapshot capture is not supported in this browser.");
+      throw new Error(adminText("creations.snapshotUnsupported", "Snapshot capture is not supported in this browser."));
     }
 
     context.fillStyle = "#ffffff";
@@ -205,7 +207,12 @@ const drawSvgToCanvas = async (svg: string) => {
     try {
       return canvas.toDataURL("image/png");
     } catch {
-      throw new Error("Snapshot capture failed because the website uses blocked external assets.");
+      throw new Error(
+        adminText(
+          "creations.snapshotBlockedAssets",
+          "Snapshot capture failed because the website uses blocked external assets."
+        )
+      );
     }
   } finally {
     URL.revokeObjectURL(url);
@@ -257,3 +264,4 @@ export const captureWebsiteSnapshot = async (path = "/") => {
     iframe.remove();
   }
 };
+import { adminText } from "../../app/translations";

@@ -15,11 +15,82 @@ var init_types = __esm({
   }
 });
 
+// web/src/app/translations.ts
+var currentTranslations, currentLanguage, normalizeLanguage, candidateLanguages, setAdminTranslationConfig, getAdminLanguage, setAdminLanguage, lookupTranslation, translatedValue, interpolate, adminText, adminConfiguredText;
+var init_translations = __esm({
+  "web/src/app/translations.ts"() {
+    "use strict";
+    currentTranslations = {};
+    currentLanguage = null;
+    normalizeLanguage = (value) => {
+      if (typeof value !== "string") {
+        return null;
+      }
+      const trimmed = value.trim().toLowerCase();
+      return trimmed || null;
+    };
+    candidateLanguages = () => {
+      const documentLanguage = typeof document !== "undefined" ? normalizeLanguage(document.documentElement.lang) : null;
+      const active2 = currentLanguage ?? documentLanguage;
+      const primary = active2?.split("-")[0] ?? null;
+      return [active2, primary, "en"].filter((value, index, items) => !!value && items.indexOf(value) === index);
+    };
+    setAdminTranslationConfig = (layoutConfig) => {
+      currentTranslations = layoutConfig?.translations ?? {};
+    };
+    getAdminLanguage = () => currentLanguage;
+    setAdminLanguage = (language) => {
+      const normalized = normalizeLanguage(language);
+      const changed = normalized !== currentLanguage;
+      currentLanguage = normalized;
+      if (typeof document !== "undefined") {
+        document.documentElement.lang = normalized ?? "en";
+      }
+      return changed;
+    };
+    lookupTranslation = (key) => {
+      for (const language of candidateLanguages()) {
+        const table = currentTranslations[language];
+        if (!table) {
+          continue;
+        }
+        const value = table[key];
+        if (typeof value === "string" && value.trim() !== "") {
+          return value;
+        }
+      }
+      return null;
+    };
+    translatedValue = (key) => lookupTranslation(key);
+    interpolate = (template, variables) => {
+      if (!variables) {
+        return template;
+      }
+      return template.replace(/\{([a-zA-Z0-9_.-]+)\}/g, (_, key) => {
+        const value = variables[key];
+        return value == null ? "" : String(value);
+      });
+    };
+    adminText = (key, fallback, variables) => interpolate(lookupTranslation(key) ?? fallback, variables);
+    adminConfiguredText = (configured, key, fallback, variables) => {
+      const translated = translatedValue(key);
+      if (translated) {
+        return interpolate(translated, variables);
+      }
+      if (typeof configured === "string" && configured.trim() !== "") {
+        return interpolate(configured, variables);
+      }
+      return interpolate(fallback, variables);
+    };
+  }
+});
+
 // web/src/api/client.ts
 var STORAGE_KEY, notify, notifySessionExpired, notifyUpdateLocked, successMessageFor, handleUnauthorized, handleLocked, loadAuth, saveAuth, buildHeaders, request, requestBlob, requestAsset, requestForm;
 var init_client = __esm({
   "web/src/api/client.ts"() {
     "use strict";
+    init_translations();
     STORAGE_KEY = "manage_auth";
     notify = (payload) => {
       if (typeof window === "undefined") {
@@ -41,14 +112,14 @@ var init_client = __esm({
     };
     successMessageFor = (method) => {
       if (method === "GET")
-        return "Loaded.";
+        return adminText("api.success.get", "Loaded.");
       if (method === "POST")
-        return "Created.";
+        return adminText("api.success.post", "Created.");
       if (method === "PUT")
-        return "Saved.";
+        return adminText("api.success.put", "Saved.");
       if (method === "DELETE")
-        return "Deleted.";
-      return "Done.";
+        return adminText("api.success.delete", "Deleted.");
+      return adminText("api.success.default", "Done.");
     };
     handleUnauthorized = (response, auth, message) => {
       if (!auth || response.status !== 401) {
@@ -104,7 +175,7 @@ var init_client = __esm({
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
-        const message = error.message || error.error || response.statusText || "Request failed";
+        const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
         handleUnauthorized(response, auth, message);
         handleLocked(response, message);
         if (config.notify !== false) {
@@ -129,7 +200,7 @@ var init_client = __esm({
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
-        const message = error.message || error.error || response.statusText || "Request failed";
+        const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
         handleUnauthorized(response, auth, message);
         handleLocked(response, message);
         notify({ type: "error", message });
@@ -137,13 +208,13 @@ var init_client = __esm({
       }
       const contentType = response.headers.get("Content-Type") || "";
       if (!contentType.includes("application/zip") && !contentType.includes("application/json") && !contentType.includes("application/gzip") && !contentType.includes("application/x-gzip") && !contentType.includes("application/octet-stream")) {
-        throw new Error("Unexpected download response.");
+        throw new Error(adminText("api.error.unexpectedDownload", "Unexpected download response."));
       }
       const blob = await response.blob();
       const disposition = response.headers.get("Content-Disposition") || "";
       const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
       const filename = match ? match[1] : void 0;
-      notify({ type: "success", message: "Download ready." });
+      notify({ type: "success", message: adminText("api.success.downloadReady", "Download ready.") });
       return { blob, filename };
     };
     requestAsset = async (url, options, auth, config = {}) => {
@@ -156,7 +227,7 @@ var init_client = __esm({
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
-        const message = error.message || error.error || response.statusText || "Request failed";
+        const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
         handleUnauthorized(response, auth, message);
         handleLocked(response, message);
         if (config.notify !== false) {
@@ -169,7 +240,7 @@ var init_client = __esm({
       const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
       const filename = match ? match[1] : void 0;
       if (config.notify !== false) {
-        notify({ type: "success", message: "Download ready." });
+        notify({ type: "success", message: adminText("api.success.downloadReady", "Download ready.") });
       }
       return { blob, filename };
     };
@@ -183,14 +254,14 @@ var init_client = __esm({
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
-        const message = error.message || error.error || response.statusText || "Request failed";
+        const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
         handleUnauthorized(response, auth, message);
         handleLocked(response, message);
         notify({ type: "error", message });
         throw new Error(message);
       }
       const data = await response.json();
-      notify({ type: "success", message: "Uploaded successfully." });
+      notify({ type: "success", message: adminText("api.success.uploaded", "Uploaded successfully.") });
       return data;
     };
   }
@@ -624,48 +695,55 @@ var isTokenAuth = (value) => {
 };
 
 // web/src/app/layout.ts
+init_translations();
 var getUserLabel = () => {
   if (isTokenAuth(state.auth) && state.auth.user) {
     const name = `${state.auth.user.firstname} ${state.auth.user.lastname}`.trim();
     return name || state.auth.user.email;
   }
   if (state.auth?.type === "apiKey") {
-    return "API Key";
+    return adminText("layout.user.apiKey", "API Key");
   }
-  return "Guest";
+  return adminText("layout.user.guest", "Guest");
 };
 var headerCopy = () => ({
-  title: state.layoutConfig.header?.title ?? "Manage",
-  subtitle: state.layoutConfig.header?.subtitle ?? "Stateless Admin",
-  settingsLabel: state.layoutConfig.header?.settingsLabel ?? "Settings",
-  themeLabel: state.layoutConfig.header?.themeLabel ?? "Theme",
-  createLabel: state.layoutConfig.header?.createLabel ?? "Create +",
-  profileLabel: state.layoutConfig.header?.profileLabel ?? "Profile",
-  logoutLabel: state.layoutConfig.header?.logoutLabel ?? "Logout"
+  title: adminConfiguredText(state.layoutConfig.header?.title, "layout.header.title", "Manage"),
+  subtitle: adminConfiguredText(state.layoutConfig.header?.subtitle, "layout.header.subtitle", "Stateless Admin"),
+  settingsLabel: adminConfiguredText(state.layoutConfig.header?.settingsLabel, "layout.header.settingsLabel", "Settings"),
+  themeLabel: adminConfiguredText(state.layoutConfig.header?.themeLabel, "layout.header.themeLabel", "Theme"),
+  createLabel: adminConfiguredText(state.layoutConfig.header?.createLabel, "layout.header.createLabel", "Create +"),
+  profileLabel: adminConfiguredText(state.layoutConfig.header?.profileLabel, "layout.header.profileLabel", "Profile"),
+  logoutLabel: adminConfiguredText(state.layoutConfig.header?.logoutLabel, "layout.header.logoutLabel", "Logout")
 });
 var sidebarCopy = () => ({
-  publicLabel: state.layoutConfig.sidebar?.publicLabel ?? "Public",
-  privateLabel: state.layoutConfig.sidebar?.privateLabel ?? "Private"
+  publicLabel: adminConfiguredText(state.layoutConfig.sidebar?.publicLabel, "layout.sidebar.publicLabel", "Public"),
+  privateLabel: adminConfiguredText(state.layoutConfig.sidebar?.privateLabel, "layout.sidebar.privateLabel", "Private")
 });
 var profileCopy = () => ({
-  title: state.layoutConfig.profile?.title ?? "Profile",
-  subtitle: state.layoutConfig.profile?.subtitle ?? "\u0395\u03BD\u03B7\u03BC\u03B5\u03C1\u03CE\u03C3\u03C4\u03B5 \u03C4\u03B1 \u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03B1 \u03C3\u03B1\u03C2.",
-  saveLabel: state.layoutConfig.profile?.saveLabel ?? "Save Profile"
+  title: adminConfiguredText(state.layoutConfig.profile?.title, "layout.profile.title", "Profile"),
+  subtitle: adminConfiguredText(state.layoutConfig.profile?.subtitle, "layout.profile.subtitle", "Update your profile info"),
+  saveLabel: adminConfiguredText(state.layoutConfig.profile?.saveLabel, "layout.profile.saveLabel", "Save Profile")
 });
 
 // web/src/ui/shell.ts
+init_translations();
 var defaultLandingCards = () => {
-  const isGreek = document.documentElement.lang.toLowerCase().startsWith("el");
   return {
-    eyebrow: isGreek ? "\u0393\u03C1\u03AE\u03B3\u03BF\u03C1\u03B7 \u03B5\u03BA\u03BA\u03AF\u03BD\u03B7\u03C3\u03B7" : "Quick Start",
-    title: isGreek ? "\u039E\u03B5\u03BA\u03B9\u03BD\u03AE\u03C3\u03C4\u03B5 \u03B1\u03C0\u03CC \u03B5\u03B4\u03CE" : "Start here",
-    subtitle: isGreek ? "\u0394\u03B7\u03BC\u03B9\u03BF\u03C5\u03C1\u03B3\u03AE\u03C3\u03C4\u03B5 \u03C4\u03BF site, \u03C3\u03C5\u03BD\u03B4\u03AD\u03C3\u03C4\u03B5 \u03C4\u03B1 AI \u03BA\u03BB\u03B5\u03B9\u03B4\u03B9\u03AC \u03C3\u03B1\u03C2 \u03BA\u03B1\u03B9 \u03B4\u03B9\u03B1\u03C7\u03B5\u03B9\u03C1\u03B9\u03C3\u03C4\u03B5\u03AF\u03C4\u03B5 \u03CC\u03BB\u03B1 \u03C4\u03B1 snapshots \u03B1\u03C0\u03CC \u03AD\u03BD\u03B1 \u03C3\u03B7\u03BC\u03B5\u03AF\u03BF." : "Build the site, connect your AI keys, and manage every snapshot from one place.",
+    eyebrow: adminText("shell.landing.eyebrow", "Quick Start"),
+    title: adminText("shell.landing.title", "Start here"),
+    subtitle: adminText(
+      "shell.landing.subtitle",
+      "Build the site, connect your AI keys, and manage every snapshot from one place."
+    ),
     cards: [
       {
         action: "builder",
-        title: isGreek ? "\u039E\u03B5\u03BA\u03B9\u03BD\u03AE\u03C3\u03C4\u03B5 \u03BD\u03B1 \u03C7\u03C4\u03AF\u03B6\u03B5\u03C4\u03B5 \u03C4\u03BF website \u03C3\u03B1\u03C2" : "Start building your website now",
-        body: isGreek ? "\u0391\u03BD\u03BF\u03AF\u03BE\u03C4\u03B5 \u03C4\u03BF\u03BD builder \u03B3\u03B9\u03B1 \u03BD\u03B1 \u03C3\u03C4\u03AE\u03C3\u03B5\u03C4\u03B5 \u03C3\u03B5\u03BB\u03AF\u03B4\u03B5\u03C2, \u03B5\u03BD\u03CC\u03C4\u03B7\u03C4\u03B5\u03C2 \u03BA\u03B1\u03B9 \u03C1\u03BF\u03AD\u03C2 \u03C0\u03B5\u03C1\u03B9\u03B5\u03C7\u03BF\u03BC\u03AD\u03BD\u03BF\u03C5." : "Open the builder to shape pages, sections, and content flows.",
-        cta: isGreek ? "\u0386\u03BD\u03BF\u03B9\u03B3\u03BC\u03B1 Builder" : "Open Builder",
+        title: adminText("shell.landing.builder.title", "Start building your website now"),
+        body: adminText(
+          "shell.landing.builder.body",
+          "Open the builder to shape pages, sections, and content flows."
+        ),
+        cta: adminText("shell.landing.builder.cta", "Open Builder"),
         svg: `
           <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
             <defs>
@@ -685,9 +763,12 @@ var defaultLandingCards = () => {
       },
       {
         action: "integrations",
-        title: isGreek ? "\u03A0\u03C1\u03BF\u03C3\u03B8\u03AD\u03C3\u03C4\u03B5 \u03C4\u03B1 API Keys \u03C4\u03C9\u03BD AI \u03C3\u03B1\u03C2" : "Add your AI's API keys",
-        body: isGreek ? "\u03A3\u03C5\u03BD\u03B4\u03AD\u03C3\u03C4\u03B5 providers, \u03BC\u03BF\u03BD\u03C4\u03AD\u03BB\u03B1 \u03BA\u03B1\u03B9 \u03BC\u03C5\u03C3\u03C4\u03B9\u03BA\u03AC \u03CE\u03C3\u03C4\u03B5 \u03BF\u03B9 agents \u03BA\u03B1\u03B9 \u03C4\u03B1 \u03B5\u03C1\u03B3\u03B1\u03BB\u03B5\u03AF\u03B1 \u03BD\u03B1 \u03B4\u03BF\u03C5\u03BB\u03B5\u03CD\u03BF\u03C5\u03BD \u03C3\u03C9\u03C3\u03C4\u03AC." : "Connect providers, models, and secrets so your agents and tools can work.",
-        cta: isGreek ? "\u0386\u03BD\u03BF\u03B9\u03B3\u03BC\u03B1 Integrations" : "Open Integrations",
+        title: adminText("shell.landing.integrations.title", "Add your AI's API keys"),
+        body: adminText(
+          "shell.landing.integrations.body",
+          "Connect providers, models, and secrets so your agents and tools can work."
+        ),
+        cta: adminText("shell.landing.integrations.cta", "Open Integrations"),
         svg: `
           <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
             <defs>
@@ -706,9 +787,12 @@ var defaultLandingCards = () => {
       },
       {
         action: "creations",
-        title: isGreek ? "\u0394\u03B9\u03B1\u03C7\u03B5\u03B9\u03C1\u03B9\u03C3\u03C4\u03B5\u03AF\u03C4\u03B5 \u03C4\u03B1 creations \u03C3\u03B1\u03C2" : "Manage your creations",
-        body: isGreek ? "\u0394\u03B5\u03AF\u03C4\u03B5 snapshots, exports \u03BA\u03B1\u03B9 backups \u03B3\u03B9\u03B1 \u03BD\u03B1 \u03C0\u03B1\u03C1\u03B1\u03BA\u03BF\u03BB\u03BF\u03C5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BA\u03AC\u03B8\u03B5 \u03B4\u03B7\u03BC\u03BF\u03C3\u03AF\u03B5\u03C5\u03C3\u03B7." : "Review snapshots, exports, and backups to track every publish.",
-        cta: isGreek ? "\u0386\u03BD\u03BF\u03B9\u03B3\u03BC\u03B1 Creations" : "Open Creations",
+        title: adminText("shell.landing.creations.title", "Manage your creations"),
+        body: adminText(
+          "shell.landing.creations.body",
+          "Review snapshots, exports, and backups to track every publish."
+        ),
+        cta: adminText("shell.landing.creations.cta", "Open Creations"),
         svg: `
           <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
             <defs>
@@ -736,6 +820,21 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
   const header = headerCopy();
   const sidebar = sidebarCopy();
   const landing = defaultLandingCards();
+  const builderLabel = adminText("shell.builder", "Builder");
+  const modulesLabel = adminText("modules.title", "Modules");
+  const integrationsLabel = adminText("integrations.title", "Integrations");
+  const logsLabel = adminText("logs.title", "Logs");
+  const formsLabel = adminText("forms.title", "Forms");
+  const agentsLabel = adminText("agents.title", "Agents");
+  const createAgentLabel = adminText("agents.create", "Create agent");
+  const downloadContentLabel = adminText("shell.downloadContent", "Download content");
+  const updateLabel = adminText("systemUpdate.action", "Update");
+  const versionUnknownLabel = adminText("systemUpdate.versionUnknown", "Version unknown");
+  const closeLabel = adminText("common.close", "Close");
+  const cancelLabel = adminText("common.cancel", "Cancel");
+  const saveLabel = adminText("common.save", "Save");
+  const createLabel = adminText("common.create", "Create");
+  const confirmLabel = adminText("confirm.confirm", "Confirm");
   const createIcon = `
     <span class="icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
@@ -823,7 +922,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
     </span>
   `;
   app.innerHTML = `
-    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="main navigation">
+    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
       <div class="navbar-brand">
         <a class="navbar-item">
           <span class="title is-5 mb-0">${header.title}</span>
@@ -831,7 +930,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
         <a
           role="button"
           class="navbar-burger"
-          aria-label="Open navigation"
+          aria-label="${adminText("navigation.open", "Open navigation")}"
           aria-expanded="false"
           aria-controls="mobileNavDrawer"
         >
@@ -862,10 +961,10 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
                 data-shell-action="builder"
               >
                 ${builderIcon}
-                <span>Builder</span>
+                <span>${builderLabel}</span>
               </button>
               <div id="system-update-status-chip" class="app-update-status-chip is-hidden">
-                <span id="system-update-status-text">Version unknown</span>
+                <span id="system-update-status-text">${versionUnknownLabel}</span>
               </div>
               <button
                 id="system-update-action"
@@ -874,14 +973,14 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
                 data-shell-action="system-update"
               >
                 ${updateIcon}
-                <span id="system-update-label">Update</span>
+                <span id="system-update-label">${updateLabel}</span>
               </button>
               <button
                 id="export-zip-header"
                 class="button app-button app-ghost"
                 data-shell-action="export"
-                aria-label="Download content"
-                title="Download content"
+                aria-label="${downloadContentLabel}"
+                title="${downloadContentLabel}"
               >
                 ${downloadIcon}
               </button>
@@ -899,21 +998,21 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           <div class="navbar-item has-dropdown" id="private-dropdown">
             <a class="navbar-link">${header.settingsLabel}</a>
             <div class="navbar-dropdown">
-              <a class="navbar-item" id="modules-link" data-shell-action="modules">Modules</a>
-              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">Integrations</a>
-              <a class="navbar-item" id="logs-link" data-shell-action="logs">Logs</a>
-              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">Forms</a>
-              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">Update admin</a>
+              <a class="navbar-item" id="modules-link" data-shell-action="modules">${modulesLabel}</a>
+              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
+              <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
+              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
+              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="agents-dropdown">
-            <a class="navbar-link">Agents</a>
+            <a class="navbar-link">${agentsLabel}</a>
             <div class="navbar-dropdown">
               <div id="nav-agents"></div>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">Create agent</a>
+              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">${createAgentLabel}</a>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="user-dropdown">
@@ -931,10 +1030,10 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
       <button
         class="app-mobile-drawer-backdrop"
         type="button"
-        aria-label="Close navigation"
+        aria-label="${adminText("navigation.close", "Close navigation")}"
         data-mobile-drawer-close
       ></button>
-      <div class="app-mobile-drawer-panel app-surface" role="dialog" aria-modal="true" aria-label="Navigation">
+      <div class="app-mobile-drawer-panel app-surface" role="dialog" aria-modal="true" aria-label="${adminText("navigation.title", "Navigation")}">
         <div class="app-mobile-drawer-header">
           <div>
             <p class="app-mobile-drawer-eyebrow">${header.title}</p>
@@ -953,7 +1052,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
             <button
               class="delete app-mobile-drawer-close"
               type="button"
-              aria-label="Close navigation"
+              aria-label="${adminText("navigation.close", "Close navigation")}"
               data-mobile-drawer-close
             ></button>
           </div>
@@ -962,7 +1061,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           <div class="app-mobile-drawer-top-action">
             <div id="mobile-system-update-panel" class="app-mobile-update-panel is-hidden">
               <div id="mobile-system-update-status-chip" class="app-update-status-chip app-update-status-chip-mobile">
-                <span id="mobile-system-update-status-text">Version unknown</span>
+                <span id="mobile-system-update-status-text">${versionUnknownLabel}</span>
               </div>
               <button
                 id="mobile-system-update-button"
@@ -971,12 +1070,12 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
                 data-shell-action="system-update"
               >
                 ${updateIcon}
-                <span id="mobile-system-update-button-label">Update</span>
+                <span id="mobile-system-update-button-label">${updateLabel}</span>
               </button>
             </div>
             <button class="button app-button app-primary app-mobile-builder-button" type="button" data-shell-action="builder">
               ${builderIcon}
-              <span>Builder</span>
+              <span>${builderLabel}</span>
             </button>
           </div>
 
@@ -1023,18 +1122,18 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
             <div id="mobile-settings-panel" class="app-mobile-accordion-panel">
               <div class="app-mobile-action-list">
                 <a href="#" id="mobile-system-update-link" class="app-mobile-action-link is-hidden" data-shell-action="system-update">
-                  Update admin
+                  ${adminText("systemUpdate.updateAdmin", "Update admin")}
                 </a>
-                <a href="#" class="app-mobile-action-link" data-shell-action="modules">Modules</a>
-                <a href="#" class="app-mobile-action-link" data-shell-action="integrations">Integrations</a>
-                <a href="#" class="app-mobile-action-link" data-shell-action="logs">Logs</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="modules">${modulesLabel}</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="integrations">${integrationsLabel}</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="logs">${logsLabel}</a>
                 <a
                   href="#"
                   id="forms-link-mobile"
                   class="app-mobile-action-link is-hidden"
                   data-shell-action="forms"
                 >
-                  Forms
+                  ${formsLabel}
                 </a>
               </div>
               <div id="nav-system-pages-mobile" class="app-mobile-action-list app-mobile-system-pages"></div>
@@ -1049,12 +1148,12 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               aria-expanded="false"
               aria-controls="mobile-agents-panel"
             >
-              <span>Agents</span>
+              <span>${agentsLabel}</span>
             </button>
             <div id="mobile-agents-panel" class="app-mobile-accordion-panel">
               <div id="nav-agents-mobile" class="app-mobile-action-list"></div>
               <div class="app-mobile-action-list">
-                <a href="#" class="app-mobile-action-link" data-shell-action="agents-create">Create agent</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="agents-create">${createAgentLabel}</a>
               </div>
             </div>
           </section>
@@ -1089,11 +1188,13 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </button>
               <button class="button app-button app-ghost" type="button" data-shell-action="export">
                 ${downloadIcon}
-                <span>Download content</span>
+                <span>${downloadContentLabel}</span>
               </button>
             </div>
             <div id="mobile-system-current-version" class="app-mobile-drawer-version app-muted">
-              Current version: ${state.systemUpdate?.currentVersion ?? "unknown"}
+              ${adminText("systemUpdate.currentVersion", "Current version: {version}", {
+    version: state.systemUpdate?.currentVersion ?? adminText("common.unknown", "unknown")
+  })}
             </div>
           </div>
         </div>
@@ -1145,8 +1246,8 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
       <div class="modal-background" data-close="create"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title">Create document</p>
-          <button class="delete" aria-label="close" data-close="create"></button>
+          <p class="modal-card-title">${adminText("createDocument.title", "Create document")}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="create"></button>
         </header>
         <section class="modal-card-body">
           <div id="create-error" class="notification is-danger is-light is-hidden"></div>
@@ -1154,22 +1255,22 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
             <div class="columns is-variable is-4 is-multiline">
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Filename</label>
+                  <label class="label">${adminText("createDocument.filename", "Filename")}</label>
                   <div class="control">
                     <input
                       id="create-path"
                       class="input"
                       type="text"
-                      placeholder="content.json"
+                      placeholder="${adminText("createDocument.filenamePlaceholder", "content.json")}"
                       autocomplete="off"
                     />
                   </div>
-                  <p class="help">Must end with .json</p>
+                  <p class="help">${adminText("createDocument.filenameHelp", "Must end with .json")}</p>
                 </div>
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Order</label>
+                  <label class="label">${adminText("documents.order", "Order")}</label>
                   <div class="control">
                     <input
                       id="create-order"
@@ -1177,23 +1278,23 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
                       type="number"
                       min="0"
                       step="1"
-                      placeholder="0"
+                      placeholder="${adminText("documents.orderPlaceholder", "0")}"
                     />
                   </div>
-                  <p class="help">Lower numbers appear first.</p>
+                  <p class="help">${adminText("createDocument.orderHelp", "Lower numbers appear first.")}</p>
                 </div>
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Store</label>
+                  <label class="label">${adminText("documents.store", "Store")}</label>
                   <div class="control">
                     <div class="tabs is-toggle is-small is-fullwidth">
                       <ul>
                         <li class="is-active">
-                          <a href="#" data-store="public">Public</a>
+                          <a href="#" data-store="public">${adminText("documents.storePublic", "Public")}</a>
                         </li>
                         <li>
-                          <a href="#" data-store="private">Private</a>
+                          <a href="#" data-store="private">${adminText("documents.storePrivate", "Private")}</a>
                         </li>
                       </ul>
                     </div>
@@ -1203,7 +1304,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Page</label>
+                  <label class="label">${adminText("documents.page", "Page")}</label>
                   <div class="control">
                     <input id="create-page" class="input" type="text" autocomplete="off" />
                   </div>
@@ -1211,7 +1312,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Name</label>
+                  <label class="label">${adminText("documents.name", "Name")}</label>
                   <div class="control">
                     <input id="create-name" class="input" type="text" autocomplete="off" />
                   </div>
@@ -1219,7 +1320,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Language</label>
+                  <label class="label">${adminText("documents.language", "Language")}</label>
                   <div class="control">
                     <input id="create-language" class="input" type="text" autocomplete="off" />
                   </div>
@@ -1227,7 +1328,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Modules</label>
+                  <label class="label">${adminText("documents.modules", "Modules")}</label>
                   <div class="control">
                     <div id="create-modules" class="app-module-picker">
                       ${moduleChecklistHtml2()}
@@ -1237,7 +1338,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Section</label>
+                  <label class="label">${adminText("documents.section", "Section")}</label>
                   <div class="control">
                     <div class="select is-fullwidth">
                       <select id="create-section">
@@ -1250,7 +1351,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-full">
                 <div class="field">
-                  <label class="label">Data (JSON)</label>
+                  <label class="label">${adminText("documents.dataJson", "Data (JSON)")}</label>
                   <div class="control">
                     <textarea id="create-data" class="textarea" rows="6">{}</textarea>
                   </div>
@@ -1260,8 +1361,8 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           </form>
         </section>
         <footer class="modal-card-foot">
-          <button form="create-form" type="submit" class="button app-button app-primary">Create</button>
-          <button id="create-cancel" type="button" class="button app-button app-ghost">Cancel</button>
+          <button form="create-form" type="submit" class="button app-button app-primary">${createLabel}</button>
+          <button id="create-cancel" type="button" class="button app-button app-ghost">${cancelLabel}</button>
         </footer>
       </div>
     </div>
@@ -1269,31 +1370,31 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
       <div class="modal-background" data-close="agent"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title">Create agent</p>
-          <button class="delete" aria-label="close" data-close="agent"></button>
+          <p class="modal-card-title">${createAgentLabel}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="agent"></button>
         </header>
         <section class="modal-card-body">
           <div id="agent-error" class="notification is-danger is-light is-hidden"></div>
           <form id="agent-form">
             <div class="tabs is-toggle is-fullwidth mb-4">
               <ul>
-                <li class="is-active"><a data-agent-store="public">Public</a></li>
-                <li><a data-agent-store="private">Private</a></li>
+                <li class="is-active"><a data-agent-store="public">${adminText("documents.storePublic", "Public")}</a></li>
+                <li><a data-agent-store="private">${adminText("documents.storePrivate", "Private")}</a></li>
               </ul>
             </div>
             <input type="hidden" id="agent-store" value="public" />
             <div class="columns is-variable is-4 is-multiline">
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Name</label>
+                  <label class="label">${adminText("documents.name", "Name")}</label>
                   <div class="control">
-                    <input id="agent-name" class="input" type="text" placeholder="Assistant" />
+                    <input id="agent-name" class="input" type="text" placeholder="${adminText("agents.namePlaceholder", "Assistant")}" />
                   </div>
                 </div>
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Provider</label>
+                  <label class="label">${adminText("agents.provider", "Provider")}</label>
                   <div class="control">
                     <div class="select is-fullwidth">
                       <select id="agent-provider"></select>
@@ -1304,13 +1405,13 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Model</label>
+                  <label class="label">${adminText("agents.model", "Model")}</label>
                   <div class="control">
                     <input
                       id="agent-model-search"
                       class="input"
                       type="search"
-                      placeholder="Search models"
+                      placeholder="${adminText("agents.searchModels", "Search models")}"
                       autocomplete="off"
                     />
                   </div>
@@ -1323,17 +1424,17 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               </div>
               <div class="column is-full">
                 <div class="field">
-                  <label class="label">System prompt</label>
+                  <label class="label">${adminText("agents.systemPrompt", "System prompt")}</label>
                   <div class="control">
-                    <textarea id="agent-system" class="textarea" rows="3" placeholder="System prompt"></textarea>
+                    <textarea id="agent-system" class="textarea" rows="3" placeholder="${adminText("agents.systemPrompt", "System prompt")}"></textarea>
                   </div>
                 </div>
               </div>
               <div class="column is-full">
                 <div class="field">
-                  <label class="label">Admin prompt</label>
+                  <label class="label">${adminText("agents.adminPrompt", "Admin prompt")}</label>
                   <div class="control">
-                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="Admin prompt"></textarea>
+                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="${adminText("agents.adminPrompt", "Admin prompt")}"></textarea>
                   </div>
                 </div>
               </div>
@@ -1341,14 +1442,14 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           </form>
         </section>
         <footer class="modal-card-foot">
-          <button id="agent-cancel" class="button app-button app-ghost">Cancel</button>
+          <button id="agent-cancel" class="button app-button app-ghost">${cancelLabel}</button>
           <button
             id="agent-submit"
             form="agent-form"
             type="submit"
             class="button app-button app-primary"
           >
-            Create agent
+            ${createAgentLabel}
           </button>
         </footer>
       </div>
@@ -1357,8 +1458,8 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
       <div class="modal-background" data-close="integration"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title" id="integration-modal-title">Configure integration</p>
-          <button class="delete" aria-label="close" data-close="integration"></button>
+          <p class="modal-card-title" id="integration-modal-title">${adminText("integrations.configure", "Configure integration")}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="integration"></button>
         </header>
         <section class="modal-card-body">
           <div id="integration-error" class="notification is-danger is-light is-hidden"></div>
@@ -1367,8 +1468,8 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           </form>
         </section>
         <footer class="modal-card-foot">
-          <button id="integration-cancel" class="button app-button app-ghost">Cancel</button>
-          <button form="integration-form" type="submit" class="button app-button app-primary">Save</button>
+          <button id="integration-cancel" class="button app-button app-ghost">${cancelLabel}</button>
+          <button form="integration-form" type="submit" class="button app-button app-primary">${saveLabel}</button>
         </footer>
       </div>
     </div>
@@ -1376,26 +1477,30 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
       <div class="modal-background" data-close="confirm"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title" id="confirm-modal-title">Confirm action</p>
-          <button class="delete" aria-label="close" data-close="confirm"></button>
+          <p class="modal-card-title" id="confirm-modal-title">${adminText("confirm.title", "Confirm action")}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="confirm"></button>
         </header>
         <section class="modal-card-body">
           <p id="confirm-modal-message" class="app-muted"></p>
         </section>
         <footer class="modal-card-foot">
-          <button id="confirm-cancel" type="button" class="button app-button app-ghost">Cancel</button>
-          <button id="confirm-submit" type="button" class="button app-button app-primary">Confirm</button>
+          <button id="confirm-cancel" type="button" class="button app-button app-ghost">${cancelLabel}</button>
+          <button id="confirm-submit" type="button" class="button app-button app-primary">${confirmLabel}</button>
         </footer>
       </div>
     </div>
     <div id="system-update-lock" class="app-update-lock" hidden>
       <div class="app-update-lock-card app-surface">
-        <p class="app-update-lock-eyebrow">System Update</p>
-        <h2 id="system-update-lock-title" class="title is-5">Admin update in progress</h2>
-        <p id="system-update-lock-message" class="app-muted">Please wait while the admin files are replaced.</p>
+        <p class="app-update-lock-eyebrow">${adminText("systemUpdate.title", "System Update")}</p>
+        <h2 id="system-update-lock-title" class="title is-5">${adminText("systemUpdate.inProgress", "Admin update in progress")}</h2>
+        <p id="system-update-lock-message" class="app-muted">${adminText("systemUpdate.wait", "Please wait while the admin files are replaced.")}</p>
         <div class="app-update-lock-meta">
-          <span id="system-update-current-version">Current version: ${state.systemUpdate?.currentVersion ?? "unknown"}</span>
-          <span id="system-update-latest-version">Latest version: ${state.systemUpdate?.latestVersion ?? "unknown"}</span>
+          <span id="system-update-current-version">${adminText("systemUpdate.currentVersion", "Current version: {version}", {
+    version: state.systemUpdate?.currentVersion ?? adminText("common.unknown", "unknown")
+  })}</span>
+          <span id="system-update-latest-version">${adminText("systemUpdate.latestVersion", "Latest version: {version}", {
+    version: state.systemUpdate?.latestVersion ?? adminText("common.unknown", "unknown")
+  })}</span>
         </div>
       </div>
     </div>
@@ -1433,11 +1538,15 @@ var renderSystemUpdateControls = () => {
   const hasStatus = Boolean(status2?.currentVersion || status2?.latestVersion || status2?.message || status2?.error);
   button.toggleAttribute("disabled", isRunning || !isReady);
   mobileButton.toggleAttribute("disabled", isRunning || !isReady);
-  buttonLabel.textContent = isRunning ? "Updating..." : isReady ? `Update ${status2?.latestVersion ?? ""}`.trim() : "Update";
+  buttonLabel.textContent = isRunning ? adminText("systemUpdate.updating", "Updating...") : isReady ? adminText("systemUpdate.updateVersion", "Update {version}", { version: status2?.latestVersion ?? "" }).trim() : adminText("systemUpdate.action", "Update");
   mobileButtonLabel.textContent = buttonLabel.textContent;
-  menuLink.textContent = isRunning ? "Admin update in progress" : isReady ? `Update admin to ${status2?.latestVersion ?? "latest"}` : "Update admin";
+  menuLink.textContent = isRunning ? adminText("systemUpdate.inProgress", "Admin update in progress") : isReady ? adminText("systemUpdate.updateAdminTo", "Update admin to {version}", {
+    version: status2?.latestVersion ?? adminText("common.latest", "latest")
+  }) : adminText("systemUpdate.updateAdmin", "Update admin");
   mobileLink.textContent = menuLink.textContent;
-  mobileCurrentVersion.textContent = `Current version: ${status2?.currentVersion ?? "unknown"}`;
+  mobileCurrentVersion.textContent = adminText("systemUpdate.currentVersion", "Current version: {version}", {
+    version: status2?.currentVersion ?? adminText("common.unknown", "unknown")
+  });
   statusChip.classList.toggle("is-hidden", !hasStatus);
   statusChip.classList.toggle("is-error", Boolean(status2?.error) && !isRunning);
   statusChip.classList.toggle("is-ready", isReady && !isRunning);
@@ -1445,26 +1554,37 @@ var renderSystemUpdateControls = () => {
   mobileStatusChip.classList.toggle("is-error", Boolean(status2?.error) && !isRunning);
   mobileStatusChip.classList.toggle("is-ready", isReady && !isRunning);
   if (isRunning) {
-    statusText.textContent = status2?.message || "Updating admin...";
+    statusText.textContent = status2?.message || adminText("systemUpdate.updatingAdmin", "Updating admin...");
     mobileStatusText.textContent = statusText.textContent;
   } else if (status2?.error) {
-    statusText.textContent = `Update check failed. Current ${status2?.currentVersion ?? "unknown"}.`;
+    statusText.textContent = adminText("systemUpdate.checkFailed", "Update check failed. Current {version}.", {
+      version: status2?.currentVersion ?? adminText("common.unknown", "unknown")
+    });
     mobileStatusText.textContent = statusText.textContent;
   } else if (isReady) {
-    statusText.textContent = `Update available: ${status2?.currentVersion ?? "unknown"} -> ${status2?.latestVersion ?? "unknown"}`;
+    statusText.textContent = adminText("systemUpdate.available", "Update available: {current} -> {latest}", {
+      current: status2?.currentVersion ?? adminText("common.unknown", "unknown"),
+      latest: status2?.latestVersion ?? adminText("common.unknown", "unknown")
+    });
     mobileStatusText.textContent = statusText.textContent;
   } else if (status2?.currentVersion) {
-    statusText.textContent = `Admin ${status2.currentVersion}`;
+    statusText.textContent = adminText("systemUpdate.adminVersion", "Admin {version}", {
+      version: status2.currentVersion
+    });
     mobileStatusText.textContent = statusText.textContent;
   } else {
-    statusText.textContent = "Version unknown";
+    statusText.textContent = adminText("systemUpdate.versionUnknown", "Version unknown");
     mobileStatusText.textContent = statusText.textContent;
   }
   lock.hidden = !isRunning;
-  lockTitle.textContent = "Admin update in progress";
-  lockMessage.textContent = status2?.message || "Please wait while the admin files are replaced.";
-  currentVersion.textContent = `Current version: ${status2?.currentVersion ?? "unknown"}`;
-  latestVersion.textContent = `Latest version: ${status2?.latestVersion ?? "unknown"}`;
+  lockTitle.textContent = adminText("systemUpdate.inProgress", "Admin update in progress");
+  lockMessage.textContent = status2?.message || adminText("systemUpdate.wait", "Please wait while the admin files are replaced.");
+  currentVersion.textContent = adminText("systemUpdate.currentVersion", "Current version: {version}", {
+    version: status2?.currentVersion ?? adminText("common.unknown", "unknown")
+  });
+  latestVersion.textContent = adminText("systemUpdate.latestVersion", "Latest version: {version}", {
+    version: status2?.latestVersion ?? adminText("common.unknown", "unknown")
+  });
 };
 
 // web/src/ui/notifications.ts
@@ -1589,6 +1709,7 @@ var initTheme = () => {
 
 // web/src/features/auth/login.ts
 init_api();
+init_translations();
 var renderLogin = (context, error) => {
   const { container, onAuth, onSuccess, onClearAgentState } = context;
   onClearAgentState();
@@ -1597,24 +1718,24 @@ var renderLogin = (context, error) => {
       <div class="container">
         <div class="box app-surface">
           <div class="mb-4">
-            <h1 class="title is-4">Admin Login</h1>
-            <p class="app-muted">\u03A3\u03C5\u03BD\u03B4\u03B5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BC\u03B5 email \u03BA\u03B1\u03B9 password.</p>
+            <h1 class="title is-4">${adminText("auth.loginTitle", "Admin Login")}</h1>
+            <p class="app-muted">${adminText("auth.loginSubtitle", "Sign in with email and password.")}</p>
           </div>
           ${error ? `<div class="notification is-danger is-light">${error}</div>` : ""}
           <form id="user-form">
             <div class="field">
-              <label class="label">Email</label>
+              <label class="label">${adminText("auth.email", "Email")}</label>
               <div class="control">
                 <input class="input" type="email" name="email" required />
               </div>
             </div>
             <div class="field">
-              <label class="label">Password</label>
+              <label class="label">${adminText("auth.password", "Password")}</label>
               <div class="control">
                 <input class="input" type="password" name="password" required />
               </div>
             </div>
-            <button type="submit" class="button app-button app-primary">\u03A3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7</button>
+            <button type="submit" class="button app-button app-primary">${adminText("auth.login", "Sign in")}</button>
           </form>
         </div>
       </div>
@@ -1643,6 +1764,7 @@ var renderLogin = (context, error) => {
 
 // web/src/features/auth/profile.ts
 init_api();
+init_translations();
 
 // web/src/features/chat/runtime.ts
 var agentChatCleanup = null;
@@ -1711,12 +1833,12 @@ var renderProfile = async () => {
   clearRegisteredIntegrationCleanup();
   const auth = state.auth;
   if (!isTokenAuth(auth) || !auth.user) {
-    content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03C5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u03C0\u03C1\u03BF\u03C6\u03AF\u03BB \u03B3\u03B9\u03B1 API key \u03C3\u03CD\u03BD\u03B4\u03B5\u03C3\u03B7.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.noApiKeyProfile", "No profile is available for API key authentication.")}</p>`;
     return;
   }
   const currentUser = auth.user;
   if (!state.authDocumentId) {
-    content.innerHTML = `<p class="app-muted">\u0394\u03B5\u03BD \u03B2\u03C1\u03AD\u03B8\u03B7\u03BA\u03B5 auth.json.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.authMissing", "auth.json was not found.")}</p>`;
     return;
   }
   let authDoc;
@@ -1728,7 +1850,7 @@ var renderProfile = async () => {
   }
   const data = authDoc.payload.data;
   if (!isAuthData(data)) {
-    content.innerHTML = `<p class="app-muted">\u03A4\u03BF auth.json \u03B4\u03B5\u03BD \u03AD\u03C7\u03B5\u03B9 users.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.authNoUsers", "auth.json does not contain users.")}</p>`;
     return;
   }
   const users = data.users;
@@ -1742,7 +1864,7 @@ var renderProfile = async () => {
     return false;
   });
   if (index < 0) {
-    content.innerHTML = `<p class="app-muted">\u039F \u03C7\u03C1\u03AE\u03C3\u03C4\u03B7\u03C2 \u03B4\u03B5\u03BD \u03B2\u03C1\u03AD\u03B8\u03B7\u03BA\u03B5 \u03C3\u03C4\u03BF auth.json.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.userMissing", "The user was not found in auth.json.")}</p>`;
     return;
   }
   const current = users[index];
@@ -1755,7 +1877,7 @@ var renderProfile = async () => {
     <div class="columns is-variable is-4 is-multiline">
       <div class="column is-half">
         <div class="field">
-          <label class="label">First Name</label>
+          <label class="label">${adminText("profile.firstName", "First Name")}</label>
           <div class="control">
             <input id="profile-firstname" class="input" type="text" value="${current.firstname || ""}" />
           </div>
@@ -1763,7 +1885,7 @@ var renderProfile = async () => {
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Last Name</label>
+          <label class="label">${adminText("profile.lastName", "Last Name")}</label>
           <div class="control">
             <input id="profile-lastname" class="input" type="text" value="${current.lastname || ""}" />
           </div>
@@ -1771,7 +1893,7 @@ var renderProfile = async () => {
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Email</label>
+          <label class="label">${adminText("auth.email", "Email")}</label>
           <div class="control">
             <input id="profile-email" class="input" type="email" value="${current.email || ""}" />
           </div>
@@ -1779,9 +1901,9 @@ var renderProfile = async () => {
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Password</label>
+          <label class="label">${adminText("auth.password", "Password")}</label>
           <div class="control">
-            <input id="profile-password" class="input" type="password" placeholder="Leave blank to keep" />
+            <input id="profile-password" class="input" type="password" placeholder="${adminText("profile.passwordPlaceholder", "Leave blank to keep")}" />
           </div>
         </div>
       </div>
@@ -1949,8 +2071,10 @@ var initShellEvents = ({
 
 // web/src/features/modals/create-document.ts
 init_api();
+init_translations();
 
 // web/src/features/modules/helpers.ts
+init_translations();
 var normalizeModuleList = (modulesValue, fallback) => {
   const list = Array.isArray(modulesValue) ? [...modulesValue] : [];
   if (fallback && !list.includes(fallback)) {
@@ -1960,7 +2084,7 @@ var normalizeModuleList = (modulesValue, fallback) => {
 };
 var moduleChecklistHtml = (modules, selected = []) => {
   if (!modules.length) {
-    return `<p class="help">No modules available.</p>`;
+    return `<p class="help">${adminText("modules.noModulesAvailable", "No modules available.")}</p>`;
   }
   const selectedSet = new Set(selected);
   return modules.map((module) => {
@@ -2060,43 +2184,43 @@ var initCreateModal = ({ getAuth, onCreated, refreshNavigation: refreshNavigatio
     const storeValue = document.getElementById("create-store")?.value === "private" ? "private" : "public";
     const dataRaw = document.getElementById("create-data")?.value.trim() || "";
     if (!path) {
-      showCreateError("Filename is required.");
+      showCreateError(adminText("createDocument.filenameRequired", "Filename is required."));
       return;
     }
     if (!path.endsWith(".json")) {
-      showCreateError("Filename must end with .json.");
+      showCreateError(adminText("createDocument.filenameJson", "Filename must end with .json."));
       return;
     }
     if (path.includes("/") || path.includes("\\") || path.includes("..")) {
-      showCreateError("Filename must not include path separators.");
+      showCreateError(adminText("createDocument.filenameNoPath", "Filename must not include path separators."));
       return;
     }
     if (!page) {
-      showCreateError("Page is required.");
+      showCreateError(adminText("documents.pageRequired", "Page is required."));
       return;
     }
     if (!name) {
-      showCreateError("Name is required.");
+      showCreateError(adminText("documents.nameRequired", "Name is required."));
       return;
     }
     if (!orderRaw) {
-      showCreateError("Order is required.");
+      showCreateError(adminText("documents.orderRequired", "Order is required."));
       return;
     }
     const orderValue = Number(orderRaw);
     if (!Number.isInteger(orderValue)) {
-      showCreateError("Order must be an integer.");
+      showCreateError(adminText("documents.orderInteger", "Order must be an integer."));
       return;
     }
     if (!dataRaw) {
-      showCreateError("Data is required.");
+      showCreateError(adminText("documents.dataRequired", "Data is required."));
       return;
     }
     let data;
     try {
       data = JSON.parse(dataRaw);
     } catch {
-      showCreateError("Data must be valid JSON.");
+      showCreateError(adminText("documents.dataJsonValid", "Data must be valid JSON."));
       return;
     }
     const payloadToCreate = {
@@ -2127,8 +2251,10 @@ var initCreateModal = ({ getAuth, onCreated, refreshNavigation: refreshNavigatio
 
 // web/src/features/modals/create-agent.ts
 init_api();
+init_translations();
 
 // web/src/features/integrations/helpers.ts
+init_translations();
 var getEnabledIntegrations = (integrations) => integrations.filter((integration) => integration.enabled);
 var getIntegrationModels = (integrationSettings, name) => {
   const settings = integrationSettings[name];
@@ -2142,12 +2268,15 @@ var populateProviderSelect = (select, integrations, selectedProvider, help, incl
   const enabled = getEnabledIntegrations(integrations);
   select.innerHTML = "";
   if (!enabled.length) {
-    const option = new Option("No integrations enabled", "", true, true);
+    const option = new Option(adminText("integrations.noEnabled", "No integrations enabled"), "", true, true);
     option.disabled = true;
     select.append(option);
     select.disabled = true;
     if (help) {
-      help.textContent = "Enable an integration from Settings > Integrations.";
+      help.textContent = adminText(
+        "integrations.enableFromSettings",
+        "Enable an integration from Settings > Integrations."
+      );
     }
     return "";
   }
@@ -2155,11 +2284,19 @@ var populateProviderSelect = (select, integrations, selectedProvider, help, incl
   if (includeDisabledCurrent && selectedProvider) {
     const exists = enabled.some((integration) => integration.name === selectedProvider);
     if (!exists) {
-      const option = new Option(`${selectedProvider} (disabled)`, selectedProvider, true, true);
+      const option = new Option(
+        adminText("integrations.providerDisabled", "{name} (disabled)", { name: selectedProvider }),
+        selectedProvider,
+        true,
+        true
+      );
       option.disabled = true;
       select.append(option);
       if (help) {
-        help.textContent = "Current provider is disabled. Select an enabled provider.";
+        help.textContent = adminText(
+          "integrations.currentProviderDisabled",
+          "Current provider is disabled. Select an enabled provider."
+        );
       }
     } else if (help) {
       help.textContent = "";
@@ -2181,7 +2318,7 @@ var populateProviderSelect = (select, integrations, selectedProvider, help, incl
 var populateModelSelect = (select, models, selectedModel, includeDisabledCurrent = false) => {
   select.innerHTML = "";
   if (!models.length) {
-    const option = new Option("No models synced", "", true, true);
+    const option = new Option(adminText("integrations.noModelsSynced", "No models synced"), "", true, true);
     option.disabled = true;
     select.append(option);
     select.disabled = true;
@@ -2189,7 +2326,12 @@ var populateModelSelect = (select, models, selectedModel, includeDisabledCurrent
   }
   select.disabled = false;
   if (includeDisabledCurrent && selectedModel && !models.includes(selectedModel)) {
-    const option = new Option(`${selectedModel} (unavailable)`, selectedModel, true, true);
+    const option = new Option(
+      adminText("integrations.modelUnavailable", "{name} (unavailable)", { name: selectedModel }),
+      selectedModel,
+      true,
+      true
+    );
     option.disabled = true;
     select.append(option);
   }
@@ -2343,11 +2485,11 @@ var initAgentModal = ({ getAuth, reloadAgents, onAgentCreated }) => {
     const adminPrompt = document.getElementById("agent-admin")?.value.trim() || "";
     const storeValue = document.getElementById("agent-store")?.value === "private" ? "private" : "public";
     if (!name || !provider || !model || !systemPrompt || !adminPrompt) {
-      showAgentError("All fields are required.");
+      showAgentError(adminText("agents.allFieldsRequired", "All fields are required."));
       return;
     }
     if (agentProviderSelect?.disabled || agentModelSelect?.disabled) {
-      showAgentError("Enable an integration and sync models first.");
+      showAgentError(adminText("agents.enableIntegrationFirst", "Enable an integration and sync models first."));
       return;
     }
     try {
@@ -2371,6 +2513,7 @@ var initAgentModal = ({ getAuth, reloadAgents, onAgentCreated }) => {
 
 // web/src/features/modals/integration.ts
 init_api();
+init_translations();
 var initIntegrationModal = ({
   getAuth,
   reloadIntegrations,
@@ -2429,7 +2572,10 @@ var initIntegrationModal = ({
     if (integration.name === "codex-cli") {
       const notice = document.createElement("div");
       notice.className = "notification is-light app-muted";
-      notice.innerHTML = "Development setup: use <code>CLI authentication</code> to avoid API costs, then run <code>docker compose exec manage codex login --device-auth</code> once. The Docker volume keeps the Codex credentials between restarts.";
+      notice.innerHTML = adminText(
+        "integrations.codexCliNotice",
+        "Development setup: use <code>CLI authentication</code> to avoid API costs, then run <code>docker compose exec manage codex login --device-auth</code> once. The Docker volume keeps the Codex credentials between restarts."
+      );
       integrationFields.appendChild(notice);
     }
     integration.fields.forEach((field) => {
@@ -2516,7 +2662,7 @@ var initIntegrationModal = ({
       if (field.required) {
         const help = document.createElement("p");
         help.className = "help app-muted";
-        help.textContent = "Required";
+        help.textContent = adminText("common.required", "Required");
         help.dataset.integrationRequired = field.key;
         wrapper.appendChild(help);
       }
@@ -2547,7 +2693,7 @@ var initIntegrationModal = ({
     currentIntegration = integration;
     clearIntegrationError();
     if (integrationTitle) {
-      integrationTitle.textContent = `${integration.enabled ? "Edit" : "Enable"} ${integration.name}`;
+      integrationTitle.textContent = integration.enabled ? adminText("integrations.editNamed", "Edit {name}", { name: integration.name }) : adminText("integrations.enableNamed", "Enable {name}", { name: integration.name });
     }
     buildIntegrationFields(integration);
     integrationModal?.classList.add("is-active");
@@ -2572,7 +2718,7 @@ var initIntegrationModal = ({
       if (!value) {
         const codexApiKeyRequired = currentIntegration.name === "codex-cli" && field.key === "apiKey" && document.getElementById("integration-codex-cli-authMode")?.value === "apiKey";
         if (field.required || codexApiKeyRequired) {
-          showIntegrationError(`${field.label} is required.`);
+          showIntegrationError(adminText("common.fieldRequired", "{field} is required.", { field: field.label }));
           return;
         }
         continue;
@@ -2592,6 +2738,7 @@ var initIntegrationModal = ({
 };
 
 // web/src/features/modals/confirm.ts
+init_translations();
 var initConfirmModal = () => {
   const confirmModal = document.getElementById("confirm-modal");
   const confirmTitle = document.getElementById("confirm-modal-title");
@@ -2613,12 +2760,12 @@ var initConfirmModal = () => {
       return;
     }
     confirmButton.className = defaultConfirmClassName;
-    confirmButton.textContent = "Confirm";
+    confirmButton.textContent = adminText("confirm.confirm", "Confirm");
   };
   const openConfirmModal = ({
     title,
     message,
-    confirmLabel = "Confirm",
+    confirmLabel = adminText("confirm.confirm", "Confirm"),
     confirmClassName = defaultConfirmClassName
   }) => {
     if (!confirmModal || !confirmTitle || !confirmMessage || !confirmButton) {
@@ -2648,6 +2795,7 @@ var initConfirmModal = () => {
 
 // web/src/features/realtime/client.ts
 init_api();
+init_translations();
 var socket = null;
 var authProvider = null;
 var reconnectTimer = null;
@@ -2726,7 +2874,7 @@ var connect = async () => {
       socket?.close();
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Realtime connection failed.";
+    const message = error instanceof Error ? error.message : adminText("realtime.connectionFailed", "Realtime connection failed.");
     if (message.toLowerCase() === "unauthorized") {
       active = false;
       setStatus("unauthorized");
@@ -2784,6 +2932,7 @@ var subscribeRealtimeStatus = (listener) => {
 init_api();
 
 // web/src/app/navigation.ts
+init_translations();
 var MOBILE_DRAWER_CLOSE_EVENT2 = "app:mobile-drawer-close";
 var findAuthDocumentId = (pages) => {
   for (const page of pages) {
@@ -2879,7 +3028,10 @@ var renderMobileNavList = (container, pages, mode, onSelectDocument) => {
     toggle.className = "app-mobile-nav-disclosure";
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-controls", `mobile-nav-submenu-${mode}-${index}`);
-    toggle.setAttribute("aria-label", `Toggle ${page.name} sections`);
+    toggle.setAttribute(
+      "aria-label",
+      adminText("navigation.toggleSections", "Toggle {name} sections", { name: page.name })
+    );
     toggle.innerHTML = `<span aria-hidden="true">+</span>`;
     toggle.addEventListener("click", () => {
       const isOpen = pageItem.classList.toggle("is-open");
@@ -2949,7 +3101,7 @@ var renderSystemPages = (container, pages, onSelectDocument, variant) => {
   if (systemPages.length === 0) {
     const empty = document.createElement("div");
     empty.className = variant === "desktop" ? "navbar-item is-size-7 app-muted" : "app-mobile-empty app-muted";
-    empty.textContent = "No system pages.";
+    empty.textContent = adminText("navigation.noSystemPages", "No system pages.");
     container.append(empty);
     return;
   }
@@ -2975,6 +3127,7 @@ var renderSystemPages = (container, pages, onSelectDocument, variant) => {
 };
 
 // web/src/features/agents/menu.ts
+init_translations();
 var renderAgentsMenu = (agents, onSelectAgent) => {
   const containers = [
     document.getElementById("nav-agents"),
@@ -2986,7 +3139,7 @@ var renderAgentsMenu = (agents, onSelectAgent) => {
   containers.forEach((container) => {
     container.innerHTML = "";
     if (!agents.length) {
-      container.innerHTML = container.id === "nav-agents" ? `<div class="navbar-item is-size-7 app-muted">No agents found.</div>` : `<div class="app-mobile-empty app-muted">No agents found.</div>`;
+      container.innerHTML = container.id === "nav-agents" ? `<div class="navbar-item is-size-7 app-muted">${adminText("agents.none", "No agents found.")}</div>` : `<div class="app-mobile-empty app-muted">${adminText("agents.none", "No agents found.")}</div>`;
       return;
     }
     agents.forEach((agent) => {
@@ -3006,6 +3159,7 @@ var renderAgentsMenu = (agents, onSelectAgent) => {
 };
 
 // web/src/features/forms/menu.ts
+init_translations();
 var renderFormsMenu = (forms) => {
   const links = [
     document.getElementById("forms-link"),
@@ -3020,12 +3174,12 @@ var renderFormsMenu = (forms) => {
   }
   links.forEach((link) => {
     link.classList.remove("is-hidden");
-    link.textContent = "Forms";
+    link.textContent = adminText("forms.title", "Forms");
   });
 };
 
 // web/src/app/language.ts
-var normalizeLanguage = (value) => {
+var normalizeLanguage2 = (value) => {
   if (typeof value !== "string") {
     return null;
   }
@@ -3036,7 +3190,7 @@ var collectLanguages = (variants) => {
   const seen = /* @__PURE__ */ new Set();
   const ordered = [];
   variants.forEach((variant) => {
-    const lang = normalizeLanguage(variant.language);
+    const lang = normalizeLanguage2(variant.language);
     if (!lang || seen.has(lang)) {
       return;
     }
@@ -3050,7 +3204,7 @@ var pickVariant = (variants, language) => {
     return null;
   }
   if (language) {
-    const match = variants.find((variant) => normalizeLanguage(variant.language) === language);
+    const match = variants.find((variant) => normalizeLanguage2(variant.language) === language);
     if (match) {
       return match;
     }
@@ -3060,14 +3214,14 @@ var pickVariant = (variants, language) => {
 var pickFirstLanguage = (groups) => {
   for (const page of groups) {
     for (const variant of page.variants) {
-      const lang = normalizeLanguage(variant.language);
+      const lang = normalizeLanguage2(variant.language);
       if (lang) {
         return lang;
       }
     }
     for (const section of page.sections) {
       for (const variant of section.variants) {
-        const lang = normalizeLanguage(variant.language);
+        const lang = normalizeLanguage2(variant.language);
         if (lang) {
           return lang;
         }
@@ -3077,7 +3231,7 @@ var pickFirstLanguage = (groups) => {
   return null;
 };
 var resolveNavigationPages = (groups, defaultLanguage, activeLanguage) => {
-  const normalizedDefault = normalizeLanguage(defaultLanguage);
+  const normalizedDefault = normalizeLanguage2(defaultLanguage);
   const seedLanguage = normalizedDefault ?? activeLanguage ?? pickFirstLanguage(groups);
   const resolvedLanguage = seedLanguage ?? null;
   const resolvedPages = groups.map((group) => {
@@ -3087,7 +3241,7 @@ var resolveNavigationPages = (groups, defaultLanguage, activeLanguage) => {
     return {
       page: group.page,
       name: pageVariant?.name ?? group.page,
-      language: normalizeLanguage(pageVariant?.language),
+      language: normalizeLanguage2(pageVariant?.language),
       order: pageVariant?.order ?? null,
       documentId: pageVariant?.id ?? null,
       store: pageVariant?.store ?? null,
@@ -3115,7 +3269,7 @@ var resolveSection = (section, language) => {
   return {
     id: variant.id,
     name: variant.name,
-    language: normalizeLanguage(variant.language),
+    language: normalizeLanguage2(variant.language),
     order: variant.order ?? section.order ?? null,
     store: variant.store ?? "public",
     path: variant.path ?? "",
@@ -3157,16 +3311,17 @@ var filterAgentsByLanguage = (agents, language) => {
   if (!language) {
     return agents;
   }
-  const matching = agents.filter((agent) => normalizeLanguage(agent.language) === language);
+  const matching = agents.filter((agent) => normalizeLanguage2(agent.language) === language);
   if (matching.length) {
     return matching;
   }
-  const untagged = agents.filter((agent) => !normalizeLanguage(agent.language));
+  const untagged = agents.filter((agent) => !normalizeLanguage2(agent.language));
   return untagged.length ? untagged : agents;
 };
-var normalizeLanguageValue = normalizeLanguage;
+var normalizeLanguageValue = normalizeLanguage2;
 
 // web/src/app/loaders.ts
+init_translations();
 var loadUiConfig = async () => {
   if (!state.auth) {
     return;
@@ -3185,8 +3340,23 @@ var loadLayoutConfig = async () => {
   try {
     const response = await fetchLayoutConfig(state.auth);
     state.layoutConfig = response.config ?? {};
+    setAdminTranslationConfig(state.layoutConfig);
   } catch {
     state.layoutConfig = {};
+    setAdminTranslationConfig({});
+  }
+};
+var preloadAdminLanguage = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const nav = await fetchNavigation(state.auth);
+    const defaultLanguage = normalizeLanguageValue(nav.defaultLanguage ?? null);
+    state.defaultLanguage = defaultLanguage;
+    setAdminLanguage(defaultLanguage);
+  } catch {
+    setAdminLanguage(getAdminLanguage());
   }
 };
 var loadModules = async () => {
@@ -3270,14 +3440,20 @@ var refreshNavigation = async (onSelectDocument) => {
     const nav = await fetchNavigation(state.auth);
     const pages = Array.isArray(nav.pages) ? nav.pages : [];
     const defaultLanguage = normalizeLanguageValue(nav.defaultLanguage ?? null);
+    const previousAdminLanguage = getAdminLanguage();
     state.navigationGroups = pages;
     state.defaultLanguage = defaultLanguage;
+    const adminLanguageChanged = setAdminLanguage(defaultLanguage);
     const resolved = resolveNavigationPages(pages, defaultLanguage, state.activeLanguage);
     state.activeLanguage = resolved.activeLanguage;
     state.navigationPages = resolved.pages;
     state.agents = filterAgentsByLanguage(state.agentsAll, state.activeLanguage);
     if (state.onSelectAgentMenu) {
       renderAgentsMenu(state.agents, state.onSelectAgentMenu);
+    }
+    if (adminLanguageChanged && previousAdminLanguage) {
+      window.location.reload();
+      return;
     }
     renderNavigation(resolved.pages, onSelectDocument);
     await loadForms();
@@ -3295,6 +3471,7 @@ var pushNotice = (type, message) => {
 };
 
 // web/src/views/integrations.ts
+init_translations();
 var renderIntegrationsView = ({
   content,
   auth,
@@ -3314,27 +3491,27 @@ var renderIntegrationsView = ({
     content.innerHTML = `
       <div class="app-view-header mb-4">
         <div>
-          <h1 class="title is-4">Integrations</h1>
-          <p class="app-muted">Configure AI providers and sync available models.</p>
+          <h1 class="title is-4">${adminText("integrations.title", "Integrations")}</h1>
+          <p class="app-muted">${adminText("integrations.subtitle", "Configure AI providers and sync available models.")}</p>
         </div>
       </div>
-      <div class="notification is-light">No integrations found.</div>
+      <div class="notification is-light">${adminText("integrations.none", "No integrations found.")}</div>
     `;
     return;
   }
   const list = integrations.map((integration) => {
-    const enabledLabel = integration.enabled ? "Enabled" : "Disabled";
+    const enabledLabel = integration.enabled ? adminText("integrations.enabled", "Enabled") : adminText("integrations.disabled", "Disabled");
     const models = integration.supportsModels ? getIntegrationModels2(integration.name).length : null;
-    const modelsLine = integration.supportsModels ? `<div class="app-module-row-meta">Models: ${models}</div>` : "";
-    const syncState = integration.syncing ? "Sync: running" : integration.lastSyncError ? `Last sync failed: ${integration.lastSyncError}` : integration.lastSyncedAt ? `Last synced: ${integration.lastSyncedAt}` : "Sync: idle";
+    const modelsLine = integration.supportsModels ? `<div class="app-module-row-meta">${adminText("integrations.models", "Models: {count}", { count: models ?? 0 })}</div>` : "";
+    const syncState = integration.syncing ? "Sync: running" : integration.lastSyncError ? adminText("integrations.lastSyncFailed", "Last sync failed: {error}", { error: integration.lastSyncError }) : integration.lastSyncedAt ? adminText("integrations.lastSynced", "Last synced: {time}", { time: integration.lastSyncedAt }) : adminText("integrations.syncIdle", "Sync: idle");
     const syncDisabled = integration.enabled && !integration.syncing ? "" : "disabled";
-    const settingsLabel = integration.enabled ? "Edit settings" : "Enable integration";
-    const syncLabel = integration.syncing ? "Syncing..." : "Sync models";
+    const settingsLabel = integration.enabled ? adminText("integrations.editSettings", "Edit settings") : adminText("integrations.enable", "Enable integration");
+    const syncLabel = integration.syncing ? adminText("integrations.syncing", "Syncing...") : adminText("integrations.syncModels", "Sync models");
     return `
         <div class="app-module-row">
           <div class="app-module-row-title">${integration.name}</div>
           <div class="app-module-row-meta">${integration.description}</div>
-          <div class="app-module-row-meta">Status: ${enabledLabel}</div>
+          <div class="app-module-row-meta">${adminText("integrations.status", "Status: {status}", { status: enabledLabel })}</div>
           ${modelsLine}
           ${integration.supportsModels ? `<div class="app-module-row-meta">${syncState}</div>` : ""}
           <div class="buttons">
@@ -3371,8 +3548,8 @@ var renderIntegrationsView = ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Integrations</h1>
-        <p class="app-muted">Configure AI providers and sync available models.</p>
+        <h1 class="title is-4">${adminText("integrations.title", "Integrations")}</h1>
+        <p class="app-muted">${adminText("integrations.subtitle", "Configure AI providers and sync available models.")}</p>
       </div>
     </div>
     <div class="app-module-list">${list}</div>
@@ -3397,7 +3574,10 @@ var renderIntegrationsView = ({
       }
       try {
         const result = await syncIntegrationModels2(auth, name);
-        pushNotice("success", result.alreadyRunning ? "Model sync already running." : "Model sync started.");
+        pushNotice(
+          "success",
+          result.alreadyRunning ? adminText("integrations.syncAlreadyRunning", "Model sync already running.") : adminText("integrations.syncStarted", "Model sync started.")
+        );
         await reloadIntegrations();
         renderIntegrationsView({
           content,
@@ -3435,15 +3615,16 @@ var encodeDocumentId = (store, path) => {
 };
 
 // web/src/views/logs.ts
+init_translations();
 var buildLogSelector = (logs, currentId) => {
   if (!logs.length) {
     return `
       <div class="field">
-        <label class="label">Log file</label>
+        <label class="label">${adminText("logs.logFile", "Log file")}</label>
         <div class="control">
           <div class="select is-fullwidth">
             <select disabled>
-              <option>No logs available</option>
+              <option>${adminText("logs.noLogsAvailable", "No logs available")}</option>
             </select>
           </div>
         </div>
@@ -3456,7 +3637,7 @@ var buildLogSelector = (logs, currentId) => {
   }).join("");
   return `
     <div class="field">
-      <label class="label">Log file</label>
+      <label class="label">${adminText("logs.logFile", "Log file")}</label>
       <div class="control">
         <div class="select is-fullwidth">
           <select id="log-file-select">${options}</select>
@@ -3480,21 +3661,21 @@ var renderLogsView = async ({
   }
   clearAgentState2();
   if (!auth) {
-    content.innerHTML = `<p class="app-muted">Authentication required.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("auth.required", "Authentication required.")}</p>`;
     return;
   }
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Logs</h1>
-        <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+        <h1 class="title is-4">${adminText("logs.title", "Logs")}</h1>
+        <p class="app-muted">${adminText("logs.subtitle", "Recent backend errors stored in manage/store/logs.")}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="logger-settings-open"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Logger settings"
-          title="Logger settings"
+          aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+          title="${adminText("logs.loggerSettings", "Logger settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -3515,7 +3696,7 @@ var renderLogsView = async ({
         </button>
       </div>
     </div>
-    <div class="notification is-light">Loading logs...</div>
+    <div class="notification is-light">${adminText("logs.loading", "Loading logs...")}</div>
   `;
   try {
     const response = await fetchLogs2(auth);
@@ -3529,15 +3710,15 @@ var renderLogsView = async ({
     content.innerHTML = `
       <div class="app-view-header mb-4">
         <div>
-          <h1 class="title is-4">Logs</h1>
-          <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+          <h1 class="title is-4">${adminText("logs.title", "Logs")}</h1>
+          <p class="app-muted">${adminText("logs.subtitle", "Recent backend errors stored in manage/store/logs.")}</p>
         </div>
         <div class="app-view-actions">
           <button
             id="logger-settings-open"
             class="button app-button app-ghost app-icon-button"
-            aria-label="Logger settings"
-            title="Logger settings"
+            aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+            title="${adminText("logs.loggerSettings", "Logger settings")}"
           >
             <span class="icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -3558,7 +3739,7 @@ var renderLogsView = async ({
           </button>
         </div>
       </div>
-      <div class="notification is-light">No logs found.</div>
+      <div class="notification is-light">${adminText("logs.none", "No logs found.")}</div>
     `;
     document.getElementById("logger-settings-open")?.addEventListener("click", () => {
       openLoggerSettings2();
@@ -3568,10 +3749,10 @@ var renderLogsView = async ({
   const list = logs.map((log) => {
     const metaParts = [];
     if (log.count !== void 0) {
-      metaParts.push(`${log.count} items`);
+      metaParts.push(adminText("logs.items", "{count} items", { count: log.count }));
     }
     if (log.updatedAt) {
-      metaParts.push(`updated ${log.updatedAt}`);
+      metaParts.push(adminText("logs.updatedAt", "updated {time}", { time: log.updatedAt }));
     }
     const meta = metaParts.length ? metaParts.join(" \xB7 ") : "";
     return `
@@ -3582,7 +3763,7 @@ var renderLogsView = async ({
           <div class="buttons">
             <button class="button app-button app-ghost" data-log-id="${encodeURIComponent(
       log.id
-    )}">Open</button>
+    )}">${adminText("common.open", "Open")}</button>
           </div>
         </div>
       `;
@@ -3590,15 +3771,15 @@ var renderLogsView = async ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Logs</h1>
-        <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+        <h1 class="title is-4">${adminText("logs.title", "Logs")}</h1>
+        <p class="app-muted">${adminText("logs.subtitle", "Recent backend errors stored in manage/store/logs.")}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="logger-settings-open"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Logger settings"
-          title="Logger settings"
+          aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+          title="${adminText("logs.loggerSettings", "Logger settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -3673,7 +3854,7 @@ var renderLogDocument = ({
     return `
             <div class="app-log-item">
               <div class="app-log-header">
-                <div class="app-log-title">${endpoint || "Request"}</div>
+                <div class="app-log-title">${endpoint || adminText("logs.request", "Request")}</div>
                 <div class="app-log-meta">${statusLabel}</div>
               </div>
               <div class="app-log-message">${message}</div>
@@ -3682,19 +3863,19 @@ var renderLogDocument = ({
               </div>
             </div>
           `;
-  }).join("") : `<div class="notification is-light">No log entries yet.</div>`;
+  }).join("") : `<div class="notification is-light">${adminText("logs.noEntries", "No log entries yet.")}</div>`;
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
         <h1 class="title is-4">${payload.name}</h1>
-        <p class="app-muted">Logs \xB7 ${doc.store}/${doc.path}</p>
+        <p class="app-muted">${adminText("logs.title", "Logs")} \xB7 ${doc.store}/${doc.path}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="logger-settings-open"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Logger settings"
-          title="Logger settings"
+          aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+          title="${adminText("logs.loggerSettings", "Logger settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -3719,12 +3900,12 @@ var renderLogDocument = ({
       ${buildLogSelector(logs, doc.id)}
     </div>
     <div class="app-log-summary">
-      <div class="app-log-summary-item"><span class="app-muted">Items</span> ${count}</div>
-      ${createdAt ? `<div class="app-log-summary-item"><span class="app-muted">Created</span> ${createdAt}</div>` : ""}
-      ${updatedAt ? `<div class="app-log-summary-item"><span class="app-muted">Updated</span> ${updatedAt}</div>` : ""}
+      <div class="app-log-summary-item"><span class="app-muted">${adminText("logs.itemsLabel", "Items")}</span> ${count}</div>
+      ${createdAt ? `<div class="app-log-summary-item"><span class="app-muted">${adminText("common.created", "Created")}</span> ${createdAt}</div>` : ""}
+      ${updatedAt ? `<div class="app-log-summary-item"><span class="app-muted">${adminText("common.updated", "Updated")}</span> ${updatedAt}</div>` : ""}
     </div>
     <div class="mb-4 buttons">
-      <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+      <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
     </div>
     <div class="app-log-list">
       ${listHtml}
@@ -3755,6 +3936,7 @@ var renderLogDocument = ({
 };
 
 // web/src/modules/utils.ts
+init_translations();
 var slug = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 var isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
   value
@@ -3763,12 +3945,13 @@ var moduleSettingsKey = (payload, moduleName) => {
   const moduleSlug = slug(moduleName) || "module";
   const docId = typeof payload.id === "string" ? payload.id.trim().toLowerCase() : "";
   if (!docId || !isUuid(docId)) {
-    throw new Error("Document id is required for module settings.");
+    throw new Error(adminText("modules.documentIdRequired", "Document id is required for module settings."));
   }
   return `${docId}-${moduleSlug}`;
 };
 
 // web/src/modules/chat/layout.ts
+init_translations();
 var buildHeader = (module, agentName, openSettings, hideHeader) => {
   if (hideHeader) {
     return null;
@@ -3785,8 +3968,8 @@ var buildHeader = (module, agentName, openSettings, hideHeader) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    button.title = "Module settings";
-    button.setAttribute("aria-label", "Module settings");
+    button.title = adminText("modules.settings", "Module settings");
+    button.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
     button.innerHTML = `
       <span class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -3805,7 +3988,7 @@ var buildHeader = (module, agentName, openSettings, hideHeader) => {
   if (agentName) {
     const agentMeta = document.createElement("div");
     agentMeta.className = "app-module-meta";
-    agentMeta.textContent = `Agent: ${agentName}`;
+    agentMeta.textContent = adminText("agents.agentNamed", "Agent: {name}", { name: agentName });
     header.append(agentMeta);
   }
   return header;
@@ -3824,20 +4007,20 @@ var renderChatLayout = (panel, module, agentName, openSettings, hideHeader) => {
       <div class="app-panel app-chat">
         <div class="app-chat-header">
           <div>
-            <div class="app-chat-title" data-role="chat-title">No conversation selected</div>
-            <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
+            <div class="app-chat-title" data-role="chat-title">${adminText("chat.noneSelected", "No conversation selected")}</div>
+            <div class="app-chat-meta app-muted" data-role="chat-meta">${adminText("chat.selectOrCreate", "Select or create a conversation.")}</div>
           </div>
           <div class="app-chat-actions">
             <div class="select is-small app-chat-select-wrap">
               <select data-role="chat-select">
-                <option value="">Select chat</option>
+                <option value="">${adminText("chat.selectConversation", "Select chat")}</option>
               </select>
             </div>
             <button
               class="button app-button app-ghost app-chat-toolbar-button app-chat-toolbar-icon-button"
               data-action="new"
-              title="Start a new conversation"
-              aria-label="Start a new conversation"
+              title="${adminText("chat.startNewConversation", "Start a new conversation")}"
+              aria-label="${adminText("chat.startNewConversation", "Start a new conversation")}"
             >
               <span class="icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
@@ -3848,8 +4031,8 @@ var renderChatLayout = (panel, module, agentName, openSettings, hideHeader) => {
             <button
               class="button app-button app-ghost app-icon-button app-chat-toolbar-button app-chat-toolbar-icon-button"
               data-action="delete"
-              title="Delete the selected conversation"
-              aria-label="Delete the selected conversation"
+              title="${adminText("chat.deleteConversation", "Delete the selected conversation")}"
+              aria-label="${adminText("chat.deleteConversation", "Delete the selected conversation")}"
               disabled
             >
               <span class="icon" aria-hidden="true">
@@ -3862,7 +4045,7 @@ var renderChatLayout = (panel, module, agentName, openSettings, hideHeader) => {
         </div>
         <div class="app-chat-scroll" data-role="chat-scroll">
           <div class="app-chat-messages" data-role="chat-messages"></div>
-          <button type="button" class="button app-button app-ghost app-chat-jump" data-role="chat-jump" aria-label="Jump to latest message" title="Jump to latest message">
+          <button type="button" class="button app-button app-ghost app-chat-jump" data-role="chat-jump" aria-label="${adminText("chat.jumpToLatest", "Jump to latest message")}" title="${adminText("chat.jumpToLatest", "Jump to latest message")}">
             <span class="icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
                 <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -3874,11 +4057,11 @@ var renderChatLayout = (panel, module, agentName, openSettings, hideHeader) => {
           <form data-role="chat-form">
             <div class="field">
               <div class="control">
-                <textarea class="textarea" rows="2" placeholder="Write a message" data-role="chat-input" disabled></textarea>
+                <textarea class="textarea" rows="2" placeholder="${adminText("chat.writeMessage", "Write a message")}" data-role="chat-input" disabled></textarea>
               </div>
             </div>
             <div class="buttons">
-              <button class="button app-button app-primary" data-role="chat-send" disabled>Send</button>
+              <button class="button app-button app-primary" data-role="chat-send" disabled>${adminText("chat.send", "Send")}</button>
             </div>
           </form>
         </div>
@@ -3960,6 +4143,7 @@ var markConversationPending = (conversation, pending) => {
 };
 
 // web/src/features/chat/progress.ts
+init_translations();
 var getConversationProgress = (conversation) => {
   if (!conversation) {
     return null;
@@ -4001,10 +4185,10 @@ var appendConversationProgress = (container, progress) => {
   card.className = "app-chat-progress";
   const title = document.createElement("div");
   title.className = "app-chat-progress-title";
-  title.textContent = "Codex is working";
+  title.textContent = adminText("chat.progress.title", "Codex is working");
   const status2 = document.createElement("div");
   status2.className = "app-chat-progress-status";
-  status2.textContent = progress.status || "Working...";
+  status2.textContent = progress.status || adminText("chat.progress.working", "Working...");
   card.append(title, status2);
   if (progress.items.length > 0) {
     const list = document.createElement("div");
@@ -4021,7 +4205,13 @@ var appendConversationProgress = (container, progress) => {
 };
 
 // web/src/features/chat/processing.ts
-var PHRASES = ["Processing...", "Sailing...", "Swimming...", "Floating..."];
+init_translations();
+var PHRASES = [
+  adminText("chat.processing.processing", "Processing..."),
+  adminText("chat.processing.sailing", "Sailing..."),
+  adminText("chat.processing.swimming", "Swimming..."),
+  adminText("chat.processing.floating", "Floating...")
+];
 var ROTATE_MS = 3e4;
 var nextPhrase = (current) => {
   const pool = PHRASES.filter((phrase) => phrase !== current);
@@ -4077,6 +4267,7 @@ var createProcessingStatus = (setStatus2) => {
 };
 
 // web/src/modules/chat/utils.ts
+init_translations();
 var messageId = (conversationId, createdAt, index) => `${conversationId}:${createdAt ?? index}`;
 var escapeHtml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var foldedPreview = (content) => {
@@ -4107,7 +4298,7 @@ var extractMessages = (conversation) => {
 };
 var renderMessages = (container, messages, options = {}) => {
   if (!messages.length) {
-    const label = options.emptyState ?? "Select or create a conversation.";
+    const label = options.emptyState ?? adminText("chat.selectOrCreate", "Select or create a conversation.");
     container.innerHTML = `<p class="app-muted">${label}</p>`;
     appendConversationProgress(container, options.progress ?? null);
     return;
@@ -4116,7 +4307,7 @@ var renderMessages = (container, messages, options = {}) => {
   const messageMap = new Map(messages.map((message) => [message.id, message]));
   container.innerHTML = messages.map((message) => {
     const role = message.role === "assistant" ? "assistant" : "user";
-    const label = role === "assistant" ? "Agent" : "You";
+    const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
     const roleClass = role === "assistant" ? "is-assistant" : "is-user";
     const selectable = enableActions && role === "assistant";
     const foldable = role === "assistant";
@@ -4124,9 +4315,9 @@ var renderMessages = (container, messages, options = {}) => {
     const selected = selectable && options.isSelected ? options.isSelected(message) : false;
     const selectedClass = selected ? "is-selected" : "";
     const foldedClass = folded ? "is-folded" : "";
-    const toggleTitle = selected ? "Remove from data" : "Add to data";
+    const toggleTitle = selected ? adminText("chat.removeFromData", "Remove from data") : adminText("chat.addToData", "Add to data");
     const toggleIcon = selected ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>` : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
-    const foldTitle = folded ? "Expand response" : "Collapse response";
+    const foldTitle = folded ? adminText("chat.expandResponse", "Expand response") : adminText("chat.collapseResponse", "Collapse response");
     const foldIcon = folded ? `<path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>` : `<path d="m8 14 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`;
     const preview = folded ? foldedPreview(message.content) : "";
     const actions = selectable ? `
@@ -4160,8 +4351,8 @@ var renderMessages = (container, messages, options = {}) => {
               class="app-chat-action"
               data-chat-action="copy"
               data-message-id="${message.id}"
-              title="Copy"
-              aria-label="Copy"
+              title="${adminText("common.copy", "Copy")}"
+              aria-label="${adminText("common.copy", "Copy")}"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
                 <path
@@ -4233,14 +4424,14 @@ var renderMessages = (container, messages, options = {}) => {
 };
 var updateConversationHeader = (titleEl, metaEl, conversation) => {
   if (!conversation) {
-    titleEl.textContent = "No conversation selected";
-    metaEl.textContent = "Select or create a conversation.";
+    titleEl.textContent = adminText("chat.noneSelected", "No conversation selected");
+    metaEl.textContent = adminText("chat.selectOrCreate", "Select or create a conversation.");
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
   const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
-  titleEl.textContent = conversation.payload.name || "Conversation";
-  metaEl.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+  titleEl.textContent = conversation.payload.name || adminText("chat.conversation", "Conversation");
+  metaEl.textContent = createdAt ? adminText("chat.startedAt", "Started {time}", { time: createdAt }) : adminText("chat.loaded", "Conversation loaded.");
 };
 var updateChatInputState = (input, send, active2) => {
   input.disabled = !active2;
@@ -4248,6 +4439,7 @@ var updateChatInputState = (input, send, active2) => {
 };
 
 // web/src/modules/chat/controller.ts
+init_translations();
 var mountChatController = (runtime) => {
   let conversations = [];
   let currentConversation = null;
@@ -4330,7 +4522,7 @@ var mountChatController = (runtime) => {
     renderCurrentMessages();
   };
   const renderCurrentMessages = () => {
-    const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
+    const emptyState = currentConversation ? adminText("chat.noMessages", "No messages yet.") : adminText("chat.selectOrCreate", "Select or create a conversation.");
     ensureFoldState(currentConversation);
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
@@ -4436,14 +4628,14 @@ var mountChatController = (runtime) => {
     syncRealtimeBindings();
   };
   const updateSelectOptions = () => {
-    runtime.dom.select.innerHTML = `<option value="">Select chat</option>` + conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
+    runtime.dom.select.innerHTML = `<option value="">${adminText("chat.selectConversation", "Select chat")}</option>` + conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
     if (currentConversation) {
       runtime.dom.select.value = currentConversation.id;
     }
   };
   const refreshList = async () => {
     if (!runtime.auth) {
-      setStatus2("Login required.");
+      setStatus2(adminText("auth.loginRequired", "Login required."));
       return;
     }
     try {
@@ -4469,7 +4661,7 @@ var mountChatController = (runtime) => {
   };
   const loadConversation = async (conversationId) => {
     if (!runtime.auth) {
-      setStatus2("Login required.");
+      setStatus2(adminText("auth.loginRequired", "Login required."));
       return;
     }
     try {
@@ -4486,7 +4678,7 @@ var mountChatController = (runtime) => {
   };
   const startConversation = async () => {
     if (!runtime.auth) {
-      setStatus2("Login required.");
+      setStatus2(adminText("auth.loginRequired", "Login required."));
       return;
     }
     try {
@@ -4522,7 +4714,9 @@ var mountChatController = (runtime) => {
         appendConversationMessage(
           currentConversation,
           "assistant",
-          `Something went wrong while I was replying: ${error.message || "Please try again."}`
+          adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
+            message: error.message || adminText("common.tryAgain", "Please try again.")
+          })
         );
         syncConversation(currentConversation, true);
       }
@@ -4531,14 +4725,14 @@ var mountChatController = (runtime) => {
   const copyMessage = async (message) => {
     try {
       await navigator.clipboard.writeText(message.content);
-      setStatus2("Copied.");
+      setStatus2(adminText("common.copied", "Copied."));
       window.setTimeout(() => {
         if (!conversationHasPendingResponse(currentConversation)) {
           setStatus2("");
         }
       }, 1200);
     } catch {
-      setStatus2("Copy failed.");
+      setStatus2(adminText("common.copyFailed", "Copy failed."));
     }
   };
   const handleRealtimeEvent = (event) => {
@@ -4641,6 +4835,7 @@ var mountChatController = (runtime) => {
 };
 
 // web/src/modules/chat/index.ts
+init_translations();
 var renderChatModule = (panel, context) => {
   const settings = isRecord(context.settings) ? context.settings : null;
   const agentSettings = settings && isRecord(settings.agent) ? settings.agent : null;
@@ -4662,8 +4857,8 @@ var renderChatModule = (panel, context) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-        button.title = "Module settings";
-        button.setAttribute("aria-label", "Module settings");
+        button.title = adminText("modules.settings", "Module settings");
+        button.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
         button.innerHTML = `
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -4686,8 +4881,8 @@ var renderChatModule = (panel, context) => {
     const note = document.createElement("div");
     note.className = "app-module-note";
     note.innerHTML = `
-      <strong>Chat needs an agent.</strong>
-      <p class="app-muted">Select an agent in module settings to start chatting.</p>
+      <strong>${adminText("chat.agentRequired", "Chat needs an agent.")}</strong>
+      <p class="app-muted">${adminText("chat.agentRequiredHelp", "Select an agent in module settings to start chatting.")}</p>
     `;
     body.append(note);
     card.append(body);
@@ -4714,12 +4909,13 @@ var renderChatModule = (panel, context) => {
 };
 
 // web/src/modules/form/index.ts
+init_translations();
 var resolveLabel = (settings, fallback) => {
   const name = settings?.name;
   if (typeof name === "string" && name.trim() !== "") {
     return name.trim();
   }
-  return `${fallback} - form`;
+  return adminText("form.defaultName", "{name} - form", { name: fallback });
 };
 var resolveFlag = (settings, key) => {
   return settings?.[key] === true;
@@ -4731,26 +4927,26 @@ var renderFormModule = (panel, context) => {
   const wrapper = document.createElement("div");
   wrapper.className = "app-module";
   const flags = [
-    { key: "sendadminemail", label: "Send admin email" },
-    { key: "senduseremail", label: "Send user email" },
-    { key: "captcha", label: "Captcha" }
+    { key: "sendadminemail", label: adminText("form.sendAdminEmail", "Send admin email") },
+    { key: "senduseremail", label: adminText("form.sendUserEmail", "Send user email") },
+    { key: "captcha", label: adminText("form.captcha", "Captcha") }
   ];
   const flagMarkup = flags.map((flag) => {
-    const value = resolveFlag(settings, flag.key) ? "enabled" : "disabled";
+    const value = resolveFlag(settings, flag.key) ? adminText("common.enabled", "enabled") : adminText("common.disabled", "disabled");
     return `<div class="app-form-flag"><span>${flag.label}</span><strong>${value}</strong></div>`;
   }).join("");
   wrapper.innerHTML = `
     <div class="app-module-header">
       <div>
         <h3 class="title is-6">${label}</h3>
-        <p class="app-muted">Form page id: <code>${pageId || "missing"}</code></p>
+        <p class="app-muted">${adminText("form.pageId", "Form page id:")} <code>${pageId || adminText("common.missing", "missing")}</code></p>
       </div>
       <div class="buttons">
-        <button class="button app-button app-ghost" data-form-settings>Settings</button>
+        <button class="button app-button app-ghost" data-form-settings>${adminText("common.settings", "Settings")}</button>
       </div>
     </div>
     <div class="app-form-flags">${flagMarkup}</div>
-    <p class="app-muted">Entries appear under Settings \u2192 Forms.</p>
+    <p class="app-muted">${adminText("form.entriesLocation", "Entries appear under Settings \u2192 Forms.")}</p>
   `;
   const settingsButton = wrapper.querySelector("[data-form-settings]");
   settingsButton?.addEventListener("click", () => {
@@ -4781,6 +4977,7 @@ var describeStorage = (module) => {
 };
 
 // web/src/modules/gallery/index.ts
+init_translations();
 var resolveSchemaKeys = (schema) => {
   const properties = schema?.properties ?? {};
   const entries = Object.entries(properties);
@@ -4831,7 +5028,7 @@ var renderGalleryModule = (panel, context) => {
   if (!urlKey) {
     const notice = document.createElement("div");
     notice.className = "notification is-warning is-light";
-    notice.textContent = "Gallery schema must define a string field for the image.";
+    notice.textContent = adminText("gallery.schemaImageRequired", "Gallery schema must define a string field for the image.");
     panel.append(notice);
     return;
   }
@@ -4849,8 +5046,8 @@ var renderGalleryModule = (panel, context) => {
     const settingsButton = document.createElement("button");
     settingsButton.type = "button";
     settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    settingsButton.title = "Module settings";
-    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.title = adminText("modules.settings", "Module settings");
+    settingsButton.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
     settingsButton.innerHTML = `
       <span class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -4882,16 +5079,16 @@ var renderGalleryModule = (panel, context) => {
   toggleField.className = "field";
   const toggleLabel = document.createElement("label");
   toggleLabel.className = "label";
-  toggleLabel.textContent = "Source";
+  toggleLabel.textContent = adminText("gallery.source", "Source");
   const toggleControl = document.createElement("div");
   toggleControl.className = "control";
   const toggleTabs = document.createElement("div");
   toggleTabs.className = "tabs is-toggle is-small";
   toggleTabs.innerHTML = `
     <ul>
-      <li data-visibility="all"><a>All</a></li>
-      <li data-visibility="public"><a>Public</a></li>
-      <li data-visibility="private"><a>Private</a></li>
+      <li data-visibility="all"><a>${adminText("common.all", "All")}</a></li>
+      <li data-visibility="public"><a>${adminText("documents.storePublic", "Public")}</a></li>
+      <li data-visibility="private"><a>${adminText("documents.storePrivate", "Private")}</a></li>
     </ul>
   `;
   toggleControl.append(toggleTabs);
@@ -4906,17 +5103,17 @@ var renderGalleryModule = (panel, context) => {
     <div class="modal-background"></div>
     <div class="modal-card app-gallery-modal">
       <header class="modal-card-head">
-        <p class="modal-card-title">Image</p>
-        <button class="delete" aria-label="close"></button>
+        <p class="modal-card-title">${adminText("gallery.image", "Image")}</p>
+        <button class="delete" aria-label="${adminText("common.close", "Close")}"></button>
       </header>
       <section class="modal-card-body">
         <div class="app-gallery-modal-body"></div>
       </section>
       <footer class="modal-card-foot">
         <div class="buttons">
-          <button class="button app-button app-primary" data-action="add">Add to data</button>
-          <button class="button app-button app-ghost" data-action="remove">Remove from data</button>
-          <button class="button app-button app-danger" data-action="delete">Delete file</button>
+          <button class="button app-button app-primary" data-action="add">${adminText("chat.addToData", "Add to data")}</button>
+          <button class="button app-button app-ghost" data-action="remove">${adminText("chat.removeFromData", "Remove from data")}</button>
+          <button class="button app-button app-danger" data-action="delete">${adminText("gallery.deleteFile", "Delete file")}</button>
         </div>
       </footer>
     </div>
@@ -5002,7 +5199,7 @@ var renderGalleryModule = (panel, context) => {
     if (!auth || !currentItem) {
       return;
     }
-    if (!confirm("Delete this file? This cannot be undone.")) {
+    if (!confirm(adminText("gallery.confirmDelete", "Delete this file? This cannot be undone."))) {
       return;
     }
     try {
@@ -5040,10 +5237,10 @@ var renderGalleryModule = (panel, context) => {
   };
   const loadItems = async () => {
     if (!auth) {
-      status2.textContent = "Login required.";
+      status2.textContent = adminText("auth.loginRequired", "Login required.");
       return;
     }
-    status2.textContent = "Loading media...";
+    status2.textContent = adminText("gallery.loadingMedia", "Loading media...");
     grid.innerHTML = "";
     try {
       const response = await fetchModuleList(auth, module.name, {
@@ -5052,7 +5249,7 @@ var renderGalleryModule = (panel, context) => {
       });
       const items = response.items ?? [];
       if (!items.length) {
-        status2.textContent = "No images found.";
+        status2.textContent = adminText("gallery.noImages", "No images found.");
         return;
       }
       status2.textContent = "";
@@ -5101,6 +5298,7 @@ var renderGalleryModule = (panel, context) => {
 
 // web/src/modules/uploader/index.ts
 init_api();
+init_translations();
 var resolveUploaderKeys = (schema) => {
   const properties = schema?.properties ?? {};
   const entries = Object.entries(properties);
@@ -5144,8 +5342,8 @@ var buildHeader2 = (module, openSettings) => {
     const settingsButton = document.createElement("button");
     settingsButton.type = "button";
     settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    settingsButton.title = "Module settings";
-    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.title = adminText("modules.settings", "Module settings");
+    settingsButton.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
     settingsButton.innerHTML = `
       <span class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -5191,7 +5389,7 @@ var renderUploaderModule = (panel, context) => {
   if (!urlKey) {
     const notice = document.createElement("div");
     notice.className = "notification is-warning is-light";
-    notice.textContent = "Uploader schema must define a string field for the image.";
+    notice.textContent = adminText("uploader.schemaImageRequired", "Uploader schema must define a string field for the image.");
     panel.append(notice);
     return;
   }
@@ -5208,7 +5406,7 @@ var renderUploaderModule = (panel, context) => {
     if (!pendingUrl) {
       const empty = document.createElement("span");
       empty.className = "app-muted";
-      empty.textContent = "No image selected.";
+      empty.textContent = adminText("uploader.noImageSelected", "No image selected.");
       preview.append(empty);
       return;
     }
@@ -5232,7 +5430,7 @@ var renderUploaderModule = (panel, context) => {
   fileField.className = "field";
   const fileLabel = document.createElement("label");
   fileLabel.className = "label";
-  fileLabel.textContent = "Upload image";
+  fileLabel.textContent = adminText("uploader.uploadImage", "Upload image");
   const fileControl = document.createElement("div");
   fileControl.className = "control";
   const fileInput = document.createElement("input");
@@ -5250,13 +5448,13 @@ var renderUploaderModule = (panel, context) => {
       return;
     }
     fileInput.disabled = true;
-    setUploadStatus("Uploading...");
+    setUploadStatus(adminText("common.uploading", "Uploading..."));
     try {
       const settingsKey = moduleSettingsKey(payload, module.name);
       const result = await uploadModuleFile(auth, module.name, file, settingsKey);
       urlInput.value = result.url;
       setPendingUrl(result.url);
-      setUploadStatus("Upload complete.");
+      setUploadStatus(adminText("uploader.uploadComplete", "Upload complete."));
     } catch (err) {
       setUploadStatus("");
       alert(err.message);
@@ -5270,7 +5468,7 @@ var renderUploaderModule = (panel, context) => {
   urlField.className = "field";
   const urlLabel = document.createElement("label");
   urlLabel.className = "label";
-  urlLabel.textContent = schema?.properties?.[urlKey]?.title ?? "Image URL";
+  urlLabel.textContent = schema?.properties?.[urlKey]?.title ?? adminText("uploader.imageUrl", "Image URL");
   const urlControl = document.createElement("div");
   urlControl.className = "control";
   const urlInput = document.createElement("input");
@@ -5287,12 +5485,12 @@ var renderUploaderModule = (panel, context) => {
   const addButton = document.createElement("button");
   addButton.type = "button";
   addButton.className = "button app-button app-primary";
-  addButton.textContent = "Add to data";
+  addButton.textContent = adminText("chat.addToData", "Add to data");
   addButton.disabled = true;
   const discardButton = document.createElement("button");
   discardButton.type = "button";
   discardButton.className = "button app-button app-ghost";
-  discardButton.textContent = "Discard";
+  discardButton.textContent = adminText("common.discard", "Discard");
   discardButton.disabled = true;
   addButton.addEventListener("click", () => {
     if (!pendingUrl) {
@@ -5328,7 +5526,7 @@ var renderUploaderModule = (panel, context) => {
   actionsField.append(actionsControl);
   const targetHelp = document.createElement("p");
   targetHelp.className = "help";
-  targetHelp.textContent = `Adds to data.${targetKey}[]`;
+  targetHelp.textContent = adminText("uploader.targetHelp", "Adds to data.{target}[]", { target: targetKey });
   body.append(preview, fileField, urlField, actionsField, targetHelp);
   let altInput = null;
   if (altKey) {
@@ -5336,7 +5534,7 @@ var renderUploaderModule = (panel, context) => {
     altField.className = "field";
     const altLabel = document.createElement("label");
     altLabel.className = "label";
-    altLabel.textContent = schema?.properties?.[altKey]?.title ?? "Alt text";
+    altLabel.textContent = schema?.properties?.[altKey]?.title ?? adminText("uploader.altText", "Alt text");
     const altControl = document.createElement("div");
     altControl.className = "control";
     altInput = document.createElement("input");
@@ -5370,6 +5568,7 @@ var renderModule = (name, panel, context) => {
 };
 
 // web/src/views/modules.ts
+init_translations();
 var renderModulePanel = async ({
   auth,
   doc,
@@ -5404,7 +5603,7 @@ var renderModulePanel = async ({
     if (!module) {
       const notice = document.createElement("div");
       notice.className = "notification is-warning is-light";
-      notice.textContent = `Module "${moduleName}" was not found.`;
+      notice.textContent = adminText("modules.notFound", 'Module "{name}" was not found.', { name: moduleName });
       panel.append(notice);
       return;
     }
@@ -5427,7 +5626,9 @@ var renderModulePanel = async ({
     if (!handled) {
       const placeholder = document.createElement("div");
       placeholder.className = "notification is-light";
-      placeholder.textContent = `${module.name} module is available but has no renderer yet.`;
+      placeholder.textContent = adminText("modules.noRenderer", "{name} module is available but has no renderer yet.", {
+        name: module.name
+      });
       panel.append(placeholder);
     }
   });
@@ -5451,7 +5652,10 @@ var renderModulesView = ({
         <div class="app-module-row">
           <div class="app-module-row-title">${module.name}</div>
           <div class="app-module-row-meta">${module.description}${author}</div>
-          <div class="app-module-row-meta">Input: ${module.input} \xB7 Output: ${module.output}</div>
+          <div class="app-module-row-meta">${adminText("modules.io", "Input: {input} \xB7 Output: {output}", {
+      input: module.input,
+      output: module.output
+    })}</div>
           ${storageLine}
         </div>
       `;
@@ -5469,8 +5673,8 @@ var renderModulesView = ({
           <div class="buttons">
             <button
               class="button app-button app-ghost app-icon-button"
-              aria-label="Open settings"
-              title="Open settings"
+              aria-label="${adminText("common.openSettings", "Open settings")}"
+              title="${adminText("common.openSettings", "Open settings")}"
               data-module-settings="${encodeURIComponent(doc.id)}"
             >
               <span class="icon" aria-hidden="true">
@@ -5497,24 +5701,24 @@ var renderModulesView = ({
   const settingsSection = `
     <div id="module-settings-panel" class="app-module-settings is-hidden">
       <div class="mb-3">
-        <h2 class="title is-5">Settings</h2>
-        <p class="app-muted">Edit per-page or per-section module settings saved in manage/store/modules.</p>
+        <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
+        <p class="app-muted">${adminText("modules.settingsHelp", "Edit per-page or per-section module settings saved in manage/store/modules.")}</p>
       </div>
-      ${settingsDocs.length ? `<div class="app-module-list">${settingsList}</div>` : `<div class="notification is-light">No module settings found yet.</div>`}
+      ${settingsDocs.length ? `<div class="app-module-list">${settingsList}</div>` : `<div class="notification is-light">${adminText("modules.noSettings", "No module settings found yet.")}</div>`}
     </div>
   `;
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Modules</h1>
-        <p class="app-muted">Available modules loaded from manage/src/Modules.</p>
+        <h1 class="title is-4">${adminText("modules.title", "Modules")}</h1>
+        <p class="app-muted">${adminText("modules.subtitle", "Available modules loaded from manage/src/Modules.")}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="module-settings-toggle"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Module settings"
-          title="Module settings"
+          aria-label="${adminText("modules.settings", "Module settings")}"
+          title="${adminText("modules.settings", "Module settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -5535,7 +5739,7 @@ var renderModulesView = ({
         </button>
       </div>
     </div>
-    ${modules.length ? `<div class="app-module-list">${list}</div>` : `<div class="notification is-light">No modules found.</div>`}
+    ${modules.length ? `<div class="app-module-list">${list}</div>` : `<div class="notification is-light">${adminText("modules.none", "No modules found.")}</div>`}
     ${settingsSection}
   `;
   const toggle = document.getElementById("module-settings-toggle");
@@ -5556,10 +5760,11 @@ var renderModulesView = ({
 
 // web/src/views/forms.ts
 init_api();
+init_translations();
 var escapeHtml2 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
 var formatTimestamp = (value) => {
   if (!value) {
-    return "Unknown time";
+    return adminText("common.unknownTime", "Unknown time");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -5576,7 +5781,7 @@ var buildFormSelect = (forms, currentId) => {
   }).join("");
   return `
     <div class="field">
-      <label class="label">Form</label>
+      <label class="label">${adminText("forms.form", "Form")}</label>
       <div class="control">
         <div class="select is-fullwidth">
           <select id="forms-select">${options}</select>
@@ -5589,7 +5794,7 @@ var renderEntries = (doc, target) => {
   const data = doc.payload.data;
   const entries = Array.isArray(data?.entries) ? data?.entries : [];
   if (!entries.length) {
-    target.innerHTML = `<div class="notification is-light">No entries yet.</div>`;
+    target.innerHTML = `<div class="notification is-light">${adminText("forms.noEntries", "No entries yet.")}</div>`;
     return;
   }
   const list = entries.map((entry) => {
@@ -5599,19 +5804,19 @@ var renderEntries = (doc, target) => {
     const record = entry;
     const submittedAt = formatTimestamp(record.submittedAt);
     const actor = record.actor && typeof record.actor === "object" ? record.actor : null;
-    const actorLabel = actor ? `${actor.sub ?? ""}${actor.role ? ` \xB7 ${actor.role}` : ""}`.trim() : "anonymous";
+    const actorLabel = actor ? `${actor.sub ?? ""}${actor.role ? ` \xB7 ${actor.role}` : ""}`.trim() : adminText("forms.anonymous", "anonymous");
     const payload = record.data ?? {};
     const payloadJson = escapeHtml2(JSON.stringify(payload, null, 2));
     return `
         <article class="app-form-entry app-surface">
           <div class="app-form-entry-header">
             <div>
-              <span class="app-form-entry-label">Submitted</span>
+              <span class="app-form-entry-label">${adminText("forms.submitted", "Submitted")}</span>
               <span class="app-form-entry-value">${escapeHtml2(submittedAt)}</span>
             </div>
             <div>
-              <span class="app-form-entry-label">Actor</span>
-              <span class="app-form-entry-value">${escapeHtml2(actorLabel || "anonymous")}</span>
+              <span class="app-form-entry-label">${adminText("forms.actor", "Actor")}</span>
+              <span class="app-form-entry-value">${escapeHtml2(actorLabel || adminText("forms.anonymous", "anonymous"))}</span>
             </div>
           </div>
           <pre class="app-form-entry-json">${payloadJson}</pre>
@@ -5633,17 +5838,17 @@ var renderFormsView = async ({
   }
   clearAgentState2();
   if (!auth) {
-    content.innerHTML = `<p class="app-muted">Authentication required.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("auth.required", "Authentication required.")}</p>`;
     return;
   }
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
+        <h1 class="title is-4">${adminText("forms.title", "Forms")}</h1>
+        <p class="app-muted">${adminText("forms.subtitle", "Collected form submissions stored in manage/store/system/forms/submissions.")}</p>
       </div>
     </div>
-    <div class="notification is-light">Loading forms...</div>
+    <div class="notification is-light">${adminText("forms.loading", "Loading forms...")}</div>
   `;
   try {
     const response = await fetchForms2(auth);
@@ -5657,11 +5862,11 @@ var renderFormsView = async ({
     content.innerHTML = `
       <div class="app-view-header mb-4">
         <div>
-          <h1 class="title is-4">Forms</h1>
-          <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
+          <h1 class="title is-4">${adminText("forms.title", "Forms")}</h1>
+          <p class="app-muted">${adminText("forms.subtitle", "Collected form submissions stored in manage/store/system/forms/submissions.")}</p>
         </div>
       </div>
-      <div class="notification is-light">No forms found yet.</div>
+      <div class="notification is-light">${adminText("forms.none", "No forms found yet.")}</div>
     `;
     return;
   }
@@ -5669,11 +5874,11 @@ var renderFormsView = async ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
+        <h1 class="title is-4">${adminText("forms.title", "Forms")}</h1>
+        <p class="app-muted">${adminText("forms.subtitle", "Collected form submissions stored in manage/store/system/forms/submissions.")}</p>
       </div>
       <div class="app-view-actions">
-        <span class="app-muted">${forms.length} total</span>
+        <span class="app-muted">${adminText("forms.total", "{count} total", { count: forms.length })}</span>
       </div>
     </div>
     <div class="app-forms-toolbar mb-4">${buildFormSelect(forms, selectedId)}</div>
@@ -5685,7 +5890,7 @@ var renderFormsView = async ({
     if (!entriesTarget || !auth) {
       return;
     }
-    entriesTarget.innerHTML = `<div class="notification is-light">Loading entries...</div>`;
+    entriesTarget.innerHTML = `<div class="notification is-light">${adminText("forms.loadingEntries", "Loading entries...")}</div>`;
     try {
       const doc = await fetchDocument(auth, id);
       renderEntries(doc, entriesTarget);
@@ -5708,6 +5913,7 @@ var renderFormsView = async ({
 init_api();
 
 // web/src/json-editor.ts
+init_translations();
 var isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 var clone = (value) => JSON.parse(JSON.stringify(value));
 var buildJsonEditor = (container, initialValue) => {
@@ -5780,7 +5986,7 @@ var buildJsonEditor = (container, initialValue) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button app-button app-danger is-small json-remove";
-    button.textContent = "\u0391\u03C6\u03B1\u03AF\u03C1\u03B5\u03C3\u03B7";
+    button.textContent = adminText("jsonEditor.remove", "Remove");
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -5835,7 +6041,10 @@ var buildJsonEditor = (container, initialValue) => {
     const summary = document.createElement("summary");
     summary.className = "json-summary";
     const summaryLabel = document.createElement("span");
-    summaryLabel.textContent = `${key ?? "object"} \xB7 ${Object.keys(obj).length} \u03C0\u03B5\u03B4\u03AF\u03B1`;
+    summaryLabel.textContent = adminText("jsonEditor.objectSummary", "{name} \xB7 {count} fields", {
+      name: String(key ?? "object"),
+      count: Object.keys(obj).length
+    });
     summary.append(summaryLabel);
     details.append(summary);
     if (Array.isArray(parent) && key !== null) {
@@ -5871,7 +6080,10 @@ var buildJsonEditor = (container, initialValue) => {
     const summary = document.createElement("summary");
     summary.className = "json-summary";
     const summaryLabel = document.createElement("span");
-    summaryLabel.textContent = `${key ?? "array"} \xB7 ${arr.length} \u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03B1`;
+    summaryLabel.textContent = adminText("jsonEditor.arraySummary", "{name} \xB7 {count} items", {
+      name: String(key ?? "array"),
+      count: arr.length
+    });
     summary.append(summaryLabel);
     details.append(summary);
     if (Array.isArray(parent) && key !== null) {
@@ -5914,7 +6126,7 @@ var buildJsonEditor = (container, initialValue) => {
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.className = "button app-button app-ghost is-small";
-    addBtn.textContent = "\u03A0\u03C1\u03BF\u03C3\u03B8\u03AE\u03BA\u03B7 \u03C3\u03C4\u03BF\u03B9\u03C7\u03B5\u03AF\u03BF\u03C5";
+    addBtn.textContent = adminText("jsonEditor.addItem", "Add item");
     addBtn.addEventListener("click", () => {
       if (arr.length > 0) {
         arr.push(clone(arr[0]));
@@ -5957,6 +6169,7 @@ var buildJsonEditor = (container, initialValue) => {
 };
 
 // web/src/features/modules/settings-form.ts
+init_translations();
 var slugify = (value) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 var resolveModuleForSettings = (modules, path) => {
   const filename = path.split("/").pop() ?? "";
@@ -6042,7 +6255,7 @@ var renderModuleSettingsForm = ({
       const select = document.createElement("select");
       const emptyOption = document.createElement("option");
       emptyOption.value = "";
-      emptyOption.textContent = agents.length ? "Select agent" : "No agents available";
+      emptyOption.textContent = agents.length ? adminText("agents.selectAgent", "Select agent") : adminText("agents.noAgentsAvailable", "No agents available");
       select.append(emptyOption);
       if (!agents.length) {
         select.disabled = true;
@@ -6118,7 +6331,7 @@ var renderModuleSettingsForm = ({
       control.append(input2);
       const help = document.createElement("p");
       help.className = "help";
-      help.textContent = "Comma separated values.";
+      help.textContent = adminText("common.commaSeparated", "Comma separated values.");
       field.append(control, help);
       const itemType = defaultValue.length > 0 && typeof defaultValue[0] === "number" ? "number" : defaultValue.length > 0 && typeof defaultValue[0] === "boolean" ? "boolean" : "string";
       fields.push({ path, type: "list", element: input2, defaultValue, itemType });
@@ -6168,7 +6381,7 @@ var renderModuleSettingsForm = ({
   if (!Object.keys(parameters).length) {
     const empty = document.createElement("p");
     empty.className = "app-muted";
-    empty.textContent = "No module settings available.";
+    empty.textContent = adminText("modules.noSettingsAvailable", "No module settings available.");
     form.append(empty);
   } else {
     renderGroup(form, parameters, settings, []);
@@ -6234,6 +6447,7 @@ var renderModuleSettingsForm = ({
 };
 
 // web/src/views/documents.ts
+init_translations();
 var renderDocument = ({
   content,
   auth,
@@ -6272,9 +6486,9 @@ var renderDocument = ({
   const pageId = typeof payload.id === "string" && payload.id.trim() !== "" ? payload.id : null;
   const idMeta = pageId ? `
       <div class="app-doc-meta">
-        <span class="app-doc-meta-label">ID</span>
+        <span class="app-doc-meta-label">${adminText("documents.id", "ID")}</span>
         <code class="app-doc-meta-value">${pageId}</code>
-        <button class="app-doc-meta-copy" type="button" aria-label="Copy ID" data-copy-doc-id="${pageId}">
+        <button class="app-doc-meta-copy" type="button" aria-label="${adminText("documents.copyId", "Copy ID")}" data-copy-doc-id="${pageId}">
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="14" height="14" focusable="false" aria-hidden="true">
               <rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
@@ -6286,7 +6500,7 @@ var renderDocument = ({
     ` : "";
   const languageMeta = languageOptions && languageOptions.options.length > 1 ? `
       <div class="field app-doc-language">
-        <label class="label">Language</label>
+        <label class="label">${adminText("documents.language", "Language")}</label>
         <div class="control">
           <div class="select">
             <select id="doc-language-select">
@@ -6341,17 +6555,17 @@ var renderDocument = ({
     content.innerHTML = `
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
-        <p class="app-muted">Module settings \xB7 ${doc.store}/${doc.path}</p>
+        <p class="app-muted">${adminText("documents.moduleSettingsMeta", "Module settings")} \xB7 ${doc.store}/${doc.path}</p>
         ${idMeta}
         ${languageMeta}
       </div>
       <div class="mb-4 buttons">
-        ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">Back</button>` : ""}
-        <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
-        <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+        ${returnToDocumentId ? `<button id="module-back" class="button app-button app-ghost">${adminText("common.back", "Back")}</button>` : ""}
+        <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+        <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
       </div>
       <div class="mt-4">
-        <h2 class="title is-5">Settings</h2>
+        <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
         <div id="module-settings-form" class="app-module-settings-surface"></div>
       </div>
     `;
@@ -6363,7 +6577,7 @@ var renderDocument = ({
       agents
     }) : null;
     if (!moduleDefinition && formContainer) {
-      formContainer.innerHTML = `<div class="notification is-light">Module definition not found.</div>`;
+      formContainer.innerHTML = `<div class="notification is-light">${adminText("modules.definitionNotFound", "Module definition not found.")}</div>`;
     }
     document.getElementById("module-back")?.addEventListener("click", () => {
       if (returnToDocumentId) {
@@ -6413,14 +6627,14 @@ var renderDocument = ({
         ${idMeta}
         ${languageMeta}
       </div>
-      ${isConfigurationPage ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/upmin/</strong>.</div>` : ""}
+      ${isConfigurationPage ? `<div class="notification is-light app-muted">${adminText("documents.fixedAdminPath", "The admin path is fixed at <strong>/upmin/</strong>.")}</div>` : ""}
       <div class="mb-4 buttons">
-        <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
-        <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+        <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+        <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
       </div>
       <div class="mt-4">
         <div id="module-panel" class="mb-4"></div>
-        <h2 class="title is-5">Data</h2>
+        <h2 class="title is-5">${adminText("documents.data", "Data")}</h2>
         <div id="json-editor" class="json-editor"></div>
       </div>
     `;
@@ -6474,13 +6688,13 @@ var renderDocument = ({
       ${languageMeta}
     </div>
     <div class="mb-4 buttons">
-      <button id="save" class="button app-button app-primary">\u0391\u03C0\u03BF\u03B8\u03AE\u03BA\u03B5\u03C5\u03C3\u03B7</button>
-      <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+      <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+      <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
     </div>
     <div class="columns is-variable is-4 is-multiline">
       <div class="column is-half">
         <div class="field">
-          <label class="label">Order</label>
+          <label class="label">${adminText("documents.order", "Order")}</label>
           <div class="control">
             <input
               id="field-order"
@@ -6495,7 +6709,7 @@ var renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Page</label>
+          <label class="label">${adminText("documents.page", "Page")}</label>
           <div class="control">
             <input id="field-page" class="input" type="text" value="${payload.page}" />
           </div>
@@ -6503,7 +6717,7 @@ var renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Name</label>
+          <label class="label">${adminText("documents.name", "Name")}</label>
           <div class="control">
             <input id="field-name" class="input" type="text" value="${payload.name}" />
           </div>
@@ -6511,7 +6725,7 @@ var renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Language</label>
+          <label class="label">${adminText("documents.language", "Language")}</label>
           <div class="control">
             <input id="field-language" class="input" type="text" value="${payload.language ?? ""}" />
           </div>
@@ -6519,7 +6733,7 @@ var renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Modules</label>
+          <label class="label">${adminText("documents.modules", "Modules")}</label>
           <div class="control">
             <div id="field-modules" class="app-module-picker">
               ${moduleChecklistHtml2(selectedModules)}
@@ -6529,7 +6743,7 @@ var renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Section</label>
+          <label class="label">${adminText("documents.section", "Section")}</label>
           <div class="control">
             <div class="select is-fullwidth">
               <select id="field-section">
@@ -6543,7 +6757,7 @@ var renderDocument = ({
     </div>
     <div class="mt-4">
       <div id="module-panel" class="mb-4"></div>
-      <h2 class="title is-5">Data</h2>
+      <h2 class="title is-5">${adminText("documents.data", "Data")}</h2>
       <div id="json-editor" class="json-editor"></div>
     </div>
   `;
@@ -6571,12 +6785,12 @@ var renderDocument = ({
     const moduleInput2 = document.getElementById("field-modules");
     const orderRaw = orderInput?.value.trim() || "";
     if (!orderRaw) {
-      alert("Order is required.");
+      alert(adminText("documents.orderRequired", "Order is required."));
       return;
     }
     const parsedOrder = Number(orderRaw);
     if (!Number.isInteger(parsedOrder)) {
-      alert("Order must be an integer.");
+      alert(adminText("documents.orderInteger", "Order must be an integer."));
       return;
     }
     const orderValue = parsedOrder;
@@ -6615,6 +6829,7 @@ var renderDocument = ({
 
 // web/src/features/modules/settings.ts
 init_api();
+init_translations();
 var fetchModuleSettings = async (auth, payload, moduleName, cache) => {
   if (!auth) {
     return null;
@@ -6637,7 +6852,7 @@ var fetchModuleSettings = async (auth, payload, moduleName, cache) => {
 };
 var ensureModuleSettingsDocument = async (auth, payload, module, cache) => {
   if (!auth) {
-    throw new Error("Authentication required.");
+    throw new Error(adminText("auth.required", "Authentication required."));
   }
   const key = moduleSettingsKey(payload, module.name);
   const path = `modules/${key}.json`;
@@ -6672,6 +6887,7 @@ var ensureModuleSettingsDocument = async (auth, payload, module, cache) => {
 init_api();
 
 // web/src/views/creations.ts
+init_translations();
 var timestampFormatter = new Intl.DateTimeFormat(void 0, {
   dateStyle: "medium",
   timeStyle: "short"
@@ -6679,14 +6895,14 @@ var timestampFormatter = new Intl.DateTimeFormat(void 0, {
 var escapeHtml3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var reasonLabel = (reason) => {
   if (reason === "before-clear") {
-    return "Pre-clear snapshot";
+    return adminText("creations.reason.beforeClear", "Pre-clear snapshot");
   }
-  return "Manual snapshot";
+  return adminText("creations.reason.manual", "Manual snapshot");
 };
-var targetLabel = (target) => target === "build" ? "Build" : "Public";
+var targetLabel = (target) => target === "build" ? adminText("creations.target.build", "Build") : adminText("creations.target.public", "Public");
 var formatTimestamp2 = (value) => {
   if (!value) {
-    return "Unknown time";
+    return adminText("common.unknownTime", "Unknown time");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -6721,19 +6937,19 @@ var buildCard = (creation) => {
       <h2 class="app-creation-title">${escapeHtml3(creation.id)}</h2>
       <div class="app-creation-paths">
         <div>
-          <span class="app-creation-label">Backup</span>
+          <span class="app-creation-label">${adminText("creations.backup", "Backup")}</span>
           <code>manage/store/${escapeHtml3(creation.backupPath)}</code>
         </div>
         <div>
-          <span class="app-creation-label">Preview</span>
+          <span class="app-creation-label">${adminText("creations.preview", "Preview")}</span>
           <code>manage/store/${escapeHtml3(creation.snapshotPath)}</code>
         </div>
       </div>
     </div>
     <div class="app-creation-actions">
-      <button data-action="download" class="button app-button app-primary">Download</button>
-      <button data-action="restore" class="button app-button app-ghost">Restore</button>
-      <button data-action="delete" class="button app-button app-danger">Delete</button>
+      <button data-action="download" class="button app-button app-primary">${adminText("common.download", "Download")}</button>
+      <button data-action="restore" class="button app-button app-ghost">${adminText("common.restore", "Restore")}</button>
+      <button data-action="delete" class="button app-button app-danger">${adminText("common.delete", "Delete")}</button>
     </div>
   `;
   return article;
@@ -6757,31 +6973,31 @@ var renderCreationsView = ({
     <section class="app-creations-shell">
       <div class="app-creations-hero app-surface">
         <div>
-          <p class="app-creations-kicker">System page</p>
+          <p class="app-creations-kicker">${adminText("documents.systemPage", "System page")}</p>
           <h1 class="title is-4">${escapeHtml3(doc.payload.name)}</h1>
           <p class="app-muted app-creations-subtitle">
-            Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.
+            ${adminText("creations.subtitle", "Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.")}
           </p>
         </div>
         <div class="app-creations-stats">
           <div>
             <span class="app-creations-stat-value">${creations.length}</span>
-            <span class="app-creations-stat-label">Snapshots</span>
+            <span class="app-creations-stat-label">${adminText("creations.snapshots", "Snapshots")}</span>
           </div>
           <div>
             <span class="app-creations-stat-value">${escapeHtml3(doc.store)}</span>
-            <span class="app-creations-stat-label">Store</span>
+            <span class="app-creations-stat-label">${adminText("documents.store", "Store")}</span>
           </div>
         </div>
       </div>
       <div class="app-creations-toolbar">
         <div class="buttons">
-          <button id="creation-snapshot" class="button app-button app-primary">Get Snapshot</button>
-          <button id="creation-clear" class="button app-button app-danger">Clear All</button>
-          <button id="creation-export" class="button app-button app-ghost">Export JSON</button>
+          <button id="creation-snapshot" class="button app-button app-primary">${adminText("creations.getSnapshot", "Get Snapshot")}</button>
+          <button id="creation-clear" class="button app-button app-danger">${adminText("creations.clearAll", "Clear All")}</button>
+          <button id="creation-export" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
         </div>
         <p class="app-muted app-creations-note">
-          Public snapshots restore to the public site. Build snapshots restore to the build directory.
+          ${adminText("creations.note", "Public snapshots restore to the public site. Build snapshots restore to the build directory.")}
         </p>
       </div>
       <div id="creation-grid" class="app-creation-grid"></div>
@@ -6794,8 +7010,8 @@ var renderCreationsView = ({
   if (creations.length === 0) {
     grid.innerHTML = `
       <div class="app-creation-empty app-surface">
-        <h2 class="title is-5">No snapshots yet</h2>
-        <p class="app-muted">Use Get Snapshot to capture the current public website and save its backup archive.</p>
+        <h2 class="title is-5">${adminText("creations.none", "No snapshots yet")}</h2>
+        <p class="app-muted">${adminText("creations.noneHelp", "Use Get Snapshot to capture the current public website and save its backup archive.")}</p>
       </div>
     `;
   } else {
@@ -6834,19 +7050,19 @@ var renderCreationsView = ({
         preview?.classList.add("is-error");
       });
       downloadButton?.addEventListener("click", () => {
-        void runButtonAction(downloadButton, "Downloading...", () => onDownload(creation.id));
+        void runButtonAction(downloadButton, adminText("common.downloading", "Downloading..."), () => onDownload(creation.id));
       });
       restoreButton?.addEventListener("click", () => {
-        if (!window.confirm(`Restore ${creation.id}? This will clean the public website first.`)) {
+        if (!window.confirm(adminText("creations.confirmRestore", "Restore {id}? This will clean the public website first.", { id: creation.id }))) {
           return;
         }
-        void runButtonAction(restoreButton, "Restoring...", () => onRestore(creation.id));
+        void runButtonAction(restoreButton, adminText("common.restoring", "Restoring..."), () => onRestore(creation.id));
       });
       deleteButton?.addEventListener("click", () => {
-        if (!window.confirm(`Delete ${creation.id}? This removes the preview and backup archive.`)) {
+        if (!window.confirm(adminText("creations.confirmDelete", "Delete {id}? This removes the preview and backup archive.", { id: creation.id }))) {
           return;
         }
-        void runButtonAction(deleteButton, "Deleting...", () => onDelete(creation.id));
+        void runButtonAction(deleteButton, adminText("common.deleting", "Deleting..."), () => onDelete(creation.id));
       });
       grid.append(card);
     });
@@ -6855,20 +7071,21 @@ var renderCreationsView = ({
   const clearButton = document.getElementById("creation-clear");
   const exportButton = document.getElementById("creation-export");
   snapshotButton?.addEventListener("click", () => {
-    void runButtonAction(snapshotButton, "Capturing...", onSnapshot);
+    void runButtonAction(snapshotButton, adminText("creations.capturing", "Capturing..."), onSnapshot);
   });
   clearButton?.addEventListener("click", () => {
-    if (!window.confirm("Clear the public website? A fresh snapshot will be created first.")) {
+    if (!window.confirm(adminText("creations.confirmClear", "Clear the public website? A fresh snapshot will be created first."))) {
       return;
     }
-    void runButtonAction(clearButton, "Clearing...", onClearAll);
+    void runButtonAction(clearButton, adminText("common.clearing", "Clearing..."), onClearAll);
   });
   exportButton?.addEventListener("click", () => {
-    void runButtonAction(exportButton, "Preparing...", onExportJson);
+    void runButtonAction(exportButton, adminText("common.preparing", "Preparing..."), onExportJson);
   });
 };
 
 // web/src/features/creations/capture.ts
+init_translations();
 var CAPTURE_WIDTH = 1440;
 var CAPTURE_HEIGHT = 900;
 var CAPTURE_TIMEOUT_MS = 15e3;
@@ -6876,7 +7093,7 @@ var wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 var loadIframe = (iframe) => new Promise((resolve, reject) => {
   const timer = window.setTimeout(() => {
     cleanup();
-    reject(new Error("Snapshot timed out while loading the website."));
+    reject(new Error(adminText("creations.snapshotTimedOut", "Snapshot timed out while loading the website.")));
   }, CAPTURE_TIMEOUT_MS);
   const cleanup = () => {
     window.clearTimeout(timer);
@@ -6887,14 +7104,14 @@ var loadIframe = (iframe) => new Promise((resolve, reject) => {
     cleanup();
     const doc = iframe.contentDocument;
     if (!doc) {
-      reject(new Error("Snapshot failed because the website document is unavailable."));
+      reject(new Error(adminText("creations.snapshotUnavailable", "Snapshot failed because the website document is unavailable.")));
       return;
     }
     resolve(doc);
   };
   const handleError = () => {
     cleanup();
-    reject(new Error("Snapshot failed while loading the website."));
+    reject(new Error(adminText("creations.snapshotLoadFailed", "Snapshot failed while loading the website.")));
   };
   iframe.addEventListener("load", handleLoad, { once: true });
   iframe.addEventListener("error", handleError, { once: true });
@@ -7012,9 +7229,11 @@ var drawSvgToCanvas = async (svg) => {
       const img = new Image();
       img.decoding = "sync";
       img.addEventListener("load", () => resolve(img), { once: true });
-      img.addEventListener("error", () => reject(new Error("Snapshot image could not be rendered.")), {
-        once: true
-      });
+      img.addEventListener(
+        "error",
+        () => reject(new Error(adminText("creations.snapshotImageFailed", "Snapshot image could not be rendered."))),
+        { once: true }
+      );
       img.src = url;
     });
     const canvas = document.createElement("canvas");
@@ -7022,7 +7241,7 @@ var drawSvgToCanvas = async (svg) => {
     canvas.height = CAPTURE_HEIGHT;
     const context = canvas.getContext("2d");
     if (!context) {
-      throw new Error("Snapshot capture is not supported in this browser.");
+      throw new Error(adminText("creations.snapshotUnsupported", "Snapshot capture is not supported in this browser."));
     }
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, CAPTURE_WIDTH, CAPTURE_HEIGHT);
@@ -7030,7 +7249,12 @@ var drawSvgToCanvas = async (svg) => {
     try {
       return canvas.toDataURL("image/png");
     } catch {
-      throw new Error("Snapshot capture failed because the website uses blocked external assets.");
+      throw new Error(
+        adminText(
+          "creations.snapshotBlockedAssets",
+          "Snapshot capture failed because the website uses blocked external assets."
+        )
+      );
     }
   } finally {
     URL.revokeObjectURL(url);
@@ -7078,6 +7302,7 @@ var captureWebsiteSnapshot = async (path = "/") => {
 };
 
 // web/src/features/creations/controller.ts
+init_translations();
 var readCreations = (value) => {
   const records = isRecord(value) && Array.isArray(value.creations) ? value.creations : Array.isArray(value) ? value : [];
   return records.filter((record) => {
@@ -7185,7 +7410,7 @@ var renderCreationsPage = ({
     },
     loadPreview: async (id) => {
       if (!auth) {
-        throw new Error("Unauthorized");
+        throw new Error(adminText("auth.unauthorized", "Unauthorized"));
       }
       const result = await fetchCreationSnapshotImage(auth, id);
       return URL.createObjectURL(result.blob);
@@ -7197,6 +7422,7 @@ var renderCreationsPage = ({
 init_api();
 
 // web/src/views/website-build.ts
+init_translations();
 var escapeHtml4 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var actionIcon = (name) => {
   if (name === "visit") {
@@ -7290,36 +7516,36 @@ var renderWebsiteBuildView = ({
     <section class="app-build-shell">
       <div class="app-build-header">
         <div class="app-build-heading">
-          <p class="app-build-kicker app-muted">System page</p>
+          <p class="app-build-kicker app-muted">${adminText("documents.systemPage", "System page")}</p>
           <h1 class="title is-4">${escapeHtml4(doc.payload.name)}</h1>
         </div>
-        <div class="app-build-actions" role="toolbar" aria-label="Website build actions">
-          ${actionButton("build-visit", "Visit", "visit", "Open the current generated build in a new tab.")}
+        <div class="app-build-actions" role="toolbar" aria-label="${adminText("websiteBuild.actions", "Website build actions")}">
+          ${actionButton("build-visit", adminText("common.visit", "Visit"), "visit", adminText("websiteBuild.visitHelp", "Open the current generated build in a new tab."))}
           ${actionButton(
     "build-copy-public",
-    "Copy from public",
+    adminText("websiteBuild.copyFromPublic", "Copy from public"),
     "copy",
-    "Import the current public website into the build workspace."
+    adminText("websiteBuild.copyFromPublicHelp", "Import the current public website into the build workspace.")
   )}
           ${actionButton(
     "build-publish",
-    "Publish",
+    adminText("common.publish", "Publish"),
     "publish",
-    "Replace the public website with the current build output."
+    adminText("websiteBuild.publishHelp", "Replace the public website with the current build output.")
   )}
           ${actionButton(
     "build-clean",
-    "Clean",
+    adminText("common.clean", "Clean"),
     "clean",
-    "Remove the current build output after creating a safety snapshot.",
+    adminText("websiteBuild.cleanHelp", "Remove the current build output after creating a safety snapshot."),
     "app-build-action-danger"
   )}
         </div>
       </div>
       <div class="tabs is-toggle is-small app-build-tabs">
         <ul>
-          <li class="is-active"><a data-build-tab="chat">Chat</a></li>
-          <li><a data-build-tab="preview">Preview</a></li>
+          <li class="is-active"><a data-build-tab="chat">${adminText("websiteBuild.chat", "Chat")}</a></li>
+          <li><a data-build-tab="preview">${adminText("creations.preview", "Preview")}</a></li>
         </ul>
       </div>
       <div class="app-build-body">
@@ -7331,12 +7557,12 @@ var renderWebsiteBuildView = ({
             <div id="build-preview-loading" class="app-build-preview-loading is-hidden">
               <div class="app-build-spinner" aria-hidden="true"></div>
               <div class="app-build-preview-copy">
-                <div class="app-build-preview-title">Codex is working</div>
-                <div id="build-preview-reasoning" class="app-build-preview-reasoning">Waiting for updates...</div>
+                <div class="app-build-preview-title">${adminText("chat.progress.title", "Codex is working")}</div>
+                <div id="build-preview-reasoning" class="app-build-preview-reasoning">${adminText("websiteBuild.waiting", "Waiting for updates...")}</div>
               </div>
             </div>
             <div id="build-preview-frame" class="app-build-preview-frame">
-              <iframe id="build-preview-iframe" title="Build preview"></iframe>
+              <iframe id="build-preview-iframe" title="${adminText("websiteBuild.previewFrame", "Build preview")}"></iframe>
             </div>
           </div>
         </div>
@@ -7352,19 +7578,19 @@ var renderWebsiteBuildView = ({
     if (!copyFromPublicButton) {
       return;
     }
-    void runButtonAction2(copyFromPublicButton, "Copying...", onCopyFromPublic);
+    void runButtonAction2(copyFromPublicButton, adminText("websiteBuild.copying", "Copying..."), onCopyFromPublic);
   });
   publishButton?.addEventListener("click", () => {
     if (!publishButton) {
       return;
     }
-    void runButtonAction2(publishButton, "Publishing...", onPublish);
+    void runButtonAction2(publishButton, adminText("websiteBuild.publishing", "Publishing..."), onPublish);
   });
   cleanButton?.addEventListener("click", () => {
     if (!cleanButton) {
       return;
     }
-    void runButtonAction2(cleanButton, "Cleaning...", onClean);
+    void runButtonAction2(cleanButton, adminText("common.cleaning", "Cleaning..."), onClean);
   });
   const tabLinks = Array.from(content.querySelectorAll("[data-build-tab]"));
   const panels = {
@@ -7394,6 +7620,7 @@ var renderWebsiteBuildView = ({
 };
 
 // web/src/features/website-build/controller.ts
+init_translations();
 var isWebsiteBuildDocument = (doc) => doc.store === "private" && doc.path === "website-build.json";
 var disposeProgressListener = null;
 var renderWebsiteBuildPage = ({
@@ -7417,9 +7644,12 @@ var renderWebsiteBuildPage = ({
       }
       try {
         const confirmed = await confirmAction({
-          title: "Publish build",
-          message: "Publish will replace the public website with the current build output. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
-          confirmLabel: "Publish website",
+          title: adminText("websiteBuild.publishBuild", "Publish build"),
+          message: adminText(
+            "websiteBuild.confirmPublish",
+            "Publish will replace the public website with the current build output. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding."
+          ),
+          confirmLabel: adminText("websiteBuild.publishWebsite", "Publish website"),
           confirmClassName: "button app-button app-primary"
         });
         if (!confirmed) {
@@ -7436,9 +7666,12 @@ var renderWebsiteBuildPage = ({
       }
       try {
         const confirmed = await confirmAction({
-          title: "Clean build",
-          message: "Clean will remove the current build output after capturing a safety snapshot. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
-          confirmLabel: "Clean build",
+          title: adminText("websiteBuild.cleanBuild", "Clean build"),
+          message: adminText(
+            "websiteBuild.confirmClean",
+            "Clean will remove the current build output after capturing a safety snapshot. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding."
+          ),
+          confirmLabel: adminText("websiteBuild.cleanBuild", "Clean build"),
           confirmClassName: "button app-button app-danger"
         });
         if (!confirmed) {
@@ -7457,9 +7690,12 @@ var renderWebsiteBuildPage = ({
       }
       try {
         const confirmed = await confirmAction({
-          title: "Copy from public",
-          message: "Copy from public will import the current public website into the build workspace before you continue editing. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
-          confirmLabel: "Copy website",
+          title: adminText("websiteBuild.copyFromPublic", "Copy from public"),
+          message: adminText(
+            "websiteBuild.confirmCopyFromPublic",
+            "Copy from public will import the current public website into the build workspace before you continue editing. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding."
+          ),
+          confirmLabel: adminText("websiteBuild.copyWebsite", "Copy website"),
           confirmClassName: "button app-button app-primary"
         });
         if (!confirmed) {
@@ -7507,8 +7743,8 @@ var renderWebsiteBuildPage = ({
     }
     if (previewReasoning) {
       const latestItem = progress?.items?.[progress.items.length - 1]?.message;
-      const message = progress?.status || latestItem || "Working...";
-      previewReasoning.textContent = pending ? message : "Ready.";
+      const message = progress?.status || latestItem || adminText("chat.progress.working", "Working...");
+      previewReasoning.textContent = pending ? message : adminText("common.ready", "Ready.");
     }
     if (!pending) {
       refreshPreviewIfReady();
@@ -7535,6 +7771,7 @@ var renderWebsiteBuildPage = ({
 };
 
 // web/src/app/documents.ts
+init_translations();
 var openLoggerSettings = () => {
   if (!state.auth) {
     return;
@@ -7552,7 +7789,7 @@ var renderDocumentView = (doc) => {
     options: languageMatch.variants.map((variant) => ({
       id: variant.id,
       language: normalizeLanguageValue(variant.language),
-      label: normalizeLanguageValue(variant.language) ?? "default"
+      label: normalizeLanguageValue(variant.language) ?? adminText("documents.defaultLanguage", "default")
     }))
   } : null;
   if (isWebsiteBuild) {
@@ -7691,6 +7928,7 @@ var loadDocument = async (id) => {
 
 // web/src/app/screens.ts
 init_api();
+init_translations();
 var showModulesView = () => {
   clearRegisteredIntegrationCleanup();
   renderModulesView({
@@ -7729,12 +7967,18 @@ var showIntegrationsView = (onAfterLoad) => {
       return;
     }
     if (event.ok === false) {
-      pushNotice("error", event.error || `Model sync failed for ${event.name}.`);
+      pushNotice(
+        "error",
+        event.error || adminText("integrations.syncFailedNamed", "Model sync failed for {name}.", { name: event.name })
+      );
       return;
     }
     if (event.ok === true) {
       const suffix = typeof event.models === "number" ? ` (${event.models} models)` : "";
-      pushNotice("success", `Models synced for ${event.name}${suffix}.`);
+      pushNotice("success", adminText("integrations.syncedNamed", "Models synced for {name}{suffix}.", {
+        name: event.name,
+        suffix
+      }));
     }
   };
   const handleRealtimeStatus = (status2) => {
@@ -7785,26 +8029,27 @@ init_api();
 init_api();
 
 // web/src/features/agents/chat.ts
+init_translations();
 var renderMessages2 = (conversation) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
   if (!messagesContainer) {
     return;
   }
   if (!conversation) {
-    messagesContainer.innerHTML = `<p class="app-muted">Start a conversation with your next message.</p>`;
+    messagesContainer.innerHTML = `<p class="app-muted">${adminText("agents.startConversation", "Start a conversation with your next message.")}</p>`;
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
   const messages = Array.isArray(payloadData.messages) ? payloadData.messages : [];
   if (!messages.length) {
-    messagesContainer.innerHTML = `<p class="app-muted">No messages yet.</p>`;
+    messagesContainer.innerHTML = `<p class="app-muted">${adminText("chat.noMessages", "No messages yet.")}</p>`;
     return;
   }
   messagesContainer.innerHTML = messages.map((message) => {
     const record = isRecord(message) ? message : {};
     const role = typeof record.role === "string" ? record.role : "user";
     const content = typeof record.content === "string" ? record.content : "";
-    const label = role === "assistant" ? "Agent" : "You";
+    const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
     const roleClass = role === "assistant" ? "is-assistant" : "is-user";
     return `
         <div class="app-chat-message ${roleClass}">
@@ -7822,14 +8067,14 @@ var updateConversationHeader2 = (conversation) => {
     return;
   }
   if (!conversation) {
-    title.textContent = "No conversation selected";
-    meta.textContent = "Select or create a conversation.";
+    title.textContent = adminText("chat.noneSelected", "No conversation selected");
+    meta.textContent = adminText("chat.selectOrCreate", "Select or create a conversation.");
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
   const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
-  title.textContent = conversation.payload.name || "Conversation";
-  meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+  title.textContent = conversation.payload.name || adminText("chat.conversation", "Conversation");
+  meta.textContent = createdAt ? adminText("chat.startedAt", "Started {time}", { time: createdAt }) : adminText("chat.loaded", "Conversation loaded.");
 };
 var updateChatInputState2 = (active2) => {
   const input = document.getElementById("agent-chat-text");
@@ -7847,7 +8092,7 @@ var renderConversationList = (items, currentConversationId, onSelect) => {
     return;
   }
   if (!items.length) {
-    list.innerHTML = `<p class="app-muted">No conversations yet.</p>`;
+    list.innerHTML = `<p class="app-muted">${adminText("chat.noConversations", "No conversations yet.")}</p>`;
     return;
   }
   list.innerHTML = items.map((item) => {
@@ -7871,26 +8116,27 @@ var renderConversationList = (items, currentConversationId, onSelect) => {
 };
 
 // web/src/features/agents/layout.ts
+init_translations();
 var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
   <div class="mb-4">
     <h1 class="title is-4">${agentDoc.payload.name}</h1>
-    <p class="app-muted">Agent \xB7 ${agentDoc.store}/${agentDoc.path}</p>
+    <p class="app-muted">${adminText("agents.agentMeta", "Agent")} \xB7 ${agentDoc.store}/${agentDoc.path}</p>
   </div>
   <div class="columns is-variable is-4">
     <div class="column is-one-third">
       <div class="app-panel">
         <div class="mb-3">
-          <h2 class="title is-6">Settings</h2>
-          <p class="app-muted">Provider, model, and prompts.</p>
+          <h2 class="title is-6">${adminText("common.settings", "Settings")}</h2>
+          <p class="app-muted">${adminText("agents.settingsHelp", "Provider, model, and prompts.")}</p>
         </div>
         <div class="field">
-          <label class="label">Name</label>
+          <label class="label">${adminText("documents.name", "Name")}</label>
           <div class="control">
             <input id="agent-edit-name" class="input" type="text" value="${agentDoc.payload.name}" />
           </div>
         </div>
         <div class="field">
-          <label class="label">Provider</label>
+          <label class="label">${adminText("agents.provider", "Provider")}</label>
           <div class="control">
             <div class="select is-fullwidth">
               <select id="agent-edit-provider"></select>
@@ -7899,13 +8145,13 @@ var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
           <p id="agent-edit-provider-help" class="help app-muted"></p>
         </div>
         <div class="field">
-          <label class="label">Model</label>
+          <label class="label">${adminText("agents.model", "Model")}</label>
           <div class="control">
             <input
               id="agent-edit-model-search"
               class="input"
               type="search"
-              placeholder="Search models"
+              placeholder="${adminText("agents.searchModels", "Search models")}"
               autocomplete="off"
             />
           </div>
@@ -7916,28 +8162,28 @@ var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
           </div>
         </div>
         <div class="field">
-          <label class="label">System prompt</label>
+          <label class="label">${adminText("agents.systemPrompt", "System prompt")}</label>
           <div class="control">
             <textarea id="agent-edit-system" class="textarea" rows="3">${systemPrompt}</textarea>
           </div>
         </div>
         <div class="field">
-          <label class="label">Admin prompt</label>
+          <label class="label">${adminText("agents.adminPrompt", "Admin prompt")}</label>
           <div class="control">
             <textarea id="agent-edit-admin" class="textarea" rows="3">${adminPrompt}</textarea>
           </div>
         </div>
         <div class="buttons">
-          <button id="agent-save" class="button app-button app-primary">Save</button>
+          <button id="agent-save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
         </div>
       </div>
       <div class="app-panel mt-4">
         <div class="app-panel-header">
           <div>
-            <h2 class="title is-6 mb-1">Conversations</h2>
-            <p class="app-muted">Reuse context or start fresh.</p>
+            <h2 class="title is-6 mb-1">${adminText("agents.conversations", "Conversations")}</h2>
+            <p class="app-muted">${adminText("agents.conversationsHelp", "Reuse context or start fresh.")}</p>
           </div>
-          <button id="agent-new-conversation" class="button app-button app-ghost">New</button>
+          <button id="agent-new-conversation" class="button app-button app-ghost">${adminText("common.new", "New")}</button>
         </div>
         <div id="agent-conversation-list" class="app-conversation-list"></div>
       </div>
@@ -7946,8 +8192,8 @@ var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
       <div class="app-panel app-chat">
         <div class="app-chat-header">
           <div>
-            <div id="agent-chat-title" class="app-chat-title">No conversation selected</div>
-            <div id="agent-chat-meta" class="app-chat-meta app-muted">Your next message starts a new conversation.</div>
+            <div id="agent-chat-title" class="app-chat-title">${adminText("chat.noneSelected", "No conversation selected")}</div>
+            <div id="agent-chat-meta" class="app-chat-meta app-muted">${adminText("agents.nextMessageStartsConversation", "Your next message starts a new conversation.")}</div>
           </div>
         </div>
         <div id="agent-chat-messages" class="app-chat-messages"></div>
@@ -7955,11 +8201,11 @@ var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
           <form id="agent-chat-form">
             <div class="field">
               <div class="control">
-                <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="Write a message" disabled></textarea>
+                <textarea id="agent-chat-text" class="textarea" rows="2" placeholder="${adminText("chat.writeMessage", "Write a message")}" disabled></textarea>
               </div>
             </div>
             <div class="buttons">
-              <button id="agent-chat-send" class="button app-button app-primary" disabled>Send</button>
+              <button id="agent-chat-send" class="button app-button app-primary" disabled>${adminText("chat.send", "Send")}</button>
             </div>
           </form>
           <p id="agent-chat-status" class="help"></p>
@@ -7973,6 +8219,7 @@ var renderAgentLayout = (agentDoc, systemPrompt, adminPrompt) => `
 var getAgentField = (data, key) => typeof data[key] === "string" ? data[key] : "";
 
 // web/src/features/agents/view.ts
+init_translations();
 var refreshAgentEditControls = () => {
   if (!state.currentAgent) {
     return;
@@ -8103,7 +8350,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     const progress = getConversationProgress(conversation);
     updateChatInputState2(!!auth && !!state.currentAgent && !pending);
     if (!conversation && chatMeta) {
-      chatMeta.textContent = "Your next message starts a new conversation.";
+      chatMeta.textContent = adminText("agents.nextMessageStartsConversation", "Your next message starts a new conversation.");
     }
     if (pending) {
       processingStatus.start(progress?.status ?? "");
@@ -8165,11 +8412,11 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
     const systemValue = document.getElementById("agent-edit-system")?.value.trim() || "";
     const adminValue = document.getElementById("agent-edit-admin")?.value.trim() || "";
     if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
-      pushNotice("error", "All agent fields are required.");
+      pushNotice("error", adminText("agents.allFieldsRequired", "All agent fields are required."));
       return;
     }
     if (providerSelect?.disabled || modelSelect?.disabled) {
-      pushNotice("error", "Enable an integration and sync models first.");
+      pushNotice("error", adminText("agents.enableIntegrationFirst", "Enable an integration and sync models first."));
       return;
     }
     try {
@@ -8227,7 +8474,9 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
         markConversationPending(state.currentConversation, false);
         appendLocalMessage(
           "assistant",
-          `Something went wrong while I was replying: ${err.message || "Please try again."}`
+          adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
+            message: err.message || adminText("common.tryAgain", "Please try again.")
+          })
         );
       }
     }
@@ -8262,6 +8511,7 @@ var loadAgent = async (id, reloadAgents) => {
 };
 
 // web/src/app/bootstrap.ts
+init_translations();
 var systemUpdatePollHandle = null;
 var showLogin = (app) => {
   renderLogin({
@@ -8328,7 +8578,7 @@ var startSystemUpdate = async () => {
     },
     status: "running",
     locked: true,
-    message: "Starting admin update.",
+    message: adminText("systemUpdate.starting", "Starting admin update."),
     error: null
   };
   renderSystemUpdateControls();
@@ -8337,7 +8587,7 @@ var startSystemUpdate = async () => {
     const response = await runSystemUpdate(state.auth);
     state.systemUpdate = response.update;
     renderSystemUpdateControls();
-    pushNotice("success", response.update.message || "Admin updated successfully.");
+    pushNotice("success", response.update.message || adminText("systemUpdate.updated", "Admin updated successfully."));
     stopSystemUpdatePolling();
     window.location.reload();
   } catch (err) {
@@ -8365,7 +8615,7 @@ var exportAll = async () => {
   }
 };
 var openWebsiteBuilder = async () => {
-  await openPrivateDocument("website-build.json", "Website Builder page not found.");
+  await openPrivateDocument("website-build.json", adminText("documents.websiteBuildNotFound", "Website Builder page not found."));
 };
 var openPrivateDocument = async (path, errorMessage) => {
   const page = state.navigationPages.find((entry) => entry.store === "private" && entry.path === path && entry.documentId);
@@ -8376,7 +8626,7 @@ var openPrivateDocument = async (path, errorMessage) => {
   await loadDocument(page.documentId);
 };
 var openCreationsPage = async () => {
-  await openPrivateDocument("creations.json", "Creations page not found.");
+  await openPrivateDocument("creations.json", adminText("documents.creationsNotFound", "Creations page not found."));
 };
 var renderApp = async () => {
   const app = document.getElementById("app");
@@ -8402,6 +8652,7 @@ var renderApp = async () => {
   await loadUiConfig();
   await loadLayoutConfig();
   await loadModules();
+  await preloadAdminLanguage();
   renderAppShell({ moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected) });
   initNotifications();
   renderSystemUpdateControls();
@@ -8478,7 +8729,7 @@ var bootstrap = () => {
     state.auth = null;
     const detail = event.detail;
     showLogin(app);
-    pushNotice("error", detail?.message || "Your session expired. Please log in again.");
+    pushNotice("error", detail?.message || adminText("auth.sessionExpired", "Your session expired. Please log in again."));
   });
   window.addEventListener("app:system-update-locked", () => {
     void refreshSystemUpdateStatus(true);

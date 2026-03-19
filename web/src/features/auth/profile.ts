@@ -1,6 +1,7 @@
 import { fetchDocument, saveAuth, updateDocument, type AuthState, type DocumentPayload, type RemoteDocument } from "../../api";
 import { state } from "../../app/state";
 import { profileCopy } from "../../app/layout";
+import { adminText } from "../../app/translations";
 import { isAuthData, isTokenAuth, type EditableUser } from "./utils";
 import { clearAgentState } from "../agents/state";
 import { clearRegisteredIntegrationCleanup } from "../integrations/runtime";
@@ -15,13 +16,13 @@ export const renderProfile = async () => {
 
   const auth = state.auth;
   if (!isTokenAuth(auth) || !auth.user) {
-    content.innerHTML = `<p class="app-muted">Δεν υπάρχει προφίλ για API key σύνδεση.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.noApiKeyProfile", "No profile is available for API key authentication.")}</p>`;
     return;
   }
   const currentUser = auth.user;
 
   if (!state.authDocumentId) {
-    content.innerHTML = `<p class="app-muted">Δεν βρέθηκε auth.json.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.authMissing", "auth.json was not found.")}</p>`;
     return;
   }
 
@@ -35,7 +36,7 @@ export const renderProfile = async () => {
 
   const data = authDoc.payload.data;
   if (!isAuthData(data)) {
-    content.innerHTML = `<p class="app-muted">Το auth.json δεν έχει users.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.authNoUsers", "auth.json does not contain users.")}</p>`;
     return;
   }
 
@@ -48,7 +49,7 @@ export const renderProfile = async () => {
   });
 
   if (index < 0) {
-    content.innerHTML = `<p class="app-muted">Ο χρήστης δεν βρέθηκε στο auth.json.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("profile.userMissing", "The user was not found in auth.json.")}</p>`;
     return;
   }
 
@@ -62,7 +63,7 @@ export const renderProfile = async () => {
     <div class="columns is-variable is-4 is-multiline">
       <div class="column is-half">
         <div class="field">
-          <label class="label">First Name</label>
+          <label class="label">${adminText("profile.firstName", "First Name")}</label>
           <div class="control">
             <input id="profile-firstname" class="input" type="text" value="${current.firstname || ""}" />
           </div>
@@ -70,7 +71,7 @@ export const renderProfile = async () => {
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Last Name</label>
+          <label class="label">${adminText("profile.lastName", "Last Name")}</label>
           <div class="control">
             <input id="profile-lastname" class="input" type="text" value="${current.lastname || ""}" />
           </div>
@@ -78,7 +79,7 @@ export const renderProfile = async () => {
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Email</label>
+          <label class="label">${adminText("auth.email", "Email")}</label>
           <div class="control">
             <input id="profile-email" class="input" type="email" value="${current.email || ""}" />
           </div>
@@ -86,9 +87,9 @@ export const renderProfile = async () => {
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Password</label>
+          <label class="label">${adminText("auth.password", "Password")}</label>
           <div class="control">
-            <input id="profile-password" class="input" type="password" placeholder="Leave blank to keep" />
+            <input id="profile-password" class="input" type="password" placeholder="${adminText("profile.passwordPlaceholder", "Leave blank to keep")}" />
           </div>
         </div>
       </div>

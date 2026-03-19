@@ -1,4 +1,5 @@
 import type { AgentSummary } from "../../api";
+import { adminText } from "../../app/translations";
 
 export const renderAgentsMenu = (agents: AgentSummary[], onSelectAgent: (id: string) => void) => {
   const containers = [
@@ -16,8 +17,8 @@ export const renderAgentsMenu = (agents: AgentSummary[], onSelectAgent: (id: str
     if (!agents.length) {
       container.innerHTML =
         container.id === "nav-agents"
-          ? `<div class="navbar-item is-size-7 app-muted">No agents found.</div>`
-          : `<div class="app-mobile-empty app-muted">No agents found.</div>`;
+          ? `<div class="navbar-item is-size-7 app-muted">${adminText("agents.none", "No agents found.")}</div>`
+          : `<div class="app-mobile-empty app-muted">${adminText("agents.none", "No agents found.")}</div>`;
       return;
     }
 

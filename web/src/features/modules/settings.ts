@@ -6,6 +6,7 @@ import {
   type ModuleDefinition,
   type RemoteDocument,
 } from "../../api";
+import { adminText } from "../../app/translations";
 import { moduleSettingsKey } from "../../modules/utils";
 import { encodeDocumentId, isRecord } from "../../utils";
 
@@ -42,7 +43,7 @@ export const ensureModuleSettingsDocument = async (
   cache: Map<string, Record<string, unknown> | null>
 ): Promise<RemoteDocument> => {
   if (!auth) {
-    throw new Error("Authentication required.");
+    throw new Error(adminText("auth.required", "Authentication required."));
   }
   const key = moduleSettingsKey(payload, module.name);
   const path = `modules/${key}.json`;

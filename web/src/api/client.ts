@@ -1,4 +1,5 @@
 import type { AuthState } from "./types";
+import { adminText } from "../app/translations";
 
 const STORAGE_KEY = "manage_auth";
 
@@ -28,11 +29,11 @@ const notifyUpdateLocked = (payload: UpdateLockedPayload) => {
 };
 
 const successMessageFor = (method: string) => {
-  if (method === "GET") return "Loaded.";
-  if (method === "POST") return "Created.";
-  if (method === "PUT") return "Saved.";
-  if (method === "DELETE") return "Deleted.";
-  return "Done.";
+  if (method === "GET") return adminText("api.success.get", "Loaded.");
+  if (method === "POST") return adminText("api.success.post", "Created.");
+  if (method === "PUT") return adminText("api.success.put", "Saved.");
+  if (method === "DELETE") return adminText("api.success.delete", "Deleted.");
+  return adminText("api.success.default", "Done.");
 };
 
 const handleUnauthorized = (response: Response, auth: AuthState, message: string) => {
@@ -102,7 +103,7 @@ export const request = async <T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    const message = error.message || error.error || response.statusText || "Request failed";
+    const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
     handleUnauthorized(response, auth, message);
     handleLocked(response, message);
     if (config.notify !== false) {
@@ -134,7 +135,7 @@ export const requestBlob = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    const message = error.message || error.error || response.statusText || "Request failed";
+    const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
     handleUnauthorized(response, auth, message);
     handleLocked(response, message);
     notify({ type: "error", message });
@@ -149,7 +150,7 @@ export const requestBlob = async (
     !contentType.includes("application/x-gzip") &&
     !contentType.includes("application/octet-stream")
   ) {
-    throw new Error("Unexpected download response.");
+    throw new Error(adminText("api.error.unexpectedDownload", "Unexpected download response."));
   }
 
   const blob = await response.blob();
@@ -157,7 +158,7 @@ export const requestBlob = async (
   const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
   const filename = match ? match[1] : undefined;
 
-  notify({ type: "success", message: "Download ready." });
+  notify({ type: "success", message: adminText("api.success.downloadReady", "Download ready.") });
   return { blob, filename };
 };
 
@@ -177,7 +178,7 @@ export const requestAsset = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    const message = error.message || error.error || response.statusText || "Request failed";
+    const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
     handleUnauthorized(response, auth, message);
     handleLocked(response, message);
     if (config.notify !== false) {
@@ -192,7 +193,7 @@ export const requestAsset = async (
   const filename = match ? match[1] : undefined;
 
   if (config.notify !== false) {
-    notify({ type: "success", message: "Download ready." });
+    notify({ type: "success", message: adminText("api.success.downloadReady", "Download ready.") });
   }
 
   return { blob, filename };
@@ -213,7 +214,7 @@ export const requestForm = async <T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    const message = error.message || error.error || response.statusText || "Request failed";
+    const message = error.message || error.error || response.statusText || adminText("api.error.requestFailed", "Request failed");
     handleUnauthorized(response, auth, message);
     handleLocked(response, message);
     notify({ type: "error", message });
@@ -221,6 +222,6 @@ export const requestForm = async <T>(
   }
 
   const data = (await response.json()) as T;
-  notify({ type: "success", message: "Uploaded successfully." });
+  notify({ type: "success", message: adminText("api.success.uploaded", "Uploaded successfully.") });
   return data;
 };

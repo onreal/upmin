@@ -19,6 +19,7 @@ import {
   registerIntegrationCleanup,
 } from "../features/integrations/runtime";
 import { pushNotice } from "../ui/notice";
+import { adminText } from "./translations";
 
 export const showModulesView = () => {
   clearRegisteredIntegrationCleanup();
@@ -66,13 +67,19 @@ export const showIntegrationsView = (onAfterLoad?: () => void) => {
     }
 
     if (event.ok === false) {
-      pushNotice("error", event.error || `Model sync failed for ${event.name}.`);
+      pushNotice(
+        "error",
+        event.error || adminText("integrations.syncFailedNamed", "Model sync failed for {name}.", { name: event.name })
+      );
       return;
     }
 
     if (event.ok === true) {
       const suffix = typeof event.models === "number" ? ` (${event.models} models)` : "";
-      pushNotice("success", `Models synced for ${event.name}${suffix}.`);
+      pushNotice("success", adminText("integrations.syncedNamed", "Models synced for {name}{suffix}.", {
+        name: event.name,
+        suffix,
+      }));
     }
   };
 

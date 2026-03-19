@@ -2,6 +2,7 @@ import type { AgentSummary, AuthState, DocumentPayload, ModuleDefinition, Remote
 import type { JsonEditorHandle } from "../json-editor";
 import { triggerDownload } from "../utils";
 import { renderModuleSettingsForm, resolveModuleForSettings } from "../features/modules/settings-form";
+import { adminText } from "../app/translations";
 
 export type DocumentEditorRef = {
   get: () => JsonEditorHandle | null;
@@ -78,9 +79,9 @@ export const renderDocument = ({
   const idMeta = pageId
     ? `
       <div class="app-doc-meta">
-        <span class="app-doc-meta-label">ID</span>
+        <span class="app-doc-meta-label">${adminText("documents.id", "ID")}</span>
         <code class="app-doc-meta-value">${pageId}</code>
-        <button class="app-doc-meta-copy" type="button" aria-label="Copy ID" data-copy-doc-id="${pageId}">
+        <button class="app-doc-meta-copy" type="button" aria-label="${adminText("documents.copyId", "Copy ID")}" data-copy-doc-id="${pageId}">
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="14" height="14" focusable="false" aria-hidden="true">
               <rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
@@ -95,7 +96,7 @@ export const renderDocument = ({
   const languageMeta = languageOptions && languageOptions.options.length > 1
     ? `
       <div class="field app-doc-language">
-        <label class="label">Language</label>
+        <label class="label">${adminText("documents.language", "Language")}</label>
         <div class="control">
           <div class="select">
             <select id="doc-language-select">
@@ -157,21 +158,21 @@ export const renderDocument = ({
     content.innerHTML = `
       <div class="mb-4">
         <h1 class="title is-4">${payload.name}</h1>
-        <p class="app-muted">Module settings · ${doc.store}/${doc.path}</p>
+        <p class="app-muted">${adminText("documents.moduleSettingsMeta", "Module settings")} · ${doc.store}/${doc.path}</p>
         ${idMeta}
         ${languageMeta}
       </div>
       <div class="mb-4 buttons">
         ${
           returnToDocumentId
-            ? `<button id="module-back" class="button app-button app-ghost">Back</button>`
+            ? `<button id="module-back" class="button app-button app-ghost">${adminText("common.back", "Back")}</button>`
             : ""
         }
-        <button id="save" class="button app-button app-primary">Αποθήκευση</button>
-        <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+        <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+        <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
       </div>
       <div class="mt-4">
-        <h2 class="title is-5">Settings</h2>
+        <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
         <div id="module-settings-form" class="app-module-settings-surface"></div>
       </div>
     `;
@@ -187,7 +188,7 @@ export const renderDocument = ({
       : null;
 
     if (!moduleDefinition && formContainer) {
-      formContainer.innerHTML = `<div class="notification is-light">Module definition not found.</div>`;
+      formContainer.innerHTML = `<div class="notification is-light">${adminText("modules.definitionNotFound", "Module definition not found.")}</div>`;
     }
 
     document.getElementById("module-back")?.addEventListener("click", () => {
@@ -246,16 +247,16 @@ export const renderDocument = ({
       </div>
       ${
         isConfigurationPage
-          ? `<div class="notification is-light app-muted">The admin path is fixed at <strong>/upmin/</strong>.</div>`
+          ? `<div class="notification is-light app-muted">${adminText("documents.fixedAdminPath", "The admin path is fixed at <strong>/upmin/</strong>.")}</div>`
           : ""
       }
       <div class="mb-4 buttons">
-        <button id="save" class="button app-button app-primary">Αποθήκευση</button>
-        <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+        <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+        <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
       </div>
       <div class="mt-4">
         <div id="module-panel" class="mb-4"></div>
-        <h2 class="title is-5">Data</h2>
+        <h2 class="title is-5">${adminText("documents.data", "Data")}</h2>
         <div id="json-editor" class="json-editor"></div>
       </div>
     `;
@@ -316,13 +317,13 @@ export const renderDocument = ({
       ${languageMeta}
     </div>
     <div class="mb-4 buttons">
-      <button id="save" class="button app-button app-primary">Αποθήκευση</button>
-      <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+      <button id="save" class="button app-button app-primary">${adminText("common.save", "Save")}</button>
+      <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
     </div>
     <div class="columns is-variable is-4 is-multiline">
       <div class="column is-half">
         <div class="field">
-          <label class="label">Order</label>
+          <label class="label">${adminText("documents.order", "Order")}</label>
           <div class="control">
             <input
               id="field-order"
@@ -337,7 +338,7 @@ export const renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Page</label>
+          <label class="label">${adminText("documents.page", "Page")}</label>
           <div class="control">
             <input id="field-page" class="input" type="text" value="${payload.page}" />
           </div>
@@ -345,7 +346,7 @@ export const renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Name</label>
+          <label class="label">${adminText("documents.name", "Name")}</label>
           <div class="control">
             <input id="field-name" class="input" type="text" value="${payload.name}" />
           </div>
@@ -353,7 +354,7 @@ export const renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Language</label>
+          <label class="label">${adminText("documents.language", "Language")}</label>
           <div class="control">
             <input id="field-language" class="input" type="text" value="${payload.language ?? ""}" />
           </div>
@@ -361,7 +362,7 @@ export const renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Modules</label>
+          <label class="label">${adminText("documents.modules", "Modules")}</label>
           <div class="control">
             <div id="field-modules" class="app-module-picker">
               ${moduleChecklistHtml(selectedModules)}
@@ -371,7 +372,7 @@ export const renderDocument = ({
       </div>
       <div class="column is-half">
         <div class="field">
-          <label class="label">Section</label>
+          <label class="label">${adminText("documents.section", "Section")}</label>
           <div class="control">
             <div class="select is-fullwidth">
               <select id="field-section">
@@ -385,7 +386,7 @@ export const renderDocument = ({
     </div>
     <div class="mt-4">
       <div id="module-panel" class="mb-4"></div>
-      <h2 class="title is-5">Data</h2>
+      <h2 class="title is-5">${adminText("documents.data", "Data")}</h2>
       <div id="json-editor" class="json-editor"></div>
     </div>
   `;
@@ -419,12 +420,12 @@ export const renderDocument = ({
 
     const orderRaw = orderInput?.value.trim() || "";
     if (!orderRaw) {
-      alert("Order is required.");
+      alert(adminText("documents.orderRequired", "Order is required."));
       return;
     }
     const parsedOrder = Number(orderRaw);
     if (!Number.isInteger(parsedOrder)) {
-      alert("Order must be an integer.");
+      alert(adminText("documents.orderInteger", "Order must be an integer."));
       return;
     }
     const orderValue = parsedOrder;

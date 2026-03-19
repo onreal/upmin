@@ -1,5 +1,6 @@
 import { updateIntegrationSettings, type AuthState, type IntegrationSummary } from "../../api";
 import { state } from "../../app/state";
+import { adminText } from "../../app/translations";
 
 export type IntegrationModalContext = {
   getAuth: () => AuthState | null;
@@ -78,7 +79,10 @@ export const initIntegrationModal = ({
       const notice = document.createElement("div");
       notice.className = "notification is-light app-muted";
       notice.innerHTML =
-        'Development setup: use <code>CLI authentication</code> to avoid API costs, then run <code>docker compose exec manage codex login --device-auth</code> once. The Docker volume keeps the Codex credentials between restarts.';
+        adminText(
+          "integrations.codexCliNotice",
+          "Development setup: use <code>CLI authentication</code> to avoid API costs, then run <code>docker compose exec manage codex login --device-auth</code> once. The Docker volume keeps the Codex credentials between restarts."
+        );
       integrationFields.appendChild(notice);
     }
 
@@ -187,7 +191,7 @@ export const initIntegrationModal = ({
       if (field.required) {
         const help = document.createElement("p");
         help.className = "help app-muted";
-        help.textContent = "Required";
+        help.textContent = adminText("common.required", "Required");
         help.dataset.integrationRequired = field.key;
         wrapper.appendChild(help);
       }
@@ -223,7 +227,9 @@ export const initIntegrationModal = ({
     currentIntegration = integration;
     clearIntegrationError();
     if (integrationTitle) {
-      integrationTitle.textContent = `${integration.enabled ? "Edit" : "Enable"} ${integration.name}`;
+      integrationTitle.textContent = integration.enabled
+        ? adminText("integrations.editNamed", "Edit {name}", { name: integration.name })
+        : adminText("integrations.enableNamed", "Enable {name}", { name: integration.name });
     }
     buildIntegrationFields(integration);
     integrationModal?.classList.add("is-active");
@@ -259,7 +265,7 @@ export const initIntegrationModal = ({
           );
 
         if (field.required || codexApiKeyRequired) {
-          showIntegrationError(`${field.label} is required.`);
+          showIntegrationError(adminText("common.fieldRequired", "{field} is required.", { field: field.label }));
           return;
         }
         continue;

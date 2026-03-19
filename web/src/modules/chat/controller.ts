@@ -30,6 +30,7 @@ import {
   updateConversationHeader,
   type ChatMessage,
 } from "./utils";
+import { adminText } from "../../app/translations";
 
 type ChatRuntime = {
   moduleName: string;
@@ -141,7 +142,9 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const renderCurrentMessages = () => {
-    const emptyState = currentConversation ? "No messages yet." : "Select or create a conversation.";
+    const emptyState = currentConversation
+      ? adminText("chat.noMessages", "No messages yet.")
+      : adminText("chat.selectOrCreate", "Select or create a conversation.");
     ensureFoldState(currentConversation);
     renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
       enableActions: true,
@@ -265,7 +268,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
 
   const updateSelectOptions = () => {
     runtime.dom.select.innerHTML =
-      `<option value="">Select chat</option>` +
+      `<option value="">${adminText("chat.selectConversation", "Select chat")}</option>` +
       conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
     if (currentConversation) {
       runtime.dom.select.value = currentConversation.id;
@@ -274,7 +277,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
 
   const refreshList = async () => {
     if (!runtime.auth) {
-      setStatus("Login required.");
+      setStatus(adminText("auth.loginRequired", "Login required."));
       return;
     }
 
@@ -302,7 +305,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
 
   const loadConversation = async (conversationId: string) => {
     if (!runtime.auth) {
-      setStatus("Login required.");
+      setStatus(adminText("auth.loginRequired", "Login required."));
       return;
     }
 
@@ -321,7 +324,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
 
   const startConversation = async () => {
     if (!runtime.auth) {
-      setStatus("Login required.");
+      setStatus(adminText("auth.loginRequired", "Login required."));
       return;
     }
 
@@ -361,7 +364,9 @@ export const mountChatController = (runtime: ChatRuntime) => {
         appendConversationMessage(
           currentConversation,
           "assistant",
-          `Something went wrong while I was replying: ${(error as Error).message || "Please try again."}`
+          adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
+            message: (error as Error).message || adminText("common.tryAgain", "Please try again."),
+          })
         );
         syncConversation(currentConversation, true);
       }
@@ -371,14 +376,14 @@ export const mountChatController = (runtime: ChatRuntime) => {
   const copyMessage = async (message: ChatMessage) => {
     try {
       await navigator.clipboard.writeText(message.content);
-      setStatus("Copied.");
+      setStatus(adminText("common.copied", "Copied."));
       window.setTimeout(() => {
         if (!conversationHasPendingResponse(currentConversation)) {
           setStatus("");
         }
       }, 1200);
     } catch {
-      setStatus("Copy failed.");
+      setStatus(adminText("common.copyFailed", "Copy failed."));
     }
   };
 

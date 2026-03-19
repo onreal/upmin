@@ -4,6 +4,7 @@ import { moduleSettingsKey } from "../../modules/utils";
 import type { ConversationProgress } from "../chat/progress";
 import { renderWebsiteBuildView } from "../../views/website-build";
 import { captureWebsiteSnapshot } from "../creations/capture";
+import { adminText } from "../../app/translations";
 
 export type WebsiteBuildControllerContext = {
   content: HTMLElement | null;
@@ -45,10 +46,12 @@ export const renderWebsiteBuildPage = ({
       }
       try {
         const confirmed = await confirmAction({
-          title: "Publish build",
-          message:
-            "Publish will replace the public website with the current build output. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
-          confirmLabel: "Publish website",
+          title: adminText("websiteBuild.publishBuild", "Publish build"),
+          message: adminText(
+            "websiteBuild.confirmPublish",
+            "Publish will replace the public website with the current build output. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding."
+          ),
+          confirmLabel: adminText("websiteBuild.publishWebsite", "Publish website"),
           confirmClassName: "button app-button app-primary",
         });
         if (!confirmed) {
@@ -65,10 +68,12 @@ export const renderWebsiteBuildPage = ({
       }
       try {
         const confirmed = await confirmAction({
-          title: "Clean build",
-          message:
-            "Clean will remove the current build output after capturing a safety snapshot. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
-          confirmLabel: "Clean build",
+          title: adminText("websiteBuild.cleanBuild", "Clean build"),
+          message: adminText(
+            "websiteBuild.confirmClean",
+            "Clean will remove the current build output after capturing a safety snapshot. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding."
+          ),
+          confirmLabel: adminText("websiteBuild.cleanBuild", "Clean build"),
           confirmClassName: "button app-button app-danger",
         });
         if (!confirmed) {
@@ -87,10 +92,12 @@ export const renderWebsiteBuildPage = ({
       }
       try {
         const confirmed = await confirmAction({
-          title: "Copy from public",
-          message:
-            "Copy from public will import the current public website into the build workspace before you continue editing. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding.",
-          confirmLabel: "Copy website",
+          title: adminText("websiteBuild.copyFromPublic", "Copy from public"),
+          message: adminText(
+            "websiteBuild.confirmCopyFromPublic",
+            "Copy from public will import the current public website into the build workspace before you continue editing. This operation cannot be undone. Make sure you already have a snapshot of the latest public website before proceeding."
+          ),
+          confirmLabel: adminText("websiteBuild.copyWebsite", "Copy website"),
           confirmClassName: "button app-button app-primary",
         });
         if (!confirmed) {
@@ -142,8 +149,8 @@ export const renderWebsiteBuildPage = ({
     }
     if (previewReasoning) {
       const latestItem = progress?.items?.[progress.items.length - 1]?.message;
-      const message = progress?.status || latestItem || "Working...";
-      previewReasoning.textContent = pending ? message : "Ready.";
+      const message = progress?.status || latestItem || adminText("chat.progress.working", "Working...");
+      previewReasoning.textContent = pending ? message : adminText("common.ready", "Ready.");
     }
     if (!pending) {
       refreshPreviewIfReady();

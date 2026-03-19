@@ -1,6 +1,7 @@
 import type { AgentConversationSummary, RemoteDocument } from "../../api";
 import { appendConversationProgress, getConversationProgress } from "../chat/progress";
 import { isRecord } from "../../utils";
+import { adminText } from "../../app/translations";
 
 export const renderMessages = (conversation: RemoteDocument | null) => {
   const messagesContainer = document.getElementById("agent-chat-messages");
@@ -8,13 +9,13 @@ export const renderMessages = (conversation: RemoteDocument | null) => {
     return;
   }
   if (!conversation) {
-    messagesContainer.innerHTML = `<p class="app-muted">Start a conversation with your next message.</p>`;
+    messagesContainer.innerHTML = `<p class="app-muted">${adminText("agents.startConversation", "Start a conversation with your next message.")}</p>`;
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
   const messages = Array.isArray(payloadData.messages) ? payloadData.messages : [];
   if (!messages.length) {
-    messagesContainer.innerHTML = `<p class="app-muted">No messages yet.</p>`;
+    messagesContainer.innerHTML = `<p class="app-muted">${adminText("chat.noMessages", "No messages yet.")}</p>`;
     return;
   }
 
@@ -23,7 +24,7 @@ export const renderMessages = (conversation: RemoteDocument | null) => {
       const record = isRecord(message) ? message : {};
       const role = typeof record.role === "string" ? record.role : "user";
       const content = typeof record.content === "string" ? record.content : "";
-      const label = role === "assistant" ? "Agent" : "You";
+      const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
       const roleClass = role === "assistant" ? "is-assistant" : "is-user";
       return `
         <div class="app-chat-message ${roleClass}">
@@ -44,14 +45,16 @@ export const updateConversationHeader = (conversation: RemoteDocument | null) =>
     return;
   }
   if (!conversation) {
-    title.textContent = "No conversation selected";
-    meta.textContent = "Select or create a conversation.";
+    title.textContent = adminText("chat.noneSelected", "No conversation selected");
+    meta.textContent = adminText("chat.selectOrCreate", "Select or create a conversation.");
     return;
   }
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
   const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
-  title.textContent = conversation.payload.name || "Conversation";
-  meta.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+  title.textContent = conversation.payload.name || adminText("chat.conversation", "Conversation");
+  meta.textContent = createdAt
+    ? adminText("chat.startedAt", "Started {time}", { time: createdAt })
+    : adminText("chat.loaded", "Conversation loaded.");
 };
 
 export const updateChatInputState = (active: boolean) => {
@@ -75,7 +78,7 @@ export const renderConversationList = (
     return;
   }
   if (!items.length) {
-    list.innerHTML = `<p class="app-muted">No conversations yet.</p>`;
+    list.innerHTML = `<p class="app-muted">${adminText("chat.noConversations", "No conversations yet.")}</p>`;
     return;
   }
   list.innerHTML = items

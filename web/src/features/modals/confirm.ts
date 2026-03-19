@@ -1,3 +1,5 @@
+import { adminText } from "../../app/translations";
+
 export type ConfirmModalOptions = {
   title: string;
   message: string;
@@ -29,13 +31,13 @@ export const initConfirmModal = () => {
       return;
     }
     confirmButton.className = defaultConfirmClassName;
-    confirmButton.textContent = "Confirm";
+    confirmButton.textContent = adminText("confirm.confirm", "Confirm");
   };
 
   const openConfirmModal = ({
     title,
     message,
-    confirmLabel = "Confirm",
+    confirmLabel = adminText("confirm.confirm", "Confirm"),
     confirmClassName = defaultConfirmClassName,
   }: ConfirmModalOptions) => {
     if (!confirmModal || !confirmTitle || !confirmMessage || !confirmButton) {

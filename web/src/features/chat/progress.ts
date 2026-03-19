@@ -1,5 +1,6 @@
 import type { RemoteDocument } from "../../api";
 import { isRecord } from "../../utils";
+import { adminText } from "../../app/translations";
 
 export type ConversationProgressItem = {
   message: string;
@@ -65,11 +66,11 @@ export const appendConversationProgress = (container: HTMLElement, progress: Con
 
   const title = document.createElement("div");
   title.className = "app-chat-progress-title";
-  title.textContent = "Codex is working";
+  title.textContent = adminText("chat.progress.title", "Codex is working");
 
   const status = document.createElement("div");
   status.className = "app-chat-progress-status";
-  status.textContent = progress.status || "Working...";
+  status.textContent = progress.status || adminText("chat.progress.working", "Working...");
 
   card.append(title, status);
 

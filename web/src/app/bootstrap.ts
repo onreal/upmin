@@ -12,13 +12,14 @@ import { initIntegrationModal } from "../features/modals/integration";
 import { initConfirmModal } from "../features/modals/confirm";
 import { moduleChecklistHtml as buildModuleChecklistHtml } from "../features/modules/helpers";
 import { startRealtime, stopRealtime } from "../features/realtime/client";
-import { refreshNavigation, loadAgents, loadIntegrations, loadLayoutConfig, loadModules, loadUiConfig } from "./loaders";
+import { refreshNavigation, loadAgents, loadIntegrations, loadLayoutConfig, loadModules, loadUiConfig, preloadAdminLanguage } from "./loaders";
 import { showIntegrationsView, showLogsView, showModulesView, showFormsView } from "./screens";
 import { loadDocument } from "./documents";
 import { loadAgent } from "../features/agents/controller";
 import { clearAgentState } from "../features/agents/state";
 import { refreshAgentEditControls } from "../features/agents/view";
 import { pushNotice } from "../ui/notice";
+import { adminText } from "./translations";
 
 let systemUpdatePollHandle: number | null = null;
 
@@ -96,7 +97,7 @@ const startSystemUpdate = async () => {
     }),
     status: "running",
     locked: true,
-    message: "Starting admin update.",
+    message: adminText("systemUpdate.starting", "Starting admin update."),
     error: null,
   };
   renderSystemUpdateControls();
@@ -106,7 +107,7 @@ const startSystemUpdate = async () => {
     const response = await runSystemUpdate(state.auth);
     state.systemUpdate = response.update;
     renderSystemUpdateControls();
-    pushNotice("success", response.update.message || "Admin updated successfully.");
+    pushNotice("success", response.update.message || adminText("systemUpdate.updated", "Admin updated successfully."));
     stopSystemUpdatePolling();
     window.location.reload();
   } catch (err) {
@@ -136,7 +137,7 @@ const exportAll = async () => {
 };
 
 const openWebsiteBuilder = async () => {
-  await openPrivateDocument("website-build.json", "Website Builder page not found.");
+  await openPrivateDocument("website-build.json", adminText("documents.websiteBuildNotFound", "Website Builder page not found."));
 };
 
 const openPrivateDocument = async (path: string, errorMessage: string) => {
@@ -151,7 +152,7 @@ const openPrivateDocument = async (path: string, errorMessage: string) => {
 };
 
 const openCreationsPage = async () => {
-  await openPrivateDocument("creations.json", "Creations page not found.");
+  await openPrivateDocument("creations.json", adminText("documents.creationsNotFound", "Creations page not found."));
 };
 
 const renderApp = async () => {
@@ -183,6 +184,7 @@ const renderApp = async () => {
   await loadUiConfig();
   await loadLayoutConfig();
   await loadModules();
+  await preloadAdminLanguage();
 
   renderAppShell({ moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected) });
   initNotifications();
@@ -271,7 +273,7 @@ export const bootstrap = () => {
     state.auth = null;
     const detail = (event as CustomEvent<{ message?: string }>).detail;
     showLogin(app);
-    pushNotice("error", detail?.message || "Your session expired. Please log in again.");
+    pushNotice("error", detail?.message || adminText("auth.sessionExpired", "Your session expired. Please log in again."));
   }) as EventListener);
 
   window.addEventListener("app:system-update-locked", (() => {

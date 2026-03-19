@@ -1,27 +1,28 @@
 import { headerCopy, sidebarCopy, getUserLabel } from "../app/layout";
 import { state } from "../app/state";
+import { adminText } from "../app/translations";
 
 export type ShellContext = {
   moduleChecklistHtml: (selected?: string[]) => string;
 };
 
 const defaultLandingCards = () => {
-  const isGreek = document.documentElement.lang.toLowerCase().startsWith("el");
-
   return {
-    eyebrow: isGreek ? "Γρήγορη εκκίνηση" : "Quick Start",
-    title: isGreek ? "Ξεκινήστε από εδώ" : "Start here",
-    subtitle: isGreek
-      ? "Δημιουργήστε το site, συνδέστε τα AI κλειδιά σας και διαχειριστείτε όλα τα snapshots από ένα σημείο."
-      : "Build the site, connect your AI keys, and manage every snapshot from one place.",
+    eyebrow: adminText("shell.landing.eyebrow", "Quick Start"),
+    title: adminText("shell.landing.title", "Start here"),
+    subtitle: adminText(
+      "shell.landing.subtitle",
+      "Build the site, connect your AI keys, and manage every snapshot from one place."
+    ),
     cards: [
       {
         action: "builder",
-        title: isGreek ? "Ξεκινήστε να χτίζετε το website σας" : "Start building your website now",
-        body: isGreek
-          ? "Ανοίξτε τον builder για να στήσετε σελίδες, ενότητες και ροές περιεχομένου."
-          : "Open the builder to shape pages, sections, and content flows.",
-        cta: isGreek ? "Άνοιγμα Builder" : "Open Builder",
+        title: adminText("shell.landing.builder.title", "Start building your website now"),
+        body: adminText(
+          "shell.landing.builder.body",
+          "Open the builder to shape pages, sections, and content flows."
+        ),
+        cta: adminText("shell.landing.builder.cta", "Open Builder"),
         svg: `
           <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
             <defs>
@@ -41,11 +42,12 @@ const defaultLandingCards = () => {
       },
       {
         action: "integrations",
-        title: isGreek ? "Προσθέστε τα API Keys των AI σας" : "Add your AI's API keys",
-        body: isGreek
-          ? "Συνδέστε providers, μοντέλα και μυστικά ώστε οι agents και τα εργαλεία να δουλεύουν σωστά."
-          : "Connect providers, models, and secrets so your agents and tools can work.",
-        cta: isGreek ? "Άνοιγμα Integrations" : "Open Integrations",
+        title: adminText("shell.landing.integrations.title", "Add your AI's API keys"),
+        body: adminText(
+          "shell.landing.integrations.body",
+          "Connect providers, models, and secrets so your agents and tools can work."
+        ),
+        cta: adminText("shell.landing.integrations.cta", "Open Integrations"),
         svg: `
           <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
             <defs>
@@ -64,11 +66,12 @@ const defaultLandingCards = () => {
       },
       {
         action: "creations",
-        title: isGreek ? "Διαχειριστείτε τα creations σας" : "Manage your creations",
-        body: isGreek
-          ? "Δείτε snapshots, exports και backups για να παρακολουθείτε κάθε δημοσίευση."
-          : "Review snapshots, exports, and backups to track every publish.",
-        cta: isGreek ? "Άνοιγμα Creations" : "Open Creations",
+        title: adminText("shell.landing.creations.title", "Manage your creations"),
+        body: adminText(
+          "shell.landing.creations.body",
+          "Review snapshots, exports, and backups to track every publish."
+        ),
+        cta: adminText("shell.landing.creations.cta", "Open Creations"),
         svg: `
           <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
             <defs>
@@ -98,6 +101,21 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
   const header = headerCopy();
   const sidebar = sidebarCopy();
   const landing = defaultLandingCards();
+  const builderLabel = adminText("shell.builder", "Builder");
+  const modulesLabel = adminText("modules.title", "Modules");
+  const integrationsLabel = adminText("integrations.title", "Integrations");
+  const logsLabel = adminText("logs.title", "Logs");
+  const formsLabel = adminText("forms.title", "Forms");
+  const agentsLabel = adminText("agents.title", "Agents");
+  const createAgentLabel = adminText("agents.create", "Create agent");
+  const downloadContentLabel = adminText("shell.downloadContent", "Download content");
+  const updateLabel = adminText("systemUpdate.action", "Update");
+  const versionUnknownLabel = adminText("systemUpdate.versionUnknown", "Version unknown");
+  const closeLabel = adminText("common.close", "Close");
+  const cancelLabel = adminText("common.cancel", "Cancel");
+  const saveLabel = adminText("common.save", "Save");
+  const createLabel = adminText("common.create", "Create");
+  const confirmLabel = adminText("confirm.confirm", "Confirm");
   const createIcon = `
     <span class="icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
@@ -186,7 +204,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
   `;
 
   app.innerHTML = `
-    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="main navigation">
+    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
       <div class="navbar-brand">
         <a class="navbar-item">
           <span class="title is-5 mb-0">${header.title}</span>
@@ -194,7 +212,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
         <a
           role="button"
           class="navbar-burger"
-          aria-label="Open navigation"
+          aria-label="${adminText("navigation.open", "Open navigation")}"
           aria-expanded="false"
           aria-controls="mobileNavDrawer"
         >
@@ -225,10 +243,10 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 data-shell-action="builder"
               >
                 ${builderIcon}
-                <span>Builder</span>
+                <span>${builderLabel}</span>
               </button>
               <div id="system-update-status-chip" class="app-update-status-chip is-hidden">
-                <span id="system-update-status-text">Version unknown</span>
+                <span id="system-update-status-text">${versionUnknownLabel}</span>
               </div>
               <button
                 id="system-update-action"
@@ -237,14 +255,14 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 data-shell-action="system-update"
               >
                 ${updateIcon}
-                <span id="system-update-label">Update</span>
+                <span id="system-update-label">${updateLabel}</span>
               </button>
               <button
                 id="export-zip-header"
                 class="button app-button app-ghost"
                 data-shell-action="export"
-                aria-label="Download content"
-                title="Download content"
+                aria-label="${downloadContentLabel}"
+                title="${downloadContentLabel}"
               >
                 ${downloadIcon}
               </button>
@@ -262,21 +280,21 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           <div class="navbar-item has-dropdown" id="private-dropdown">
             <a class="navbar-link">${header.settingsLabel}</a>
             <div class="navbar-dropdown">
-              <a class="navbar-item" id="modules-link" data-shell-action="modules">Modules</a>
-              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">Integrations</a>
-              <a class="navbar-item" id="logs-link" data-shell-action="logs">Logs</a>
-              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">Forms</a>
-              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">Update admin</a>
+              <a class="navbar-item" id="modules-link" data-shell-action="modules">${modulesLabel}</a>
+              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
+              <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
+              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
+              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
               <hr class="navbar-divider" />
               <div id="nav-system-pages"></div>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="agents-dropdown">
-            <a class="navbar-link">Agents</a>
+            <a class="navbar-link">${agentsLabel}</a>
             <div class="navbar-dropdown">
               <div id="nav-agents"></div>
               <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">Create agent</a>
+              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">${createAgentLabel}</a>
             </div>
           </div>
           <div class="navbar-item has-dropdown" id="user-dropdown">
@@ -294,10 +312,10 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
       <button
         class="app-mobile-drawer-backdrop"
         type="button"
-        aria-label="Close navigation"
+        aria-label="${adminText("navigation.close", "Close navigation")}"
         data-mobile-drawer-close
       ></button>
-      <div class="app-mobile-drawer-panel app-surface" role="dialog" aria-modal="true" aria-label="Navigation">
+      <div class="app-mobile-drawer-panel app-surface" role="dialog" aria-modal="true" aria-label="${adminText("navigation.title", "Navigation")}">
         <div class="app-mobile-drawer-header">
           <div>
             <p class="app-mobile-drawer-eyebrow">${header.title}</p>
@@ -316,7 +334,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             <button
               class="delete app-mobile-drawer-close"
               type="button"
-              aria-label="Close navigation"
+              aria-label="${adminText("navigation.close", "Close navigation")}"
               data-mobile-drawer-close
             ></button>
           </div>
@@ -325,7 +343,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           <div class="app-mobile-drawer-top-action">
             <div id="mobile-system-update-panel" class="app-mobile-update-panel is-hidden">
               <div id="mobile-system-update-status-chip" class="app-update-status-chip app-update-status-chip-mobile">
-                <span id="mobile-system-update-status-text">Version unknown</span>
+                <span id="mobile-system-update-status-text">${versionUnknownLabel}</span>
               </div>
               <button
                 id="mobile-system-update-button"
@@ -334,12 +352,12 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 data-shell-action="system-update"
               >
                 ${updateIcon}
-                <span id="mobile-system-update-button-label">Update</span>
+                <span id="mobile-system-update-button-label">${updateLabel}</span>
               </button>
             </div>
             <button class="button app-button app-primary app-mobile-builder-button" type="button" data-shell-action="builder">
               ${builderIcon}
-              <span>Builder</span>
+              <span>${builderLabel}</span>
             </button>
           </div>
 
@@ -386,18 +404,18 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             <div id="mobile-settings-panel" class="app-mobile-accordion-panel">
               <div class="app-mobile-action-list">
                 <a href="#" id="mobile-system-update-link" class="app-mobile-action-link is-hidden" data-shell-action="system-update">
-                  Update admin
+                  ${adminText("systemUpdate.updateAdmin", "Update admin")}
                 </a>
-                <a href="#" class="app-mobile-action-link" data-shell-action="modules">Modules</a>
-                <a href="#" class="app-mobile-action-link" data-shell-action="integrations">Integrations</a>
-                <a href="#" class="app-mobile-action-link" data-shell-action="logs">Logs</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="modules">${modulesLabel}</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="integrations">${integrationsLabel}</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="logs">${logsLabel}</a>
                 <a
                   href="#"
                   id="forms-link-mobile"
                   class="app-mobile-action-link is-hidden"
                   data-shell-action="forms"
                 >
-                  Forms
+                  ${formsLabel}
                 </a>
               </div>
               <div id="nav-system-pages-mobile" class="app-mobile-action-list app-mobile-system-pages"></div>
@@ -412,12 +430,12 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               aria-expanded="false"
               aria-controls="mobile-agents-panel"
             >
-              <span>Agents</span>
+              <span>${agentsLabel}</span>
             </button>
             <div id="mobile-agents-panel" class="app-mobile-accordion-panel">
               <div id="nav-agents-mobile" class="app-mobile-action-list"></div>
               <div class="app-mobile-action-list">
-                <a href="#" class="app-mobile-action-link" data-shell-action="agents-create">Create agent</a>
+                <a href="#" class="app-mobile-action-link" data-shell-action="agents-create">${createAgentLabel}</a>
               </div>
             </div>
           </section>
@@ -452,11 +470,13 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </button>
               <button class="button app-button app-ghost" type="button" data-shell-action="export">
                 ${downloadIcon}
-                <span>Download content</span>
+                <span>${downloadContentLabel}</span>
               </button>
             </div>
             <div id="mobile-system-current-version" class="app-mobile-drawer-version app-muted">
-              Current version: ${state.systemUpdate?.currentVersion ?? "unknown"}
+              ${adminText("systemUpdate.currentVersion", "Current version: {version}", {
+                version: state.systemUpdate?.currentVersion ?? adminText("common.unknown", "unknown"),
+              })}
             </div>
           </div>
         </div>
@@ -510,8 +530,8 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
       <div class="modal-background" data-close="create"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title">Create document</p>
-          <button class="delete" aria-label="close" data-close="create"></button>
+          <p class="modal-card-title">${adminText("createDocument.title", "Create document")}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="create"></button>
         </header>
         <section class="modal-card-body">
           <div id="create-error" class="notification is-danger is-light is-hidden"></div>
@@ -519,22 +539,22 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
             <div class="columns is-variable is-4 is-multiline">
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Filename</label>
+                  <label class="label">${adminText("createDocument.filename", "Filename")}</label>
                   <div class="control">
                     <input
                       id="create-path"
                       class="input"
                       type="text"
-                      placeholder="content.json"
+                      placeholder="${adminText("createDocument.filenamePlaceholder", "content.json")}"
                       autocomplete="off"
                     />
                   </div>
-                  <p class="help">Must end with .json</p>
+                  <p class="help">${adminText("createDocument.filenameHelp", "Must end with .json")}</p>
                 </div>
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Order</label>
+                  <label class="label">${adminText("documents.order", "Order")}</label>
                   <div class="control">
                     <input
                       id="create-order"
@@ -542,23 +562,23 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                       type="number"
                       min="0"
                       step="1"
-                      placeholder="0"
+                      placeholder="${adminText("documents.orderPlaceholder", "0")}"
                     />
                   </div>
-                  <p class="help">Lower numbers appear first.</p>
+                  <p class="help">${adminText("createDocument.orderHelp", "Lower numbers appear first.")}</p>
                 </div>
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Store</label>
+                  <label class="label">${adminText("documents.store", "Store")}</label>
                   <div class="control">
                     <div class="tabs is-toggle is-small is-fullwidth">
                       <ul>
                         <li class="is-active">
-                          <a href="#" data-store="public">Public</a>
+                          <a href="#" data-store="public">${adminText("documents.storePublic", "Public")}</a>
                         </li>
                         <li>
-                          <a href="#" data-store="private">Private</a>
+                          <a href="#" data-store="private">${adminText("documents.storePrivate", "Private")}</a>
                         </li>
                       </ul>
                     </div>
@@ -568,7 +588,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Page</label>
+                  <label class="label">${adminText("documents.page", "Page")}</label>
                   <div class="control">
                     <input id="create-page" class="input" type="text" autocomplete="off" />
                   </div>
@@ -576,7 +596,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Name</label>
+                  <label class="label">${adminText("documents.name", "Name")}</label>
                   <div class="control">
                     <input id="create-name" class="input" type="text" autocomplete="off" />
                   </div>
@@ -584,7 +604,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Language</label>
+                  <label class="label">${adminText("documents.language", "Language")}</label>
                   <div class="control">
                     <input id="create-language" class="input" type="text" autocomplete="off" />
                   </div>
@@ -592,7 +612,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Modules</label>
+                  <label class="label">${adminText("documents.modules", "Modules")}</label>
                   <div class="control">
                     <div id="create-modules" class="app-module-picker">
                       ${moduleChecklistHtml()}
@@ -602,7 +622,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Section</label>
+                  <label class="label">${adminText("documents.section", "Section")}</label>
                   <div class="control">
                     <div class="select is-fullwidth">
                       <select id="create-section">
@@ -615,7 +635,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-full">
                 <div class="field">
-                  <label class="label">Data (JSON)</label>
+                  <label class="label">${adminText("documents.dataJson", "Data (JSON)")}</label>
                   <div class="control">
                     <textarea id="create-data" class="textarea" rows="6">{}</textarea>
                   </div>
@@ -625,8 +645,8 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           </form>
         </section>
         <footer class="modal-card-foot">
-          <button form="create-form" type="submit" class="button app-button app-primary">Create</button>
-          <button id="create-cancel" type="button" class="button app-button app-ghost">Cancel</button>
+          <button form="create-form" type="submit" class="button app-button app-primary">${createLabel}</button>
+          <button id="create-cancel" type="button" class="button app-button app-ghost">${cancelLabel}</button>
         </footer>
       </div>
     </div>
@@ -634,31 +654,31 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
       <div class="modal-background" data-close="agent"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title">Create agent</p>
-          <button class="delete" aria-label="close" data-close="agent"></button>
+          <p class="modal-card-title">${createAgentLabel}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="agent"></button>
         </header>
         <section class="modal-card-body">
           <div id="agent-error" class="notification is-danger is-light is-hidden"></div>
           <form id="agent-form">
             <div class="tabs is-toggle is-fullwidth mb-4">
               <ul>
-                <li class="is-active"><a data-agent-store="public">Public</a></li>
-                <li><a data-agent-store="private">Private</a></li>
+                <li class="is-active"><a data-agent-store="public">${adminText("documents.storePublic", "Public")}</a></li>
+                <li><a data-agent-store="private">${adminText("documents.storePrivate", "Private")}</a></li>
               </ul>
             </div>
             <input type="hidden" id="agent-store" value="public" />
             <div class="columns is-variable is-4 is-multiline">
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Name</label>
+                  <label class="label">${adminText("documents.name", "Name")}</label>
                   <div class="control">
-                    <input id="agent-name" class="input" type="text" placeholder="Assistant" />
+                    <input id="agent-name" class="input" type="text" placeholder="${adminText("agents.namePlaceholder", "Assistant")}" />
                   </div>
                 </div>
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Provider</label>
+                  <label class="label">${adminText("agents.provider", "Provider")}</label>
                   <div class="control">
                     <div class="select is-fullwidth">
                       <select id="agent-provider"></select>
@@ -669,13 +689,13 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-half">
                 <div class="field">
-                  <label class="label">Model</label>
+                  <label class="label">${adminText("agents.model", "Model")}</label>
                   <div class="control">
                     <input
                       id="agent-model-search"
                       class="input"
                       type="search"
-                      placeholder="Search models"
+                      placeholder="${adminText("agents.searchModels", "Search models")}"
                       autocomplete="off"
                     />
                   </div>
@@ -688,17 +708,17 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               </div>
               <div class="column is-full">
                 <div class="field">
-                  <label class="label">System prompt</label>
+                  <label class="label">${adminText("agents.systemPrompt", "System prompt")}</label>
                   <div class="control">
-                    <textarea id="agent-system" class="textarea" rows="3" placeholder="System prompt"></textarea>
+                    <textarea id="agent-system" class="textarea" rows="3" placeholder="${adminText("agents.systemPrompt", "System prompt")}"></textarea>
                   </div>
                 </div>
               </div>
               <div class="column is-full">
                 <div class="field">
-                  <label class="label">Admin prompt</label>
+                  <label class="label">${adminText("agents.adminPrompt", "Admin prompt")}</label>
                   <div class="control">
-                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="Admin prompt"></textarea>
+                    <textarea id="agent-admin" class="textarea" rows="3" placeholder="${adminText("agents.adminPrompt", "Admin prompt")}"></textarea>
                   </div>
                 </div>
               </div>
@@ -706,14 +726,14 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           </form>
         </section>
         <footer class="modal-card-foot">
-          <button id="agent-cancel" class="button app-button app-ghost">Cancel</button>
+          <button id="agent-cancel" class="button app-button app-ghost">${cancelLabel}</button>
           <button
             id="agent-submit"
             form="agent-form"
             type="submit"
             class="button app-button app-primary"
           >
-            Create agent
+            ${createAgentLabel}
           </button>
         </footer>
       </div>
@@ -722,8 +742,8 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
       <div class="modal-background" data-close="integration"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title" id="integration-modal-title">Configure integration</p>
-          <button class="delete" aria-label="close" data-close="integration"></button>
+          <p class="modal-card-title" id="integration-modal-title">${adminText("integrations.configure", "Configure integration")}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="integration"></button>
         </header>
         <section class="modal-card-body">
           <div id="integration-error" class="notification is-danger is-light is-hidden"></div>
@@ -732,8 +752,8 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           </form>
         </section>
         <footer class="modal-card-foot">
-          <button id="integration-cancel" class="button app-button app-ghost">Cancel</button>
-          <button form="integration-form" type="submit" class="button app-button app-primary">Save</button>
+          <button id="integration-cancel" class="button app-button app-ghost">${cancelLabel}</button>
+          <button form="integration-form" type="submit" class="button app-button app-primary">${saveLabel}</button>
         </footer>
       </div>
     </div>
@@ -741,26 +761,30 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
       <div class="modal-background" data-close="confirm"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title" id="confirm-modal-title">Confirm action</p>
-          <button class="delete" aria-label="close" data-close="confirm"></button>
+          <p class="modal-card-title" id="confirm-modal-title">${adminText("confirm.title", "Confirm action")}</p>
+          <button class="delete" aria-label="${closeLabel}" data-close="confirm"></button>
         </header>
         <section class="modal-card-body">
           <p id="confirm-modal-message" class="app-muted"></p>
         </section>
         <footer class="modal-card-foot">
-          <button id="confirm-cancel" type="button" class="button app-button app-ghost">Cancel</button>
-          <button id="confirm-submit" type="button" class="button app-button app-primary">Confirm</button>
+          <button id="confirm-cancel" type="button" class="button app-button app-ghost">${cancelLabel}</button>
+          <button id="confirm-submit" type="button" class="button app-button app-primary">${confirmLabel}</button>
         </footer>
       </div>
     </div>
     <div id="system-update-lock" class="app-update-lock" hidden>
       <div class="app-update-lock-card app-surface">
-        <p class="app-update-lock-eyebrow">System Update</p>
-        <h2 id="system-update-lock-title" class="title is-5">Admin update in progress</h2>
-        <p id="system-update-lock-message" class="app-muted">Please wait while the admin files are replaced.</p>
+        <p class="app-update-lock-eyebrow">${adminText("systemUpdate.title", "System Update")}</p>
+        <h2 id="system-update-lock-title" class="title is-5">${adminText("systemUpdate.inProgress", "Admin update in progress")}</h2>
+        <p id="system-update-lock-message" class="app-muted">${adminText("systemUpdate.wait", "Please wait while the admin files are replaced.")}</p>
         <div class="app-update-lock-meta">
-          <span id="system-update-current-version">Current version: ${state.systemUpdate?.currentVersion ?? "unknown"}</span>
-          <span id="system-update-latest-version">Latest version: ${state.systemUpdate?.latestVersion ?? "unknown"}</span>
+          <span id="system-update-current-version">${adminText("systemUpdate.currentVersion", "Current version: {version}", {
+            version: state.systemUpdate?.currentVersion ?? adminText("common.unknown", "unknown"),
+          })}</span>
+          <span id="system-update-latest-version">${adminText("systemUpdate.latestVersion", "Latest version: {version}", {
+            version: state.systemUpdate?.latestVersion ?? adminText("common.unknown", "unknown"),
+          })}</span>
         </div>
       </div>
     </div>
@@ -821,18 +845,22 @@ export const renderSystemUpdateControls = () => {
   button.toggleAttribute("disabled", isRunning || !isReady);
   mobileButton.toggleAttribute("disabled", isRunning || !isReady);
   buttonLabel.textContent = isRunning
-    ? "Updating..."
+    ? adminText("systemUpdate.updating", "Updating...")
     : isReady
-      ? `Update ${status?.latestVersion ?? ""}`.trim()
-      : "Update";
+      ? adminText("systemUpdate.updateVersion", "Update {version}", { version: status?.latestVersion ?? "" }).trim()
+      : adminText("systemUpdate.action", "Update");
   mobileButtonLabel.textContent = buttonLabel.textContent;
   menuLink.textContent = isRunning
-    ? "Admin update in progress"
+    ? adminText("systemUpdate.inProgress", "Admin update in progress")
     : isReady
-      ? `Update admin to ${status?.latestVersion ?? "latest"}`
-      : "Update admin";
+      ? adminText("systemUpdate.updateAdminTo", "Update admin to {version}", {
+          version: status?.latestVersion ?? adminText("common.latest", "latest"),
+        })
+      : adminText("systemUpdate.updateAdmin", "Update admin");
   mobileLink.textContent = menuLink.textContent;
-  mobileCurrentVersion.textContent = `Current version: ${status?.currentVersion ?? "unknown"}`;
+  mobileCurrentVersion.textContent = adminText("systemUpdate.currentVersion", "Current version: {version}", {
+    version: status?.currentVersion ?? adminText("common.unknown", "unknown"),
+  });
 
   statusChip.classList.toggle("is-hidden", !hasStatus);
   statusChip.classList.toggle("is-error", Boolean(status?.error) && !isRunning);
@@ -841,25 +869,36 @@ export const renderSystemUpdateControls = () => {
   mobileStatusChip.classList.toggle("is-error", Boolean(status?.error) && !isRunning);
   mobileStatusChip.classList.toggle("is-ready", isReady && !isRunning);
   if (isRunning) {
-    statusText.textContent = status?.message || "Updating admin...";
+    statusText.textContent = status?.message || adminText("systemUpdate.updatingAdmin", "Updating admin...");
     mobileStatusText.textContent = statusText.textContent;
   } else if (status?.error) {
-    statusText.textContent = `Update check failed. Current ${status?.currentVersion ?? "unknown"}.`;
+    statusText.textContent = adminText("systemUpdate.checkFailed", "Update check failed. Current {version}.", {
+      version: status?.currentVersion ?? adminText("common.unknown", "unknown"),
+    });
     mobileStatusText.textContent = statusText.textContent;
   } else if (isReady) {
-    statusText.textContent = `Update available: ${status?.currentVersion ?? "unknown"} -> ${status?.latestVersion ?? "unknown"}`;
+    statusText.textContent = adminText("systemUpdate.available", "Update available: {current} -> {latest}", {
+      current: status?.currentVersion ?? adminText("common.unknown", "unknown"),
+      latest: status?.latestVersion ?? adminText("common.unknown", "unknown"),
+    });
     mobileStatusText.textContent = statusText.textContent;
   } else if (status?.currentVersion) {
-    statusText.textContent = `Admin ${status.currentVersion}`;
+    statusText.textContent = adminText("systemUpdate.adminVersion", "Admin {version}", {
+      version: status.currentVersion,
+    });
     mobileStatusText.textContent = statusText.textContent;
   } else {
-    statusText.textContent = "Version unknown";
+    statusText.textContent = adminText("systemUpdate.versionUnknown", "Version unknown");
     mobileStatusText.textContent = statusText.textContent;
   }
 
   lock.hidden = !isRunning;
-  lockTitle.textContent = "Admin update in progress";
-  lockMessage.textContent = status?.message || "Please wait while the admin files are replaced.";
-  currentVersion.textContent = `Current version: ${status?.currentVersion ?? "unknown"}`;
-  latestVersion.textContent = `Latest version: ${status?.latestVersion ?? "unknown"}`;
+  lockTitle.textContent = adminText("systemUpdate.inProgress", "Admin update in progress");
+  lockMessage.textContent = status?.message || adminText("systemUpdate.wait", "Please wait while the admin files are replaced.");
+  currentVersion.textContent = adminText("systemUpdate.currentVersion", "Current version: {version}", {
+    version: status?.currentVersion ?? adminText("common.unknown", "unknown"),
+  });
+  latestVersion.textContent = adminText("systemUpdate.latestVersion", "Latest version: {version}", {
+    version: status?.latestVersion ?? adminText("common.unknown", "unknown"),
+  });
 };

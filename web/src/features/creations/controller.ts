@@ -14,6 +14,7 @@ import {
 import { renderCreationsView } from "../../views/creations";
 import { isRecord, triggerDownload } from "../../utils";
 import { captureWebsiteSnapshot } from "./capture";
+import { adminText } from "../../app/translations";
 
 export type CreationsControllerContext = {
   content: HTMLElement | null;
@@ -154,7 +155,7 @@ export const renderCreationsPage = ({
     },
     loadPreview: async (id) => {
       if (!auth) {
-        throw new Error("Unauthorized");
+        throw new Error(adminText("auth.unauthorized", "Unauthorized"));
       }
       const result = await fetchCreationSnapshotImage(auth, id);
       return URL.createObjectURL(result.blob);

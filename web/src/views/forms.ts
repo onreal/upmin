@@ -1,5 +1,6 @@
 import type { AuthState, FormSummary, RemoteDocument } from "../api";
 import { fetchDocument } from "../api";
+import { adminText } from "../app/translations";
 
 export type FormsViewContext = {
   content: HTMLElement | null;
@@ -20,7 +21,7 @@ const escapeHtml = (value: string) =>
 
 const formatTimestamp = (value?: string | null) => {
   if (!value) {
-    return "Unknown time";
+    return adminText("common.unknownTime", "Unknown time");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -41,7 +42,7 @@ const buildFormSelect = (forms: FormSummary[], currentId?: string) => {
 
   return `
     <div class="field">
-      <label class="label">Form</label>
+      <label class="label">${adminText("forms.form", "Form")}</label>
       <div class="control">
         <div class="select is-fullwidth">
           <select id="forms-select">${options}</select>
@@ -56,7 +57,7 @@ const renderEntries = (doc: RemoteDocument, target: HTMLElement) => {
   const entries = Array.isArray(data?.entries) ? data?.entries : [];
 
   if (!entries.length) {
-    target.innerHTML = `<div class="notification is-light">No entries yet.</div>`;
+    target.innerHTML = `<div class="notification is-light">${adminText("forms.noEntries", "No entries yet.")}</div>`;
     return;
   }
 
@@ -70,7 +71,7 @@ const renderEntries = (doc: RemoteDocument, target: HTMLElement) => {
       const actor = record.actor && typeof record.actor === "object" ? (record.actor as Record<string, unknown>) : null;
       const actorLabel = actor
         ? `${actor.sub ?? ""}${actor.role ? ` · ${actor.role}` : ""}`.trim()
-        : "anonymous";
+        : adminText("forms.anonymous", "anonymous");
       const payload = record.data ?? {};
       const payloadJson = escapeHtml(JSON.stringify(payload, null, 2));
 
@@ -78,12 +79,12 @@ const renderEntries = (doc: RemoteDocument, target: HTMLElement) => {
         <article class="app-form-entry app-surface">
           <div class="app-form-entry-header">
             <div>
-              <span class="app-form-entry-label">Submitted</span>
+              <span class="app-form-entry-label">${adminText("forms.submitted", "Submitted")}</span>
               <span class="app-form-entry-value">${escapeHtml(submittedAt)}</span>
             </div>
             <div>
-              <span class="app-form-entry-label">Actor</span>
-              <span class="app-form-entry-value">${escapeHtml(actorLabel || "anonymous")}</span>
+              <span class="app-form-entry-label">${adminText("forms.actor", "Actor")}</span>
+              <span class="app-form-entry-value">${escapeHtml(actorLabel || adminText("forms.anonymous", "anonymous"))}</span>
             </div>
           </div>
           <pre class="app-form-entry-json">${payloadJson}</pre>
@@ -109,18 +110,18 @@ export const renderFormsView = async ({
   clearAgentState();
 
   if (!auth) {
-    content.innerHTML = `<p class="app-muted">Authentication required.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("auth.required", "Authentication required.")}</p>`;
     return;
   }
 
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
+        <h1 class="title is-4">${adminText("forms.title", "Forms")}</h1>
+        <p class="app-muted">${adminText("forms.subtitle", "Collected form submissions stored in manage/store/system/forms/submissions.")}</p>
       </div>
     </div>
-    <div class="notification is-light">Loading forms...</div>
+    <div class="notification is-light">${adminText("forms.loading", "Loading forms...")}</div>
   `;
 
   try {
@@ -136,11 +137,11 @@ export const renderFormsView = async ({
     content.innerHTML = `
       <div class="app-view-header mb-4">
         <div>
-          <h1 class="title is-4">Forms</h1>
-          <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
+          <h1 class="title is-4">${adminText("forms.title", "Forms")}</h1>
+          <p class="app-muted">${adminText("forms.subtitle", "Collected form submissions stored in manage/store/system/forms/submissions.")}</p>
         </div>
       </div>
-      <div class="notification is-light">No forms found yet.</div>
+      <div class="notification is-light">${adminText("forms.none", "No forms found yet.")}</div>
     `;
     return;
   }
@@ -150,11 +151,11 @@ export const renderFormsView = async ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Forms</h1>
-        <p class="app-muted">Collected form submissions stored in manage/store/system/forms/submissions.</p>
+        <h1 class="title is-4">${adminText("forms.title", "Forms")}</h1>
+        <p class="app-muted">${adminText("forms.subtitle", "Collected form submissions stored in manage/store/system/forms/submissions.")}</p>
       </div>
       <div class="app-view-actions">
-        <span class="app-muted">${forms.length} total</span>
+        <span class="app-muted">${adminText("forms.total", "{count} total", { count: forms.length })}</span>
       </div>
     </div>
     <div class="app-forms-toolbar mb-4">${buildFormSelect(forms, selectedId)}</div>
@@ -169,7 +170,7 @@ export const renderFormsView = async ({
       return;
     }
 
-    entriesTarget.innerHTML = `<div class="notification is-light">Loading entries...</div>`;
+    entriesTarget.innerHTML = `<div class="notification is-light">${adminText("forms.loadingEntries", "Loading entries...")}</div>`;
 
     try {
       const doc = await fetchDocument(auth, id);

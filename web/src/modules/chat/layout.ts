@@ -1,4 +1,5 @@
 import type { ModuleDefinition } from "../../api";
+import { adminText } from "../../app/translations";
 
 export type ChatDom = {
   title: HTMLElement;
@@ -40,8 +41,8 @@ const buildHeader = (
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    button.title = "Module settings";
-    button.setAttribute("aria-label", "Module settings");
+    button.title = adminText("modules.settings", "Module settings");
+    button.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
     button.innerHTML = `
       <span class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -63,7 +64,7 @@ const buildHeader = (
   if (agentName) {
     const agentMeta = document.createElement("div");
     agentMeta.className = "app-module-meta";
-    agentMeta.textContent = `Agent: ${agentName}`;
+    agentMeta.textContent = adminText("agents.agentNamed", "Agent: {name}", { name: agentName });
     header.append(agentMeta);
   }
 
@@ -91,20 +92,20 @@ export const renderChatLayout = (
       <div class="app-panel app-chat">
         <div class="app-chat-header">
           <div>
-            <div class="app-chat-title" data-role="chat-title">No conversation selected</div>
-            <div class="app-chat-meta app-muted" data-role="chat-meta">Select or create a conversation.</div>
+            <div class="app-chat-title" data-role="chat-title">${adminText("chat.noneSelected", "No conversation selected")}</div>
+            <div class="app-chat-meta app-muted" data-role="chat-meta">${adminText("chat.selectOrCreate", "Select or create a conversation.")}</div>
           </div>
           <div class="app-chat-actions">
             <div class="select is-small app-chat-select-wrap">
               <select data-role="chat-select">
-                <option value="">Select chat</option>
+                <option value="">${adminText("chat.selectConversation", "Select chat")}</option>
               </select>
             </div>
             <button
               class="button app-button app-ghost app-chat-toolbar-button app-chat-toolbar-icon-button"
               data-action="new"
-              title="Start a new conversation"
-              aria-label="Start a new conversation"
+              title="${adminText("chat.startNewConversation", "Start a new conversation")}"
+              aria-label="${adminText("chat.startNewConversation", "Start a new conversation")}"
             >
               <span class="icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
@@ -115,8 +116,8 @@ export const renderChatLayout = (
             <button
               class="button app-button app-ghost app-icon-button app-chat-toolbar-button app-chat-toolbar-icon-button"
               data-action="delete"
-              title="Delete the selected conversation"
-              aria-label="Delete the selected conversation"
+              title="${adminText("chat.deleteConversation", "Delete the selected conversation")}"
+              aria-label="${adminText("chat.deleteConversation", "Delete the selected conversation")}"
               disabled
             >
               <span class="icon" aria-hidden="true">
@@ -129,7 +130,7 @@ export const renderChatLayout = (
         </div>
         <div class="app-chat-scroll" data-role="chat-scroll">
           <div class="app-chat-messages" data-role="chat-messages"></div>
-          <button type="button" class="button app-button app-ghost app-chat-jump" data-role="chat-jump" aria-label="Jump to latest message" title="Jump to latest message">
+          <button type="button" class="button app-button app-ghost app-chat-jump" data-role="chat-jump" aria-label="${adminText("chat.jumpToLatest", "Jump to latest message")}" title="${adminText("chat.jumpToLatest", "Jump to latest message")}">
             <span class="icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" focusable="false">
                 <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
@@ -141,11 +142,11 @@ export const renderChatLayout = (
           <form data-role="chat-form">
             <div class="field">
               <div class="control">
-                <textarea class="textarea" rows="2" placeholder="Write a message" data-role="chat-input" disabled></textarea>
+                <textarea class="textarea" rows="2" placeholder="${adminText("chat.writeMessage", "Write a message")}" data-role="chat-input" disabled></textarea>
               </div>
             </div>
             <div class="buttons">
-              <button class="button app-button app-primary" data-role="chat-send" disabled>Send</button>
+              <button class="button app-button app-primary" data-role="chat-send" disabled>${adminText("chat.send", "Send")}</button>
             </div>
           </form>
         </div>

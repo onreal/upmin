@@ -1,4 +1,5 @@
 import type { RemoteDocument } from "../api";
+import { adminText } from "../app/translations";
 
 export type WebsiteBuildViewContext = {
   content: HTMLElement | null;
@@ -120,36 +121,36 @@ export const renderWebsiteBuildView = ({
     <section class="app-build-shell">
       <div class="app-build-header">
         <div class="app-build-heading">
-          <p class="app-build-kicker app-muted">System page</p>
+          <p class="app-build-kicker app-muted">${adminText("documents.systemPage", "System page")}</p>
           <h1 class="title is-4">${escapeHtml(doc.payload.name)}</h1>
         </div>
-        <div class="app-build-actions" role="toolbar" aria-label="Website build actions">
-          ${actionButton("build-visit", "Visit", "visit", "Open the current generated build in a new tab.")}
+        <div class="app-build-actions" role="toolbar" aria-label="${adminText("websiteBuild.actions", "Website build actions")}">
+          ${actionButton("build-visit", adminText("common.visit", "Visit"), "visit", adminText("websiteBuild.visitHelp", "Open the current generated build in a new tab."))}
           ${actionButton(
             "build-copy-public",
-            "Copy from public",
+            adminText("websiteBuild.copyFromPublic", "Copy from public"),
             "copy",
-            "Import the current public website into the build workspace."
+            adminText("websiteBuild.copyFromPublicHelp", "Import the current public website into the build workspace.")
           )}
           ${actionButton(
             "build-publish",
-            "Publish",
+            adminText("common.publish", "Publish"),
             "publish",
-            "Replace the public website with the current build output."
+            adminText("websiteBuild.publishHelp", "Replace the public website with the current build output.")
           )}
           ${actionButton(
             "build-clean",
-            "Clean",
+            adminText("common.clean", "Clean"),
             "clean",
-            "Remove the current build output after creating a safety snapshot.",
+            adminText("websiteBuild.cleanHelp", "Remove the current build output after creating a safety snapshot."),
             "app-build-action-danger"
           )}
         </div>
       </div>
       <div class="tabs is-toggle is-small app-build-tabs">
         <ul>
-          <li class="is-active"><a data-build-tab="chat">Chat</a></li>
-          <li><a data-build-tab="preview">Preview</a></li>
+          <li class="is-active"><a data-build-tab="chat">${adminText("websiteBuild.chat", "Chat")}</a></li>
+          <li><a data-build-tab="preview">${adminText("creations.preview", "Preview")}</a></li>
         </ul>
       </div>
       <div class="app-build-body">
@@ -161,12 +162,12 @@ export const renderWebsiteBuildView = ({
             <div id="build-preview-loading" class="app-build-preview-loading is-hidden">
               <div class="app-build-spinner" aria-hidden="true"></div>
               <div class="app-build-preview-copy">
-                <div class="app-build-preview-title">Codex is working</div>
-                <div id="build-preview-reasoning" class="app-build-preview-reasoning">Waiting for updates...</div>
+                <div class="app-build-preview-title">${adminText("chat.progress.title", "Codex is working")}</div>
+                <div id="build-preview-reasoning" class="app-build-preview-reasoning">${adminText("websiteBuild.waiting", "Waiting for updates...")}</div>
               </div>
             </div>
             <div id="build-preview-frame" class="app-build-preview-frame">
-              <iframe id="build-preview-iframe" title="Build preview"></iframe>
+              <iframe id="build-preview-iframe" title="${adminText("websiteBuild.previewFrame", "Build preview")}"></iframe>
             </div>
           </div>
         </div>
@@ -183,21 +184,21 @@ export const renderWebsiteBuildView = ({
     if (!copyFromPublicButton) {
       return;
     }
-    void runButtonAction(copyFromPublicButton, "Copying...", onCopyFromPublic);
+    void runButtonAction(copyFromPublicButton, adminText("websiteBuild.copying", "Copying..."), onCopyFromPublic);
   });
 
   publishButton?.addEventListener("click", () => {
     if (!publishButton) {
       return;
     }
-    void runButtonAction(publishButton, "Publishing...", onPublish);
+    void runButtonAction(publishButton, adminText("websiteBuild.publishing", "Publishing..."), onPublish);
   });
 
   cleanButton?.addEventListener("click", () => {
     if (!cleanButton) {
       return;
     }
-    void runButtonAction(cleanButton, "Cleaning...", onClean);
+    void runButtonAction(cleanButton, adminText("common.cleaning", "Cleaning..."), onClean);
   });
 
   const tabLinks = Array.from(content.querySelectorAll<HTMLAnchorElement>("[data-build-tab]"));

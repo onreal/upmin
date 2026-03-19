@@ -4,6 +4,7 @@ import type { JsonEditorHandle } from "../../json-editor";
 import type { ModuleRenderContext } from "../types";
 import { moduleSettingsKey } from "../utils";
 import { describeStorage, isRecord } from "./utils";
+import { adminText } from "../../app/translations";
 
 type ModuleSchema = {
   type?: string;
@@ -71,8 +72,8 @@ const buildHeader = (module: ModuleDefinition, openSettings?: () => void) => {
     const settingsButton = document.createElement("button");
     settingsButton.type = "button";
     settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    settingsButton.title = "Module settings";
-    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.title = adminText("modules.settings", "Module settings");
+    settingsButton.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
     settingsButton.innerHTML = `
       <span class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -123,7 +124,7 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
   if (!urlKey) {
     const notice = document.createElement("div");
     notice.className = "notification is-warning is-light";
-    notice.textContent = "Uploader schema must define a string field for the image.";
+    notice.textContent = adminText("uploader.schemaImageRequired", "Uploader schema must define a string field for the image.");
     panel.append(notice);
     return;
   }
@@ -145,7 +146,7 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
     if (!pendingUrl) {
       const empty = document.createElement("span");
       empty.className = "app-muted";
-      empty.textContent = "No image selected.";
+      empty.textContent = adminText("uploader.noImageSelected", "No image selected.");
       preview.append(empty);
       return;
     }
@@ -173,7 +174,7 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
   fileField.className = "field";
   const fileLabel = document.createElement("label");
   fileLabel.className = "label";
-  fileLabel.textContent = "Upload image";
+  fileLabel.textContent = adminText("uploader.uploadImage", "Upload image");
   const fileControl = document.createElement("div");
   fileControl.className = "control";
   const fileInput = document.createElement("input");
@@ -193,13 +194,13 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
       return;
     }
     fileInput.disabled = true;
-    setUploadStatus("Uploading...");
+    setUploadStatus(adminText("common.uploading", "Uploading..."));
     try {
       const settingsKey = moduleSettingsKey(payload, module.name);
       const result = await uploadModuleFile(auth, module.name, file, settingsKey);
       urlInput.value = result.url;
       setPendingUrl(result.url);
-      setUploadStatus("Upload complete.");
+      setUploadStatus(adminText("uploader.uploadComplete", "Upload complete."));
     } catch (err) {
       setUploadStatus("");
       alert((err as Error).message);
@@ -214,7 +215,7 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
   urlField.className = "field";
   const urlLabel = document.createElement("label");
   urlLabel.className = "label";
-  urlLabel.textContent = schema?.properties?.[urlKey]?.title ?? "Image URL";
+  urlLabel.textContent = schema?.properties?.[urlKey]?.title ?? adminText("uploader.imageUrl", "Image URL");
   const urlControl = document.createElement("div");
   urlControl.className = "control";
   const urlInput = document.createElement("input");
@@ -232,12 +233,12 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
   const addButton = document.createElement("button");
   addButton.type = "button";
   addButton.className = "button app-button app-primary";
-  addButton.textContent = "Add to data";
+  addButton.textContent = adminText("chat.addToData", "Add to data");
   addButton.disabled = true;
   const discardButton = document.createElement("button");
   discardButton.type = "button";
   discardButton.className = "button app-button app-ghost";
-  discardButton.textContent = "Discard";
+  discardButton.textContent = adminText("common.discard", "Discard");
   discardButton.disabled = true;
 
   addButton.addEventListener("click", () => {
@@ -277,7 +278,7 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
 
   const targetHelp = document.createElement("p");
   targetHelp.className = "help";
-  targetHelp.textContent = `Adds to data.${targetKey}[]`;
+  targetHelp.textContent = adminText("uploader.targetHelp", "Adds to data.{target}[]", { target: targetKey });
 
   body.append(preview, fileField, urlField, actionsField, targetHelp);
 
@@ -287,7 +288,7 @@ export const renderUploaderModule = (panel: HTMLElement, context: ModuleRenderCo
     altField.className = "field";
     const altLabel = document.createElement("label");
     altLabel.className = "label";
-    altLabel.textContent = schema?.properties?.[altKey]?.title ?? "Alt text";
+    altLabel.textContent = schema?.properties?.[altKey]?.title ?? adminText("uploader.altText", "Alt text");
     const altControl = document.createElement("div");
     altControl.className = "control";
     altInput = document.createElement("input");

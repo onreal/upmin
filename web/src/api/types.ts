@@ -240,4 +240,5 @@ export type LayoutConfig = {
     subtitle?: string;
     saveLabel?: string;
   };
+  translations?: Record<string, Record<string, string>>;
 };

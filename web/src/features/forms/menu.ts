@@ -1,4 +1,5 @@
 import type { FormSummary } from "../../api";
+import { adminText } from "../../app/translations";
 
 export const renderFormsMenu = (forms: FormSummary[]) => {
   const links = [
@@ -17,6 +18,6 @@ export const renderFormsMenu = (forms: FormSummary[]) => {
 
   links.forEach((link) => {
     link.classList.remove("is-hidden");
-    link.textContent = "Forms";
+    link.textContent = adminText("forms.title", "Forms");
   });
 };

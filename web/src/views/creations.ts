@@ -1,4 +1,5 @@
 import type { CreationRecord, RemoteDocument } from "../api";
+import { adminText } from "../app/translations";
 
 export type CreationsViewContext = {
   content: HTMLElement | null;
@@ -28,16 +29,19 @@ const escapeHtml = (value: string) =>
 
 const reasonLabel = (reason?: string | null) => {
   if (reason === "before-clear") {
-    return "Pre-clear snapshot";
+    return adminText("creations.reason.beforeClear", "Pre-clear snapshot");
   }
-  return "Manual snapshot";
+  return adminText("creations.reason.manual", "Manual snapshot");
 };
 
-const targetLabel = (target?: string | null) => (target === "build" ? "Build" : "Public");
+const targetLabel = (target?: string | null) =>
+  target === "build"
+    ? adminText("creations.target.build", "Build")
+    : adminText("creations.target.public", "Public");
 
 const formatTimestamp = (value?: string | null) => {
   if (!value) {
-    return "Unknown time";
+    return adminText("common.unknownTime", "Unknown time");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -74,19 +78,19 @@ const buildCard = (creation: CreationRecord) => {
       <h2 class="app-creation-title">${escapeHtml(creation.id)}</h2>
       <div class="app-creation-paths">
         <div>
-          <span class="app-creation-label">Backup</span>
+          <span class="app-creation-label">${adminText("creations.backup", "Backup")}</span>
           <code>manage/store/${escapeHtml(creation.backupPath)}</code>
         </div>
         <div>
-          <span class="app-creation-label">Preview</span>
+          <span class="app-creation-label">${adminText("creations.preview", "Preview")}</span>
           <code>manage/store/${escapeHtml(creation.snapshotPath)}</code>
         </div>
       </div>
     </div>
     <div class="app-creation-actions">
-      <button data-action="download" class="button app-button app-primary">Download</button>
-      <button data-action="restore" class="button app-button app-ghost">Restore</button>
-      <button data-action="delete" class="button app-button app-danger">Delete</button>
+      <button data-action="download" class="button app-button app-primary">${adminText("common.download", "Download")}</button>
+      <button data-action="restore" class="button app-button app-ghost">${adminText("common.restore", "Restore")}</button>
+      <button data-action="delete" class="button app-button app-danger">${adminText("common.delete", "Delete")}</button>
     </div>
   `;
   return article;
@@ -112,31 +116,31 @@ export const renderCreationsView = ({
     <section class="app-creations-shell">
       <div class="app-creations-hero app-surface">
         <div>
-          <p class="app-creations-kicker">System page</p>
+          <p class="app-creations-kicker">${adminText("documents.systemPage", "System page")}</p>
           <h1 class="title is-4">${escapeHtml(doc.payload.name)}</h1>
           <p class="app-muted app-creations-subtitle">
-            Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.
+            ${adminText("creations.subtitle", "Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.")}
           </p>
         </div>
         <div class="app-creations-stats">
           <div>
             <span class="app-creations-stat-value">${creations.length}</span>
-            <span class="app-creations-stat-label">Snapshots</span>
+            <span class="app-creations-stat-label">${adminText("creations.snapshots", "Snapshots")}</span>
           </div>
           <div>
             <span class="app-creations-stat-value">${escapeHtml(doc.store)}</span>
-            <span class="app-creations-stat-label">Store</span>
+            <span class="app-creations-stat-label">${adminText("documents.store", "Store")}</span>
           </div>
         </div>
       </div>
       <div class="app-creations-toolbar">
         <div class="buttons">
-          <button id="creation-snapshot" class="button app-button app-primary">Get Snapshot</button>
-          <button id="creation-clear" class="button app-button app-danger">Clear All</button>
-          <button id="creation-export" class="button app-button app-ghost">Export JSON</button>
+          <button id="creation-snapshot" class="button app-button app-primary">${adminText("creations.getSnapshot", "Get Snapshot")}</button>
+          <button id="creation-clear" class="button app-button app-danger">${adminText("creations.clearAll", "Clear All")}</button>
+          <button id="creation-export" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
         </div>
         <p class="app-muted app-creations-note">
-          Public snapshots restore to the public site. Build snapshots restore to the build directory.
+          ${adminText("creations.note", "Public snapshots restore to the public site. Build snapshots restore to the build directory.")}
         </p>
       </div>
       <div id="creation-grid" class="app-creation-grid"></div>
@@ -151,8 +155,8 @@ export const renderCreationsView = ({
   if (creations.length === 0) {
     grid.innerHTML = `
       <div class="app-creation-empty app-surface">
-        <h2 class="title is-5">No snapshots yet</h2>
-        <p class="app-muted">Use Get Snapshot to capture the current public website and save its backup archive.</p>
+        <h2 class="title is-5">${adminText("creations.none", "No snapshots yet")}</h2>
+        <p class="app-muted">${adminText("creations.noneHelp", "Use Get Snapshot to capture the current public website and save its backup archive.")}</p>
       </div>
     `;
   } else {
@@ -195,21 +199,21 @@ export const renderCreationsView = ({
         });
 
       downloadButton?.addEventListener("click", () => {
-        void runButtonAction(downloadButton, "Downloading...", () => onDownload(creation.id));
+        void runButtonAction(downloadButton, adminText("common.downloading", "Downloading..."), () => onDownload(creation.id));
       });
 
       restoreButton?.addEventListener("click", () => {
-        if (!window.confirm(`Restore ${creation.id}? This will clean the public website first.`)) {
+        if (!window.confirm(adminText("creations.confirmRestore", "Restore {id}? This will clean the public website first.", { id: creation.id }))) {
           return;
         }
-        void runButtonAction(restoreButton, "Restoring...", () => onRestore(creation.id));
+        void runButtonAction(restoreButton, adminText("common.restoring", "Restoring..."), () => onRestore(creation.id));
       });
 
       deleteButton?.addEventListener("click", () => {
-        if (!window.confirm(`Delete ${creation.id}? This removes the preview and backup archive.`)) {
+        if (!window.confirm(adminText("creations.confirmDelete", "Delete {id}? This removes the preview and backup archive.", { id: creation.id }))) {
           return;
         }
-        void runButtonAction(deleteButton, "Deleting...", () => onDelete(creation.id));
+        void runButtonAction(deleteButton, adminText("common.deleting", "Deleting..."), () => onDelete(creation.id));
       });
 
       grid.append(card);
@@ -221,17 +225,17 @@ export const renderCreationsView = ({
   const exportButton = document.getElementById("creation-export") as HTMLButtonElement | null;
 
   snapshotButton?.addEventListener("click", () => {
-    void runButtonAction(snapshotButton, "Capturing...", onSnapshot);
+    void runButtonAction(snapshotButton, adminText("creations.capturing", "Capturing..."), onSnapshot);
   });
 
   clearButton?.addEventListener("click", () => {
-    if (!window.confirm("Clear the public website? A fresh snapshot will be created first.")) {
+    if (!window.confirm(adminText("creations.confirmClear", "Clear the public website? A fresh snapshot will be created first."))) {
       return;
     }
-    void runButtonAction(clearButton, "Clearing...", onClearAll);
+    void runButtonAction(clearButton, adminText("common.clearing", "Clearing..."), onClearAll);
   });
 
   exportButton?.addEventListener("click", () => {
-    void runButtonAction(exportButton, "Preparing...", onExportJson);
+    void runButtonAction(exportButton, adminText("common.preparing", "Preparing..."), onExportJson);
   });
 };

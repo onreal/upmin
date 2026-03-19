@@ -1,4 +1,5 @@
 import type { DocumentPayload } from "../api";
+import { adminText } from "../app/translations";
 
 const slug = (value: string) =>
   value
@@ -16,7 +17,7 @@ export const moduleSettingsKey = (payload: DocumentPayload, moduleName: string) 
   const moduleSlug = slug(moduleName) || "module";
   const docId = typeof payload.id === "string" ? payload.id.trim().toLowerCase() : "";
   if (!docId || !isUuid(docId)) {
-    throw new Error("Document id is required for module settings.");
+    throw new Error(adminText("modules.documentIdRequired", "Document id is required for module settings."));
   }
   return `${docId}-${moduleSlug}`;
 };

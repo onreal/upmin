@@ -1,4 +1,5 @@
 import { fetchRealtimeTicket, type AuthState, type RemoteDocument } from "../../api";
+import { adminText } from "../../app/translations";
 
 export type RealtimeEvent =
   | { type: "realtime.ready" }
@@ -111,7 +112,7 @@ const connect = async () => {
       socket?.close();
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Realtime connection failed.";
+    const message = error instanceof Error ? error.message : adminText("realtime.connectionFailed", "Realtime connection failed.");
     if (message.toLowerCase() === "unauthorized") {
       active = false;
       setStatus("unauthorized");

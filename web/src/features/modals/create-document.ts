@@ -1,4 +1,5 @@
 import { createDocument, type AuthState, type DocumentPayload } from "../../api";
+import { adminText } from "../../app/translations";
 import { readSelectedModules } from "../modules/helpers";
 
 export type CreateModalContext = {
@@ -103,36 +104,36 @@ export const initCreateModal = ({ getAuth, onCreated, refreshNavigation }: Creat
       (document.getElementById("create-data") as HTMLTextAreaElement | null)?.value.trim() || "";
 
     if (!path) {
-      showCreateError("Filename is required.");
+      showCreateError(adminText("createDocument.filenameRequired", "Filename is required."));
       return;
     }
     if (!path.endsWith(".json")) {
-      showCreateError("Filename must end with .json.");
+      showCreateError(adminText("createDocument.filenameJson", "Filename must end with .json."));
       return;
     }
     if (path.includes("/") || path.includes("\\") || path.includes("..")) {
-      showCreateError("Filename must not include path separators.");
+      showCreateError(adminText("createDocument.filenameNoPath", "Filename must not include path separators."));
       return;
     }
     if (!page) {
-      showCreateError("Page is required.");
+      showCreateError(adminText("documents.pageRequired", "Page is required."));
       return;
     }
     if (!name) {
-      showCreateError("Name is required.");
+      showCreateError(adminText("documents.nameRequired", "Name is required."));
       return;
     }
     if (!orderRaw) {
-      showCreateError("Order is required.");
+      showCreateError(adminText("documents.orderRequired", "Order is required."));
       return;
     }
     const orderValue = Number(orderRaw);
     if (!Number.isInteger(orderValue)) {
-      showCreateError("Order must be an integer.");
+      showCreateError(adminText("documents.orderInteger", "Order must be an integer."));
       return;
     }
     if (!dataRaw) {
-      showCreateError("Data is required.");
+      showCreateError(adminText("documents.dataRequired", "Data is required."));
       return;
     }
 
@@ -140,7 +141,7 @@ export const initCreateModal = ({ getAuth, onCreated, refreshNavigation }: Creat
     try {
       data = JSON.parse(dataRaw);
     } catch {
-      showCreateError("Data must be valid JSON.");
+      showCreateError(adminText("documents.dataJsonValid", "Data must be valid JSON."));
       return;
     }
 

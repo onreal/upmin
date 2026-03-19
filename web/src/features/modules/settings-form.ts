@@ -1,4 +1,5 @@
 import type { AgentSummary, ModuleDefinition } from "../../api";
+import { adminText } from "../../app/translations";
 import { isRecord } from "../../utils";
 
 type FieldType = "text" | "number" | "boolean" | "list" | "select";
@@ -137,7 +138,9 @@ export const renderModuleSettingsForm = ({
       const select = document.createElement("select");
       const emptyOption = document.createElement("option");
       emptyOption.value = "";
-      emptyOption.textContent = agents.length ? "Select agent" : "No agents available";
+      emptyOption.textContent = agents.length
+        ? adminText("agents.selectAgent", "Select agent")
+        : adminText("agents.noAgentsAvailable", "No agents available");
       select.append(emptyOption);
       if (!agents.length) {
         select.disabled = true;
@@ -216,7 +219,7 @@ export const renderModuleSettingsForm = ({
       control.append(input);
       const help = document.createElement("p");
       help.className = "help";
-      help.textContent = "Comma separated values.";
+      help.textContent = adminText("common.commaSeparated", "Comma separated values.");
       field.append(control, help);
       const itemType =
         defaultValue.length > 0 && typeof defaultValue[0] === "number"
@@ -288,7 +291,7 @@ export const renderModuleSettingsForm = ({
   if (!Object.keys(parameters).length) {
     const empty = document.createElement("p");
     empty.className = "app-muted";
-    empty.textContent = "No module settings available.";
+    empty.textContent = adminText("modules.noSettingsAvailable", "No module settings available.");
     form.append(empty);
   } else {
     renderGroup(form, parameters, settings, []);

@@ -1,5 +1,6 @@
 import { state } from "./state";
 import { isTokenAuth } from "../features/auth/utils";
+import { adminConfiguredText, adminText } from "./translations";
 
 export type HeaderCopy = {
   title: string;
@@ -28,28 +29,28 @@ export const getUserLabel = () => {
     return name || state.auth.user.email;
   }
   if (state.auth?.type === "apiKey") {
-    return "API Key";
+    return adminText("layout.user.apiKey", "API Key");
   }
-  return "Guest";
+  return adminText("layout.user.guest", "Guest");
 };
 
 export const headerCopy = (): HeaderCopy => ({
-  title: state.layoutConfig.header?.title ?? "Manage",
-  subtitle: state.layoutConfig.header?.subtitle ?? "Stateless Admin",
-  settingsLabel: state.layoutConfig.header?.settingsLabel ?? "Settings",
-  themeLabel: state.layoutConfig.header?.themeLabel ?? "Theme",
-  createLabel: state.layoutConfig.header?.createLabel ?? "Create +",
-  profileLabel: state.layoutConfig.header?.profileLabel ?? "Profile",
-  logoutLabel: state.layoutConfig.header?.logoutLabel ?? "Logout",
+  title: adminConfiguredText(state.layoutConfig.header?.title, "layout.header.title", "Manage"),
+  subtitle: adminConfiguredText(state.layoutConfig.header?.subtitle, "layout.header.subtitle", "Stateless Admin"),
+  settingsLabel: adminConfiguredText(state.layoutConfig.header?.settingsLabel, "layout.header.settingsLabel", "Settings"),
+  themeLabel: adminConfiguredText(state.layoutConfig.header?.themeLabel, "layout.header.themeLabel", "Theme"),
+  createLabel: adminConfiguredText(state.layoutConfig.header?.createLabel, "layout.header.createLabel", "Create +"),
+  profileLabel: adminConfiguredText(state.layoutConfig.header?.profileLabel, "layout.header.profileLabel", "Profile"),
+  logoutLabel: adminConfiguredText(state.layoutConfig.header?.logoutLabel, "layout.header.logoutLabel", "Logout"),
 });
 
 export const sidebarCopy = (): SidebarCopy => ({
-  publicLabel: state.layoutConfig.sidebar?.publicLabel ?? "Public",
-  privateLabel: state.layoutConfig.sidebar?.privateLabel ?? "Private",
+  publicLabel: adminConfiguredText(state.layoutConfig.sidebar?.publicLabel, "layout.sidebar.publicLabel", "Public"),
+  privateLabel: adminConfiguredText(state.layoutConfig.sidebar?.privateLabel, "layout.sidebar.privateLabel", "Private"),
 });
 
 export const profileCopy = (): ProfileCopy => ({
-  title: state.layoutConfig.profile?.title ?? "Profile",
-  subtitle: state.layoutConfig.profile?.subtitle ?? "Ενημερώστε τα στοιχεία σας.",
-  saveLabel: state.layoutConfig.profile?.saveLabel ?? "Save Profile",
+  title: adminConfiguredText(state.layoutConfig.profile?.title, "layout.profile.title", "Profile"),
+  subtitle: adminConfiguredText(state.layoutConfig.profile?.subtitle, "layout.profile.subtitle", "Update your profile info"),
+  saveLabel: adminConfiguredText(state.layoutConfig.profile?.saveLabel, "layout.profile.saveLabel", "Save Profile"),
 });

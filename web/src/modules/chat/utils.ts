@@ -1,6 +1,7 @@
 import type { ChatConversationSummary, RemoteDocument } from "../../api";
 import { appendConversationProgress, type ConversationProgress } from "../../features/chat/progress";
 import { isRecord } from "../../utils";
+import { adminText } from "../../app/translations";
 
 export type ChatMessage = {
   id: string;
@@ -66,7 +67,7 @@ export const renderMessages = (
   options: RenderMessageOptions = {}
 ) => {
   if (!messages.length) {
-    const label = options.emptyState ?? "Select or create a conversation.";
+    const label = options.emptyState ?? adminText("chat.selectOrCreate", "Select or create a conversation.");
     container.innerHTML = `<p class="app-muted">${label}</p>`;
     appendConversationProgress(container, options.progress ?? null);
     return;
@@ -78,7 +79,7 @@ export const renderMessages = (
   container.innerHTML = messages
     .map((message) => {
       const role = message.role === "assistant" ? "assistant" : "user";
-      const label = role === "assistant" ? "Agent" : "You";
+      const label = role === "assistant" ? adminText("agents.agent", "Agent") : adminText("chat.you", "You");
       const roleClass = role === "assistant" ? "is-assistant" : "is-user";
       const selectable = enableActions && role === "assistant";
       const foldable = role === "assistant";
@@ -86,11 +87,15 @@ export const renderMessages = (
       const selected = selectable && options.isSelected ? options.isSelected(message) : false;
       const selectedClass = selected ? "is-selected" : "";
       const foldedClass = folded ? "is-folded" : "";
-      const toggleTitle = selected ? "Remove from data" : "Add to data";
+      const toggleTitle = selected
+        ? adminText("chat.removeFromData", "Remove from data")
+        : adminText("chat.addToData", "Add to data");
       const toggleIcon = selected
         ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>`
         : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
-      const foldTitle = folded ? "Expand response" : "Collapse response";
+      const foldTitle = folded
+        ? adminText("chat.expandResponse", "Expand response")
+        : adminText("chat.collapseResponse", "Collapse response");
       const foldIcon = folded
         ? `<path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`
         : `<path d="m8 14 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`;
@@ -127,8 +132,8 @@ export const renderMessages = (
               class="app-chat-action"
               data-chat-action="copy"
               data-message-id="${message.id}"
-              title="Copy"
-              aria-label="Copy"
+              title="${adminText("common.copy", "Copy")}"
+              aria-label="${adminText("common.copy", "Copy")}"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
                 <path
@@ -212,15 +217,17 @@ export const updateConversationHeader = (
   conversation: RemoteDocument | null
 ) => {
   if (!conversation) {
-    titleEl.textContent = "No conversation selected";
-    metaEl.textContent = "Select or create a conversation.";
+    titleEl.textContent = adminText("chat.noneSelected", "No conversation selected");
+    metaEl.textContent = adminText("chat.selectOrCreate", "Select or create a conversation.");
     return;
   }
 
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
   const createdAt = typeof payloadData.createdAt === "string" ? payloadData.createdAt : "";
-  titleEl.textContent = conversation.payload.name || "Conversation";
-  metaEl.textContent = createdAt ? `Started ${createdAt}` : "Conversation loaded.";
+  titleEl.textContent = conversation.payload.name || adminText("chat.conversation", "Conversation");
+  metaEl.textContent = createdAt
+    ? adminText("chat.startedAt", "Started {time}", { time: createdAt })
+    : adminText("chat.loaded", "Conversation loaded.");
 };
 
 export const updateChatInputState = (
@@ -239,7 +246,7 @@ export const renderConversationList = (
   onSelect: (id: string) => void
 ) => {
   if (!items.length) {
-    container.innerHTML = `<p class="app-muted">No conversations yet.</p>`;
+    container.innerHTML = `<p class="app-muted">${adminText("chat.noConversations", "No conversations yet.")}</p>`;
     return;
   }
 

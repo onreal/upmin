@@ -1,5 +1,6 @@
 import type { AuthState, IntegrationSummary } from "../api";
 import { pushNotice } from "../ui/notice";
+import { adminText } from "../app/translations";
 
 export type IntegrationsViewContext = {
   content: HTMLElement | null;
@@ -36,36 +37,42 @@ export const renderIntegrationsView = ({
     content.innerHTML = `
       <div class="app-view-header mb-4">
         <div>
-          <h1 class="title is-4">Integrations</h1>
-          <p class="app-muted">Configure AI providers and sync available models.</p>
+          <h1 class="title is-4">${adminText("integrations.title", "Integrations")}</h1>
+          <p class="app-muted">${adminText("integrations.subtitle", "Configure AI providers and sync available models.")}</p>
         </div>
       </div>
-      <div class="notification is-light">No integrations found.</div>
+      <div class="notification is-light">${adminText("integrations.none", "No integrations found.")}</div>
     `;
     return;
   }
 
   const list = integrations
     .map((integration) => {
-      const enabledLabel = integration.enabled ? "Enabled" : "Disabled";
+      const enabledLabel = integration.enabled
+        ? adminText("integrations.enabled", "Enabled")
+        : adminText("integrations.disabled", "Disabled");
       const models = integration.supportsModels ? getIntegrationModels(integration.name).length : null;
       const modelsLine = integration.supportsModels
-        ? `<div class="app-module-row-meta">Models: ${models}</div>`
+        ? `<div class="app-module-row-meta">${adminText("integrations.models", "Models: {count}", { count: models ?? 0 })}</div>`
         : "";
       const syncState = integration.syncing ? "Sync: running" : integration.lastSyncError
-        ? `Last sync failed: ${integration.lastSyncError}`
+        ? adminText("integrations.lastSyncFailed", "Last sync failed: {error}", { error: integration.lastSyncError })
         : integration.lastSyncedAt
-          ? `Last synced: ${integration.lastSyncedAt}`
-          : "Sync: idle";
+          ? adminText("integrations.lastSynced", "Last synced: {time}", { time: integration.lastSyncedAt })
+          : adminText("integrations.syncIdle", "Sync: idle");
       const syncDisabled = integration.enabled && !integration.syncing ? "" : "disabled";
-      const settingsLabel = integration.enabled ? "Edit settings" : "Enable integration";
-      const syncLabel = integration.syncing ? "Syncing..." : "Sync models";
+      const settingsLabel = integration.enabled
+        ? adminText("integrations.editSettings", "Edit settings")
+        : adminText("integrations.enable", "Enable integration");
+      const syncLabel = integration.syncing
+        ? adminText("integrations.syncing", "Syncing...")
+        : adminText("integrations.syncModels", "Sync models");
 
       return `
         <div class="app-module-row">
           <div class="app-module-row-title">${integration.name}</div>
           <div class="app-module-row-meta">${integration.description}</div>
-          <div class="app-module-row-meta">Status: ${enabledLabel}</div>
+          <div class="app-module-row-meta">${adminText("integrations.status", "Status: {status}", { status: enabledLabel })}</div>
           ${modelsLine}
           ${integration.supportsModels ? `<div class="app-module-row-meta">${syncState}</div>` : ""}
           <div class="buttons">
@@ -108,8 +115,8 @@ export const renderIntegrationsView = ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Integrations</h1>
-        <p class="app-muted">Configure AI providers and sync available models.</p>
+        <h1 class="title is-4">${adminText("integrations.title", "Integrations")}</h1>
+        <p class="app-muted">${adminText("integrations.subtitle", "Configure AI providers and sync available models.")}</p>
       </div>
     </div>
     <div class="app-module-list">${list}</div>
@@ -136,7 +143,12 @@ export const renderIntegrationsView = ({
       }
       try {
         const result = await syncIntegrationModels(auth, name);
-        pushNotice("success", result.alreadyRunning ? "Model sync already running." : "Model sync started.");
+        pushNotice(
+          "success",
+          result.alreadyRunning
+            ? adminText("integrations.syncAlreadyRunning", "Model sync already running.")
+            : adminText("integrations.syncStarted", "Model sync started.")
+        );
         await reloadIntegrations();
         renderIntegrationsView({
           content,

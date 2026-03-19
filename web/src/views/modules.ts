@@ -2,6 +2,7 @@ import type { AuthState, DocumentPayload, ModuleDefinition, NavigationPage, Remo
 import type { JsonEditorHandle } from "../json-editor";
 import { renderModule } from "../modules/registry";
 import { describeStorage } from "../modules/uploader/utils";
+import { adminText } from "../app/translations";
 
 export type ModulePanelContext = {
   auth: AuthState | null;
@@ -56,7 +57,7 @@ export const renderModulePanel = async ({
     if (!module) {
       const notice = document.createElement("div");
       notice.className = "notification is-warning is-light";
-      notice.textContent = `Module "${moduleName}" was not found.`;
+      notice.textContent = adminText("modules.notFound", 'Module "{name}" was not found.', { name: moduleName });
       panel.append(notice);
       return;
     }
@@ -83,7 +84,9 @@ export const renderModulePanel = async ({
     if (!handled) {
       const placeholder = document.createElement("div");
       placeholder.className = "notification is-light";
-      placeholder.textContent = `${module.name} module is available but has no renderer yet.`;
+      placeholder.textContent = adminText("modules.noRenderer", "{name} module is available but has no renderer yet.", {
+        name: module.name,
+      });
       panel.append(placeholder);
     }
   });
@@ -118,7 +121,10 @@ export const renderModulesView = ({
         <div class="app-module-row">
           <div class="app-module-row-title">${module.name}</div>
           <div class="app-module-row-meta">${module.description}${author}</div>
-          <div class="app-module-row-meta">Input: ${module.input} · Output: ${module.output}</div>
+          <div class="app-module-row-meta">${adminText("modules.io", "Input: {input} · Output: {output}", {
+            input: module.input,
+            output: module.output,
+          })}</div>
           ${storageLine}
         </div>
       `;
@@ -144,8 +150,8 @@ export const renderModulesView = ({
           <div class="buttons">
             <button
               class="button app-button app-ghost app-icon-button"
-              aria-label="Open settings"
-              title="Open settings"
+              aria-label="${adminText("common.openSettings", "Open settings")}"
+              title="${adminText("common.openSettings", "Open settings")}"
               data-module-settings="${encodeURIComponent(doc.id)}"
             >
               <span class="icon" aria-hidden="true">
@@ -174,13 +180,13 @@ export const renderModulesView = ({
   const settingsSection = `
     <div id="module-settings-panel" class="app-module-settings is-hidden">
       <div class="mb-3">
-        <h2 class="title is-5">Settings</h2>
-        <p class="app-muted">Edit per-page or per-section module settings saved in manage/store/modules.</p>
+        <h2 class="title is-5">${adminText("common.settings", "Settings")}</h2>
+        <p class="app-muted">${adminText("modules.settingsHelp", "Edit per-page or per-section module settings saved in manage/store/modules.")}</p>
       </div>
       ${
         settingsDocs.length
           ? `<div class="app-module-list">${settingsList}</div>`
-          : `<div class="notification is-light">No module settings found yet.</div>`
+          : `<div class="notification is-light">${adminText("modules.noSettings", "No module settings found yet.")}</div>`
       }
     </div>
   `;
@@ -188,15 +194,15 @@ export const renderModulesView = ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Modules</h1>
-        <p class="app-muted">Available modules loaded from manage/src/Modules.</p>
+        <h1 class="title is-4">${adminText("modules.title", "Modules")}</h1>
+        <p class="app-muted">${adminText("modules.subtitle", "Available modules loaded from manage/src/Modules.")}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="module-settings-toggle"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Module settings"
-          title="Module settings"
+          aria-label="${adminText("modules.settings", "Module settings")}"
+          title="${adminText("modules.settings", "Module settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -217,7 +223,7 @@ export const renderModulesView = ({
         </button>
       </div>
     </div>
-    ${modules.length ? `<div class="app-module-list">${list}</div>` : `<div class="notification is-light">No modules found.</div>`}
+    ${modules.length ? `<div class="app-module-list">${list}</div>` : `<div class="notification is-light">${adminText("modules.none", "No modules found.")}</div>`}
     ${settingsSection}
   `;
 

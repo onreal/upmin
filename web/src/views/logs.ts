@@ -1,5 +1,6 @@
 import type { AuthState, LogSummary, RemoteDocument } from "../api";
 import { isRecord, triggerDownload } from "../utils";
+import { adminText } from "../app/translations";
 
 export type LogsViewContext = {
   content: HTMLElement | null;
@@ -16,11 +17,11 @@ const buildLogSelector = (logs: LogSummary[], currentId?: string) => {
   if (!logs.length) {
     return `
       <div class="field">
-        <label class="label">Log file</label>
+        <label class="label">${adminText("logs.logFile", "Log file")}</label>
         <div class="control">
           <div class="select is-fullwidth">
             <select disabled>
-              <option>No logs available</option>
+              <option>${adminText("logs.noLogsAvailable", "No logs available")}</option>
             </select>
           </div>
         </div>
@@ -37,7 +38,7 @@ const buildLogSelector = (logs: LogSummary[], currentId?: string) => {
 
   return `
     <div class="field">
-      <label class="label">Log file</label>
+      <label class="label">${adminText("logs.logFile", "Log file")}</label>
       <div class="control">
         <div class="select is-fullwidth">
           <select id="log-file-select">${options}</select>
@@ -63,22 +64,22 @@ export const renderLogsView = async ({
   clearAgentState();
 
   if (!auth) {
-    content.innerHTML = `<p class="app-muted">Authentication required.</p>`;
+    content.innerHTML = `<p class="app-muted">${adminText("auth.required", "Authentication required.")}</p>`;
     return;
   }
 
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Logs</h1>
-        <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+        <h1 class="title is-4">${adminText("logs.title", "Logs")}</h1>
+        <p class="app-muted">${adminText("logs.subtitle", "Recent backend errors stored in manage/store/logs.")}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="logger-settings-open"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Logger settings"
-          title="Logger settings"
+          aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+          title="${adminText("logs.loggerSettings", "Logger settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -99,7 +100,7 @@ export const renderLogsView = async ({
         </button>
       </div>
     </div>
-    <div class="notification is-light">Loading logs...</div>
+    <div class="notification is-light">${adminText("logs.loading", "Loading logs...")}</div>
   `;
 
   try {
@@ -115,15 +116,15 @@ export const renderLogsView = async ({
     content.innerHTML = `
       <div class="app-view-header mb-4">
         <div>
-          <h1 class="title is-4">Logs</h1>
-          <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+          <h1 class="title is-4">${adminText("logs.title", "Logs")}</h1>
+          <p class="app-muted">${adminText("logs.subtitle", "Recent backend errors stored in manage/store/logs.")}</p>
         </div>
         <div class="app-view-actions">
           <button
             id="logger-settings-open"
             class="button app-button app-ghost app-icon-button"
-            aria-label="Logger settings"
-            title="Logger settings"
+            aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+            title="${adminText("logs.loggerSettings", "Logger settings")}"
           >
             <span class="icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -144,7 +145,7 @@ export const renderLogsView = async ({
           </button>
         </div>
       </div>
-      <div class="notification is-light">No logs found.</div>
+      <div class="notification is-light">${adminText("logs.none", "No logs found.")}</div>
     `;
 
     document.getElementById("logger-settings-open")?.addEventListener("click", () => {
@@ -157,10 +158,10 @@ export const renderLogsView = async ({
     .map((log) => {
       const metaParts = [];
       if (log.count !== undefined) {
-        metaParts.push(`${log.count} items`);
+        metaParts.push(adminText("logs.items", "{count} items", { count: log.count }));
       }
       if (log.updatedAt) {
-        metaParts.push(`updated ${log.updatedAt}`);
+        metaParts.push(adminText("logs.updatedAt", "updated {time}", { time: log.updatedAt }));
       }
       const meta = metaParts.length ? metaParts.join(" · ") : "";
 
@@ -172,7 +173,7 @@ export const renderLogsView = async ({
           <div class="buttons">
             <button class="button app-button app-ghost" data-log-id="${encodeURIComponent(
               log.id
-            )}">Open</button>
+            )}">${adminText("common.open", "Open")}</button>
           </div>
         </div>
       `;
@@ -182,15 +183,15 @@ export const renderLogsView = async ({
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
-        <h1 class="title is-4">Logs</h1>
-        <p class="app-muted">Recent backend errors stored in manage/store/logs.</p>
+        <h1 class="title is-4">${adminText("logs.title", "Logs")}</h1>
+        <p class="app-muted">${adminText("logs.subtitle", "Recent backend errors stored in manage/store/logs.")}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="logger-settings-open"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Logger settings"
-          title="Logger settings"
+          aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+          title="${adminText("logs.loggerSettings", "Logger settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -283,7 +284,7 @@ export const renderLogDocument = ({
           return `
             <div class="app-log-item">
               <div class="app-log-header">
-                <div class="app-log-title">${endpoint || "Request"}</div>
+                <div class="app-log-title">${endpoint || adminText("logs.request", "Request")}</div>
                 <div class="app-log-meta">${statusLabel}</div>
               </div>
               <div class="app-log-message">${message}</div>
@@ -294,20 +295,20 @@ export const renderLogDocument = ({
           `;
         })
         .join("")
-    : `<div class="notification is-light">No log entries yet.</div>`;
+    : `<div class="notification is-light">${adminText("logs.noEntries", "No log entries yet.")}</div>`;
 
   content.innerHTML = `
     <div class="app-view-header mb-4">
       <div>
         <h1 class="title is-4">${payload.name}</h1>
-        <p class="app-muted">Logs · ${doc.store}/${doc.path}</p>
+        <p class="app-muted">${adminText("logs.title", "Logs")} · ${doc.store}/${doc.path}</p>
       </div>
       <div class="app-view-actions">
         <button
           id="logger-settings-open"
           class="button app-button app-ghost app-icon-button"
-          aria-label="Logger settings"
-          title="Logger settings"
+          aria-label="${adminText("logs.loggerSettings", "Logger settings")}"
+          title="${adminText("logs.loggerSettings", "Logger settings")}"
         >
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -332,12 +333,12 @@ export const renderLogDocument = ({
       ${buildLogSelector(logs, doc.id)}
     </div>
     <div class="app-log-summary">
-      <div class="app-log-summary-item"><span class="app-muted">Items</span> ${count}</div>
-      ${createdAt ? `<div class="app-log-summary-item"><span class="app-muted">Created</span> ${createdAt}</div>` : ""}
-      ${updatedAt ? `<div class="app-log-summary-item"><span class="app-muted">Updated</span> ${updatedAt}</div>` : ""}
+      <div class="app-log-summary-item"><span class="app-muted">${adminText("logs.itemsLabel", "Items")}</span> ${count}</div>
+      ${createdAt ? `<div class="app-log-summary-item"><span class="app-muted">${adminText("common.created", "Created")}</span> ${createdAt}</div>` : ""}
+      ${updatedAt ? `<div class="app-log-summary-item"><span class="app-muted">${adminText("common.updated", "Updated")}</span> ${updatedAt}</div>` : ""}
     </div>
     <div class="mb-4 buttons">
-      <button id="export-json" class="button app-button app-ghost">Export JSON</button>
+      <button id="export-json" class="button app-button app-ghost">${adminText("documents.exportJson", "Export JSON")}</button>
     </div>
     <div class="app-log-list">
       ${listHtml}

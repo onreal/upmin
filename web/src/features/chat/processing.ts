@@ -1,4 +1,11 @@
-const PHRASES = ["Processing...", "Sailing...", "Swimming...", "Floating..."];
+import { adminText } from "../../app/translations";
+
+const PHRASES = [
+  adminText("chat.processing.processing", "Processing..."),
+  adminText("chat.processing.sailing", "Sailing..."),
+  adminText("chat.processing.swimming", "Swimming..."),
+  adminText("chat.processing.floating", "Floating..."),
+];
 const ROTATE_MS = 30_000;
 
 const nextPhrase = (current: string) => {

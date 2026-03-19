@@ -1,5 +1,6 @@
 import type { NavigationPage } from "../api";
 import { state } from "./state";
+import { adminText } from "./translations";
 
 const MOBILE_DRAWER_CLOSE_EVENT = "app:mobile-drawer-close";
 
@@ -124,7 +125,10 @@ const renderMobileNavList = (
       toggle.className = "app-mobile-nav-disclosure";
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-controls", `mobile-nav-submenu-${mode}-${index}`);
-      toggle.setAttribute("aria-label", `Toggle ${page.name} sections`);
+      toggle.setAttribute(
+        "aria-label",
+        adminText("navigation.toggleSections", "Toggle {name} sections", { name: page.name })
+      );
       toggle.innerHTML = `<span aria-hidden="true">+</span>`;
       toggle.addEventListener("click", () => {
         const isOpen = pageItem.classList.toggle("is-open");
@@ -209,7 +213,7 @@ const renderSystemPages = (
     const empty = document.createElement("div");
     empty.className =
       variant === "desktop" ? "navbar-item is-size-7 app-muted" : "app-mobile-empty app-muted";
-    empty.textContent = "No system pages.";
+    empty.textContent = adminText("navigation.noSystemPages", "No system pages.");
     container.append(empty);
     return;
   }

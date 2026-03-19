@@ -3,6 +3,7 @@ import { isRecord } from "../../utils";
 import { moduleSettingsKey } from "../utils";
 import { renderChatLayout } from "./layout";
 import { mountChatController } from "./controller";
+import { adminText } from "../../app/translations";
 
 export const renderChatModule = (panel: HTMLElement, context: ModuleRenderContext) => {
   const settings = isRecord(context.settings) ? context.settings : null;
@@ -30,8 +31,8 @@ export const renderChatModule = (panel: HTMLElement, context: ModuleRenderContex
         const button = document.createElement("button");
         button.type = "button";
         button.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-        button.title = "Module settings";
-        button.setAttribute("aria-label", "Module settings");
+        button.title = adminText("modules.settings", "Module settings");
+        button.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
         button.innerHTML = `
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -56,8 +57,8 @@ export const renderChatModule = (panel: HTMLElement, context: ModuleRenderContex
     const note = document.createElement("div");
     note.className = "app-module-note";
     note.innerHTML = `
-      <strong>Chat needs an agent.</strong>
-      <p class="app-muted">Select an agent in module settings to start chatting.</p>
+      <strong>${adminText("chat.agentRequired", "Chat needs an agent.")}</strong>
+      <p class="app-muted">${adminText("chat.agentRequiredHelp", "Select an agent in module settings to start chatting.")}</p>
     `;
     body.append(note);
 

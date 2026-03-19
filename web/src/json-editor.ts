@@ -1,3 +1,5 @@
+import { adminText } from "./app/translations";
+
 export type JsonEditorHandle = {
   getValue: () => unknown;
   setValue: (value: unknown) => void;
@@ -86,7 +88,7 @@ export const buildJsonEditor = (container: HTMLElement, initialValue: unknown): 
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button app-button app-danger is-small json-remove";
-    button.textContent = "Αφαίρεση";
+    button.textContent = adminText("jsonEditor.remove", "Remove");
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -159,7 +161,10 @@ export const buildJsonEditor = (container: HTMLElement, initialValue: unknown): 
     const summary = document.createElement("summary");
     summary.className = "json-summary";
     const summaryLabel = document.createElement("span");
-    summaryLabel.textContent = `${key ?? "object"} · ${Object.keys(obj).length} πεδία`;
+    summaryLabel.textContent = adminText("jsonEditor.objectSummary", "{name} · {count} fields", {
+      name: String(key ?? "object"),
+      count: Object.keys(obj).length,
+    });
     summary.append(summaryLabel);
     details.append(summary);
 
@@ -206,7 +211,10 @@ export const buildJsonEditor = (container: HTMLElement, initialValue: unknown): 
     const summary = document.createElement("summary");
     summary.className = "json-summary";
     const summaryLabel = document.createElement("span");
-    summaryLabel.textContent = `${key ?? "array"} · ${arr.length} στοιχεία`;
+    summaryLabel.textContent = adminText("jsonEditor.arraySummary", "{name} · {count} items", {
+      name: String(key ?? "array"),
+      count: arr.length,
+    });
     summary.append(summaryLabel);
     details.append(summary);
 
@@ -253,7 +261,7 @@ export const buildJsonEditor = (container: HTMLElement, initialValue: unknown): 
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.className = "button app-button app-ghost is-small";
-    addBtn.textContent = "Προσθήκη στοιχείου";
+    addBtn.textContent = adminText("jsonEditor.addItem", "Add item");
     addBtn.addEventListener("click", () => {
       if (arr.length > 0) {
         arr.push(clone(arr[0]));

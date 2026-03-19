@@ -4,6 +4,7 @@ import type { JsonEditorHandle } from "../../json-editor";
 import type { ModuleRenderContext } from "../types";
 import { moduleSettingsKey } from "../utils";
 import { isRecord } from "../uploader/utils";
+import { adminText } from "../../app/translations";
 
 type ModuleSchema = {
   type?: string;
@@ -79,7 +80,7 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
   if (!urlKey) {
     const notice = document.createElement("div");
     notice.className = "notification is-warning is-light";
-    notice.textContent = "Gallery schema must define a string field for the image.";
+    notice.textContent = adminText("gallery.schemaImageRequired", "Gallery schema must define a string field for the image.");
     panel.append(notice);
     return;
   }
@@ -99,8 +100,8 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
     const settingsButton = document.createElement("button");
     settingsButton.type = "button";
     settingsButton.className = "button app-button app-ghost app-icon-button app-module-settings-button";
-    settingsButton.title = "Module settings";
-    settingsButton.setAttribute("aria-label", "Module settings");
+    settingsButton.title = adminText("modules.settings", "Module settings");
+    settingsButton.setAttribute("aria-label", adminText("modules.settings", "Module settings"));
     settingsButton.innerHTML = `
       <span class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true">
@@ -134,16 +135,16 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
   toggleField.className = "field";
   const toggleLabel = document.createElement("label");
   toggleLabel.className = "label";
-  toggleLabel.textContent = "Source";
+  toggleLabel.textContent = adminText("gallery.source", "Source");
   const toggleControl = document.createElement("div");
   toggleControl.className = "control";
   const toggleTabs = document.createElement("div");
   toggleTabs.className = "tabs is-toggle is-small";
   toggleTabs.innerHTML = `
     <ul>
-      <li data-visibility="all"><a>All</a></li>
-      <li data-visibility="public"><a>Public</a></li>
-      <li data-visibility="private"><a>Private</a></li>
+      <li data-visibility="all"><a>${adminText("common.all", "All")}</a></li>
+      <li data-visibility="public"><a>${adminText("documents.storePublic", "Public")}</a></li>
+      <li data-visibility="private"><a>${adminText("documents.storePrivate", "Private")}</a></li>
     </ul>
   `;
   toggleControl.append(toggleTabs);
@@ -161,17 +162,17 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
     <div class="modal-background"></div>
     <div class="modal-card app-gallery-modal">
       <header class="modal-card-head">
-        <p class="modal-card-title">Image</p>
-        <button class="delete" aria-label="close"></button>
+        <p class="modal-card-title">${adminText("gallery.image", "Image")}</p>
+        <button class="delete" aria-label="${adminText("common.close", "Close")}"></button>
       </header>
       <section class="modal-card-body">
         <div class="app-gallery-modal-body"></div>
       </section>
       <footer class="modal-card-foot">
         <div class="buttons">
-          <button class="button app-button app-primary" data-action="add">Add to data</button>
-          <button class="button app-button app-ghost" data-action="remove">Remove from data</button>
-          <button class="button app-button app-danger" data-action="delete">Delete file</button>
+          <button class="button app-button app-primary" data-action="add">${adminText("chat.addToData", "Add to data")}</button>
+          <button class="button app-button app-ghost" data-action="remove">${adminText("chat.removeFromData", "Remove from data")}</button>
+          <button class="button app-button app-danger" data-action="delete">${adminText("gallery.deleteFile", "Delete file")}</button>
         </div>
       </footer>
     </div>
@@ -270,7 +271,7 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
     if (!auth || !currentItem) {
       return;
     }
-    if (!confirm("Delete this file? This cannot be undone.")) {
+    if (!confirm(adminText("gallery.confirmDelete", "Delete this file? This cannot be undone."))) {
       return;
     }
     try {
@@ -311,10 +312,10 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
 
   const loadItems = async () => {
     if (!auth) {
-      status.textContent = "Login required.";
+      status.textContent = adminText("auth.loginRequired", "Login required.");
       return;
     }
-    status.textContent = "Loading media...";
+    status.textContent = adminText("gallery.loadingMedia", "Loading media...");
     grid.innerHTML = "";
     try {
       const response = await fetchModuleList(auth, module.name, {
@@ -323,7 +324,7 @@ export const renderGalleryModule = (panel: HTMLElement, context: ModuleRenderCon
       });
       const items = response.items ?? [];
       if (!items.length) {
-        status.textContent = "No images found.";
+        status.textContent = adminText("gallery.noImages", "No images found.");
         return;
       }
       status.textContent = "";

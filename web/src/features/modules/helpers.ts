@@ -1,4 +1,5 @@
 import type { ModuleDefinition } from "../../api";
+import { adminText } from "../../app/translations";
 
 export const normalizeModuleList = (modulesValue?: string[] | null, fallback?: string | null) => {
   const list = Array.isArray(modulesValue) ? [...modulesValue] : [];
@@ -13,7 +14,7 @@ export const normalizeModuleList = (modulesValue?: string[] | null, fallback?: s
 
 export const moduleChecklistHtml = (modules: ModuleDefinition[], selected: string[] = []) => {
   if (!modules.length) {
-    return `<p class="help">No modules available.</p>`;
+    return `<p class="help">${adminText("modules.noModulesAvailable", "No modules available.")}</p>`;
   }
   const selectedSet = new Set(selected);
   return modules

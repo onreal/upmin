@@ -18,6 +18,7 @@ import { isWebsiteBuildDocument, renderWebsiteBuildPage } from "../features/webs
 import { clearRegisteredIntegrationCleanup } from "../features/integrations/runtime";
 import { encodeDocumentId } from "../utils";
 import { refreshNavigation } from "./loaders";
+import { adminText } from "./translations";
 
 export const openLoggerSettings = () => {
   if (!state.auth) {
@@ -38,7 +39,7 @@ export const renderDocumentView = (doc: RemoteDocument) => {
         options: languageMatch.variants.map((variant) => ({
           id: variant.id,
           language: normalizeLanguageValue(variant.language),
-          label: normalizeLanguageValue(variant.language) ?? "default",
+          label: normalizeLanguageValue(variant.language) ?? adminText("documents.defaultLanguage", "default"),
         })),
       }
     : null;

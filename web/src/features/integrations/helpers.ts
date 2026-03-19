@@ -1,4 +1,5 @@
 import type { IntegrationSettings, IntegrationSummary } from "../../api";
+import { adminText } from "../../app/translations";
 
 export const getEnabledIntegrations = (integrations: IntegrationSummary[]) =>
   integrations.filter((integration) => integration.enabled);
@@ -26,12 +27,15 @@ export const populateProviderSelect = (
   select.innerHTML = "";
 
   if (!enabled.length) {
-    const option = new Option("No integrations enabled", "", true, true);
+    const option = new Option(adminText("integrations.noEnabled", "No integrations enabled"), "", true, true);
     option.disabled = true;
     select.append(option);
     select.disabled = true;
     if (help) {
-      help.textContent = "Enable an integration from Settings > Integrations.";
+      help.textContent = adminText(
+        "integrations.enableFromSettings",
+        "Enable an integration from Settings > Integrations."
+      );
     }
     return "";
   }
@@ -41,11 +45,19 @@ export const populateProviderSelect = (
   if (includeDisabledCurrent && selectedProvider) {
     const exists = enabled.some((integration) => integration.name === selectedProvider);
     if (!exists) {
-      const option = new Option(`${selectedProvider} (disabled)`, selectedProvider, true, true);
+      const option = new Option(
+        adminText("integrations.providerDisabled", "{name} (disabled)", { name: selectedProvider }),
+        selectedProvider,
+        true,
+        true
+      );
       option.disabled = true;
       select.append(option);
       if (help) {
-        help.textContent = "Current provider is disabled. Select an enabled provider.";
+        help.textContent = adminText(
+          "integrations.currentProviderDisabled",
+          "Current provider is disabled. Select an enabled provider."
+        );
       }
     } else if (help) {
       help.textContent = "";
@@ -80,7 +92,7 @@ export const populateModelSelect = (
   select.innerHTML = "";
 
   if (!models.length) {
-    const option = new Option("No models synced", "", true, true);
+    const option = new Option(adminText("integrations.noModelsSynced", "No models synced"), "", true, true);
     option.disabled = true;
     select.append(option);
     select.disabled = true;
@@ -90,7 +102,12 @@ export const populateModelSelect = (
   select.disabled = false;
 
   if (includeDisabledCurrent && selectedModel && !models.includes(selectedModel)) {
-    const option = new Option(`${selectedModel} (unavailable)`, selectedModel, true, true);
+    const option = new Option(
+      adminText("integrations.modelUnavailable", "{name} (unavailable)", { name: selectedModel }),
+      selectedModel,
+      true,
+      true
+    );
     option.disabled = true;
     select.append(option);
   }

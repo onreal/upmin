@@ -30,6 +30,7 @@ import { renderConversationList, renderMessages, updateChatInputState, updateCon
 import { renderAgentLayout } from "./layout";
 import { clearAgentState } from "./state";
 import { getAgentField } from "./utils";
+import { adminText } from "../../app/translations";
 
 export type AgentViewContext = {
   auth: AuthState | null;
@@ -190,7 +191,7 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
     updateChatInputState(!!auth && !!state.currentAgent && !pending);
 
     if (!conversation && chatMeta) {
-      chatMeta.textContent = "Your next message starts a new conversation.";
+      chatMeta.textContent = adminText("agents.nextMessageStartsConversation", "Your next message starts a new conversation.");
     }
 
     if (pending) {
@@ -268,11 +269,11 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
       (document.getElementById("agent-edit-admin") as HTMLTextAreaElement | null)?.value.trim() || "";
 
     if (!nameValue || !providerValue || !modelValue || !systemValue || !adminValue) {
-      pushNotice("error", "All agent fields are required.");
+      pushNotice("error", adminText("agents.allFieldsRequired", "All agent fields are required."));
       return;
     }
     if (providerSelect?.disabled || modelSelect?.disabled) {
-      pushNotice("error", "Enable an integration and sync models first.");
+      pushNotice("error", adminText("agents.enableIntegrationFirst", "Enable an integration and sync models first."));
       return;
     }
 
@@ -340,7 +341,9 @@ export const renderAgentView = async ({ auth, agentDoc, reloadAgents }: AgentVie
         markConversationPending(state.currentConversation, false);
         appendLocalMessage(
           "assistant",
-          `Something went wrong while I was replying: ${(err as Error).message || "Please try again."}`
+          adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
+            message: (err as Error).message || adminText("common.tryAgain", "Please try again."),
+          })
         );
       }
     }

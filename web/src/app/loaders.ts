@@ -18,6 +18,7 @@ import { renderNavigation } from "./navigation";
 import { renderAgentsMenu } from "../features/agents/menu";
 import { renderFormsMenu } from "../features/forms/menu";
 import { filterAgentsByLanguage, normalizeLanguageValue, resolveNavigationPages } from "./language";
+import { getAdminLanguage, setAdminLanguage, setAdminTranslationConfig } from "./translations";
 
 export const loadUiConfig = async () => {
   if (!state.auth) {
@@ -38,8 +39,24 @@ export const loadLayoutConfig = async () => {
   try {
     const response = await fetchLayoutConfig(state.auth);
     state.layoutConfig = response.config ?? {};
+    setAdminTranslationConfig(state.layoutConfig);
   } catch {
     state.layoutConfig = {};
+    setAdminTranslationConfig({});
+  }
+};
+
+export const preloadAdminLanguage = async () => {
+  if (!state.auth) {
+    return;
+  }
+  try {
+    const nav = await fetchNavigation(state.auth);
+    const defaultLanguage = normalizeLanguageValue(nav.defaultLanguage ?? null);
+    state.defaultLanguage = defaultLanguage;
+    setAdminLanguage(defaultLanguage);
+  } catch {
+    setAdminLanguage(getAdminLanguage());
   }
 };
 
@@ -138,14 +155,20 @@ export const refreshNavigation = async (onSelectDocument: (id: string) => void) 
     const nav = await fetchNavigation(state.auth);
     const pages = Array.isArray(nav.pages) ? nav.pages : [];
     const defaultLanguage = normalizeLanguageValue(nav.defaultLanguage ?? null);
+    const previousAdminLanguage = getAdminLanguage();
     state.navigationGroups = pages;
     state.defaultLanguage = defaultLanguage;
+    const adminLanguageChanged = setAdminLanguage(defaultLanguage);
     const resolved = resolveNavigationPages(pages, defaultLanguage, state.activeLanguage);
     state.activeLanguage = resolved.activeLanguage;
     state.navigationPages = resolved.pages;
     state.agents = filterAgentsByLanguage(state.agentsAll, state.activeLanguage);
     if (state.onSelectAgentMenu) {
       renderAgentsMenu(state.agents, state.onSelectAgentMenu);
+    }
+    if (adminLanguageChanged && previousAdminLanguage) {
+      window.location.reload();
+      return;
     }
     renderNavigation(resolved.pages, onSelectDocument);
     await loadForms();
