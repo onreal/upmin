@@ -11,8 +11,10 @@ Feature agents working in this project must preserve that model.
 - Before implementing any change, check whether the target area contains a more local `AGENTS.md` or `AGENTS.MD` and follow it in addition to this root guide.
 - Treat deeper `AGENTS.md` files as more specific rules for their subtree.
 - If code behavior, schema, architecture, UI rules, or workflow rules change, update the relevant `AGENTS.md` files in the same task.
+- Treat business rules as first-class repo contracts. Agents must always read, preserve, update, and keep business rules current when behavior changes.
 - Keep all agent guides consistent with each other. Do not leave this root guide saying one thing while a nested guide or the code says another.
 - If a nested guide conflicts with this file, preserve the more specific rule and then reconcile the root guide if needed.
+- No file should grow beyond 400 lines. If a change pushes a file near that limit, split the behavior into smaller focused files instead of extending the large file further.
 
 ## Project Shape
 
@@ -456,6 +458,42 @@ Module rules:
 - If a page enables a module, backend helpers may auto-create dependent settings or system pages.
 - If a module needs admin-side interactive UI, add or update the matching frontend renderer in `web/src/modules/registry.ts`.
 - For page-bound chat modules, page context injection belongs on the backend. The frontend should send only the normal chat payload, while the server may create one hidden conversation-context message from the owning page `data` plus the exact module schema and keep that message in model history for the whole conversation without rendering it in the visible chat UI.
+
+### Chat Module Business Rules
+
+These are business rules, not optional implementation details.
+
+- The existing assistant-response plus action and the JSON-merge action are separate features and must remain decoupled in code and UI.
+- The existing plus action means explicit output selection. It must not silently become schema merge behavior.
+- The JSON-merge action is a second dedicated action with its own handler, validation path, feedback path, and translation labels.
+- On the private `website-build` system page, do not render either the plus action or the JSON-merge action. Builder chat must not expose page-data mutation buttons.
+- Page-bound chat modules should initialize from the latest existing conversation when the page opens, the same way the website builder chat does.
+- Merge behavior is schema-driven. Agents must not hardcode content keys or guess arbitrary target paths without schema support.
+- A response is merge-eligible only if it is valid JSON and the relevant keys exist in the current page-data schema.
+- Target discovery must be recursive and deterministic. The code should walk the assistant JSON and current page data until it finds a schema-backed key path to update.
+- Merge behavior is additive by default. For arrays, append valid incoming items to existing items. For objects, merge only schema-known keys recursively. Do not delete unrelated existing data as part of this action.
+- Visible chat messages and hidden model context are separate concerns. Merge must operate on the live page `data`, not on hidden context messages.
+- Validation failure is part of the conversation loop. If merge validation fails, the app must immediately send feedback to the agent conversation explaining that JSON validation failed against the expected schema.
+- Validation feedback to the agent must be decoupled from the merge algorithm itself. Parsing, schema validation, recursive target discovery, merge application, and agent feedback should live in separate focused helpers.
+- When implementing chat merge behavior, prefer small focused files such as action wiring, schema/target resolution, merge logic, and validation feedback. Do not centralize all of that into one large controller file.
+
+### Chat Module Architecture Decisions
+
+- Page-bound chat prompt context stays backend-owned.
+- Page-data merge and response-to-output actions stay frontend-owned because they mutate the live editor state.
+- The current client-side schema source for merge validation is the existing live page `data` shape. Until explicit page schema transport exists in the frontend, agents must preserve that rule instead of inventing a second schema source in the chat UI.
+- Frontend responsibilities for chat merge are:
+  - parse assistant response as JSON
+  - validate against schema-backed paths
+  - find the recursive target path
+  - merge into current page `data`
+  - persist through the existing editor/update flow
+  - send immediate validation-failure feedback back into the conversation
+- Backend responsibilities for page-bound chat context are:
+  - resolve owning page context
+  - keep hidden conversation context in model history
+  - avoid exposing that hidden context as visible chat content
+- Do not couple merge behavior to backend prompt composition. These are different subsystems with different business rules.
 
 ### Module Settings Business
 

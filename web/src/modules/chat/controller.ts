@@ -1,12 +1,5 @@
 import type { ChatConversationSummary, RemoteDocument } from "../../api";
 import {
-  appendChatMessage,
-  deleteChatConversation,
-  fetchChatConversation,
-  fetchChatConversations,
-  startChatConversation,
-} from "../../api";
-import {
   appendConversationMessage,
   conversationHasPendingResponse,
   markConversationPending,
@@ -15,22 +8,32 @@ import { getConversationProgress, type ConversationProgress } from "../../featur
 import { createProcessingStatus } from "../../features/chat/processing";
 import { registerModuleChatCleanup } from "../../features/chat/runtime";
 import {
-  subscribeRealtime,
-  subscribeRealtimeStatus,
   type RealtimeEvent,
   type RealtimeStatus,
 } from "../../features/realtime/client";
+import { adminText } from "../../app/translations";
 import { isRecord } from "../../utils";
 import type { ModuleRenderContext } from "../types";
+import { ensureDataObject, isMessageSelected, toggleOutputMessage } from "./data";
+import { bindChatDomEvents } from "./events";
+import { mergeFailureFeedback, mergeFailureStatus, mergeSuccessStatus } from "./feedback";
+import { describeMergePath, mergeAssistantJson } from "./merge";
 import type { ChatDom } from "./layout";
+import { createChatMessagePanel } from "./message-panel";
+import { createChatRealtimeBindings } from "./realtime";
 import {
-  extractMessages,
-  renderMessages,
+  copyMessageToClipboard,
+  createConversation,
+  latestConversationId,
+  listConversations,
+  loadConversation as loadRemoteConversation,
+  removeConversation,
+  sendConversationMessage,
+} from "./service";
+import {
   updateChatInputState,
   updateConversationHeader,
-  type ChatMessage,
 } from "./utils";
-import { adminText } from "../../app/translations";
 
 type ChatRuntime = {
   moduleName: string;
@@ -41,6 +44,7 @@ type ChatRuntime = {
   editor: ModuleRenderContext["editor"];
   dom: ChatDom;
   targetKey: string;
+  enableDataActions: boolean;
   autoLoadLatestConversation?: boolean;
 };
 
@@ -49,138 +53,28 @@ export const mountChatController = (runtime: ChatRuntime) => {
   let currentConversation: RemoteDocument | null = null;
   let pendingNew = false;
   let attemptedInitialAutoLoad = false;
-  const foldedByConversation = new Map<string, Set<string>>();
-  let disposeRealtime: (() => void) | null = null;
-  let disposeRealtimeStatus: (() => void) | null = null;
-
-  const latestConversationId = (items: ChatConversationSummary[]) => {
-    if (!items.length) {
-      return null;
-    }
-
-    const timestamp = (item: ChatConversationSummary) => {
-      const raw = item.updatedAt || item.createdAt || "";
-      const value = Date.parse(raw);
-      return Number.isNaN(value) ? 0 : value;
-    };
-
-    return [...items]
-      .sort((a, b) => {
-        const diff = timestamp(b) - timestamp(a);
-        return diff !== 0 ? diff : a.name.localeCompare(b.name);
-      })[0]?.id ?? null;
-  };
-
-  const ensureDataObject = () => {
-    if (isRecord(runtime.payload.data)) {
-      return runtime.payload.data as Record<string, unknown>;
-    }
-    runtime.payload.data = {};
-    runtime.editor?.setValue(runtime.payload.data);
-    return runtime.payload.data as Record<string, unknown>;
-  };
-
-  const ensureOutputList = () => {
-    const data = ensureDataObject();
-    const existing = data[runtime.targetKey];
-    if (!Array.isArray(existing)) {
-      data[runtime.targetKey] = [];
-      return data[runtime.targetKey] as Array<Record<string, unknown>>;
-    }
-    return existing as Array<Record<string, unknown>>;
-  };
-
-  const isMessageSelected = (message: ChatMessage) => {
-    const data = ensureDataObject();
-    const list = Array.isArray(data[runtime.targetKey])
-      ? (data[runtime.targetKey] as Array<Record<string, unknown>>)
-      : [];
-    return list.some((entry) => isRecord(entry) && entry.id === message.id);
-  };
-
-  const ensureFoldState = (conversation: RemoteDocument | null) => {
-    if (!conversation || foldedByConversation.has(conversation.id)) {
-      return;
-    }
-
-    const messages = extractMessages(conversation);
-    const assistantMessages = messages.filter((message) => message.role === "assistant");
-    const lastAssistantId = assistantMessages.length ? assistantMessages[assistantMessages.length - 1]?.id : null;
-    const folded = new Set<string>();
-
-    assistantMessages.forEach((message) => {
-      if (message.id !== lastAssistantId) {
-        folded.add(message.id);
-      }
-    });
-
-    foldedByConversation.set(conversation.id, folded);
-  };
-
-  const isMessageFolded = (message: ChatMessage) => {
-    if (!currentConversation || message.role !== "assistant") {
-      return false;
-    }
-    return foldedByConversation.get(currentConversation.id)?.has(message.id) ?? false;
-  };
-
-  const toggleMessageFold = (message: ChatMessage) => {
-    if (!currentConversation || message.role !== "assistant") {
-      return;
-    }
-    ensureFoldState(currentConversation);
-    const folded = foldedByConversation.get(currentConversation.id);
-    if (!folded) {
-      return;
-    }
-    if (folded.has(message.id)) {
-      folded.delete(message.id);
-    } else {
-      folded.add(message.id);
-    }
-    renderCurrentMessages();
-  };
-
-  const renderCurrentMessages = () => {
-    const emptyState = currentConversation
-      ? adminText("chat.noMessages", "No messages yet.")
-      : adminText("chat.selectOrCreate", "Select or create a conversation.");
-    ensureFoldState(currentConversation);
-    renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
-      enableActions: true,
-      assistantLabel: runtime.agentName,
-      progress: getConversationProgress(currentConversation),
-      isSelected: (message) => isMessageSelected(message),
-      isFolded: (message) => isMessageFolded(message),
-      onToggleFold: (message) => toggleMessageFold(message),
-      onToggle: (message, selected) => {
-        const data = ensureDataObject();
-        const list = ensureOutputList();
-        if (selected) {
-          data[runtime.targetKey] = list.filter((entry) => !(isRecord(entry) && entry.id === message.id));
-        } else if (currentConversation) {
-          list.push({
-            id: message.id,
-            conversationId: currentConversation.id,
-            agent: runtime.agentName,
-            content: message.content,
-            createdAt: message.createdAt ?? null,
-            role: message.role,
-          });
-        }
-        runtime.editor?.setValue(data);
-        renderCurrentMessages();
-      },
-      onCopy: (message) => void copyMessage(message),
-      emptyState,
-    });
-  };
+  const realtime = createChatRealtimeBindings({
+    onEvent: (event) => handleRealtimeEvent(event),
+    onStatus: (status) => handleRealtimeStatus(status),
+  });
 
   const setStatus = (message: string) => {
     runtime.dom.status.textContent = message;
   };
 
   const processingStatus = createProcessingStatus(setStatus);
+
+  const authContext = () => {
+    if (!runtime.auth) {
+      setStatus(adminText("auth.loginRequired", "Login required."));
+      return null;
+    }
+    return {
+      auth: runtime.auth,
+      moduleName: runtime.moduleName,
+      settingsKey: runtime.settingsKey,
+    };
+  };
 
   const isNearBottom = () =>
     runtime.dom.scroll.scrollHeight - runtime.dom.scroll.scrollTop - runtime.dom.scroll.clientHeight <= 48;
@@ -189,15 +83,16 @@ export const mountChatController = (runtime: ChatRuntime) => {
     runtime.dom.scroll.scrollTop = runtime.dom.scroll.scrollHeight;
   };
 
-  const updateJumpVisibility = () => {
-    runtime.dom.jump.classList.toggle("is-visible", pendingNew);
+  const clearStatusLater = (delay = 1200) => {
+    window.setTimeout(() => {
+      if (!conversationHasPendingResponse(currentConversation)) {
+        setStatus("");
+      }
+    }, delay);
   };
 
-  const stopRealtimeBindings = () => {
-    disposeRealtime?.();
-    disposeRealtimeStatus?.();
-    disposeRealtime = null;
-    disposeRealtimeStatus = null;
+  const updateJumpVisibility = () => {
+    runtime.dom.jump.classList.toggle("is-visible", pendingNew);
   };
 
   const emitProgress = (
@@ -222,50 +117,63 @@ export const mountChatController = (runtime: ChatRuntime) => {
     );
   };
 
+  const messagePanel = createChatMessagePanel({
+    container: runtime.dom.messages,
+    assistantLabel: runtime.agentName,
+    enableDataActions: runtime.enableDataActions,
+    getConversation: () => currentConversation,
+    isSelected: (message) => isMessageSelected(runtime, runtime.targetKey, message),
+    onToggle: (message, selected) => {
+      toggleOutputMessage(
+        {
+          payload: runtime.payload,
+          editor: runtime.editor,
+          targetKey: runtime.targetKey,
+          conversation: currentConversation,
+          agentName: runtime.agentName,
+        },
+        message,
+        selected
+      );
+      messagePanel.render();
+    },
+    onMerge: (message) => void mergeMessage(message),
+    onCopy: (message) => void copyMessage(message),
+    progress: (conversation) => getConversationProgress(conversation),
+  });
+
   const syncConversation = (conversation: RemoteDocument | null, forceScroll = false) => {
     if (conversation) {
-      ensureFoldState(conversation);
-      const messages = extractMessages(conversation);
-      const assistantMessages = messages.filter((message) => message.role === "assistant");
-      const latestAssistant = assistantMessages[assistantMessages.length - 1];
-      if (latestAssistant) {
-        foldedByConversation.get(conversation.id)?.delete(latestAssistant.id);
-      }
+      messagePanel.prepareConversation(conversation);
     }
+
     currentConversation = conversation;
     updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
-    const shouldScroll = forceScroll || isNearBottom();
-    renderCurrentMessages();
+    messagePanel.render();
+
     const pending = conversationHasPendingResponse(conversation);
-    const progress = getConversationProgress(conversation);
-    emitProgress(conversation, pending, progress);
+    emitProgress(conversation, pending, getConversationProgress(conversation));
     updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
 
-    if (conversation) {
-      runtime.dom.select.value = conversation.id;
-      if (runtime.dom.remove) {
-        runtime.dom.remove.disabled = false;
-      }
-    } else {
-      runtime.dom.select.value = "";
-      if (runtime.dom.remove) {
-        runtime.dom.remove.disabled = true;
-      }
+    runtime.dom.select.value = conversation?.id ?? "";
+    if (runtime.dom.remove) {
+      runtime.dom.remove.disabled = !conversation;
     }
 
-    if (shouldScroll) {
+    if (forceScroll || isNearBottom()) {
       scrollToBottom();
       pendingNew = false;
     }
     updateJumpVisibility();
 
     if (pending) {
-      processingStatus.start(progress?.status ?? "");
-      syncRealtimeBindings();
+      processingStatus.start(getConversationProgress(conversation)?.status ?? "");
+      realtime.sync(true);
       return;
     }
+
     processingStatus.stop();
-    syncRealtimeBindings();
+    realtime.sync(!!currentConversation);
   };
 
   const updateSelectOptions = () => {
@@ -278,16 +186,13 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const refreshList = async () => {
-    if (!runtime.auth) {
-      setStatus(adminText("auth.loginRequired", "Login required."));
+    const service = authContext();
+    if (!service) {
       return;
     }
 
     try {
-      const response = await fetchChatConversations(runtime.auth, runtime.moduleName, {
-        settings: runtime.settingsKey,
-      });
-      conversations = Array.isArray(response.items) ? response.items : [];
+      conversations = await listConversations(service);
       updateSelectOptions();
       if (runtime.autoLoadLatestConversation && !currentConversation && !attemptedInitialAutoLoad) {
         attemptedInitialAutoLoad = true;
@@ -306,18 +211,14 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const loadConversation = async (conversationId: string) => {
-    if (!runtime.auth) {
-      setStatus(adminText("auth.loginRequired", "Login required."));
+    const service = authContext();
+    if (!service) {
       return;
     }
 
     try {
-      const conversation = await fetchChatConversation(runtime.auth, runtime.moduleName, {
-        id: conversationId,
-        settings: runtime.settingsKey,
-      });
       pendingNew = false;
-      syncConversation(conversation, true);
+      syncConversation(await loadRemoteConversation(service, conversationId), true);
       updateSelectOptions();
     } catch (error) {
       setStatus((error as Error).message);
@@ -325,17 +226,14 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const startConversation = async () => {
-    if (!runtime.auth) {
-      setStatus(adminText("auth.loginRequired", "Login required."));
+    const service = authContext();
+    if (!service) {
       return;
     }
 
     try {
-      const conversation = await startChatConversation(runtime.auth, runtime.moduleName, {
-        settings: runtime.settingsKey,
-      });
       pendingNew = false;
-      syncConversation(conversation, true);
+      syncConversation(await createConversation(service), true);
       await refreshList();
       setStatus("");
     } catch (error) {
@@ -344,7 +242,8 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const sendMessage = async (content: string) => {
-    if (!runtime.auth || !currentConversation || conversationHasPendingResponse(currentConversation)) {
+    const service = authContext();
+    if (!service || !currentConversation || conversationHasPendingResponse(currentConversation)) {
       return;
     }
 
@@ -352,41 +251,62 @@ export const mountChatController = (runtime: ChatRuntime) => {
     syncConversation(currentConversation, true);
 
     try {
-      const updated = await appendChatMessage(runtime.auth, runtime.moduleName, {
-        id: currentConversation.id,
-        content,
-        settings: runtime.settingsKey,
-      });
       pendingNew = false;
-      syncConversation(updated, true);
+      syncConversation(await sendConversationMessage(service, currentConversation.id, content), true);
       await refreshList();
     } catch (error) {
-      if (currentConversation) {
-        markConversationPending(currentConversation, false);
-        appendConversationMessage(
-          currentConversation,
-          "assistant",
-          adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
-            message: (error as Error).message || adminText("common.tryAgain", "Please try again."),
-          })
-        );
-        syncConversation(currentConversation, true);
+      if (!currentConversation) {
+        return;
       }
+      markConversationPending(currentConversation, false);
+      appendConversationMessage(
+        currentConversation,
+        "assistant",
+        adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
+          message: (error as Error).message || adminText("common.tryAgain", "Please try again."),
+        })
+      );
+      syncConversation(currentConversation, true);
     }
   };
 
-  const copyMessage = async (message: ChatMessage) => {
+  const copyMessage = async (message: { content: string }) => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await copyMessageToClipboard(message.content);
       setStatus(adminText("common.copied", "Copied."));
-      window.setTimeout(() => {
-        if (!conversationHasPendingResponse(currentConversation)) {
-          setStatus("");
-        }
-      }, 1200);
+      clearStatusLater();
     } catch {
       setStatus(adminText("common.copyFailed", "Copy failed."));
     }
+  };
+
+  const mergeMessage = async (message: { content: string }) => {
+    const data = ensureDataObject(runtime);
+    const result = mergeAssistantJson(data, message.content, runtime.targetKey);
+
+    if (!result.ok) {
+      setStatus(mergeFailureStatus(result.code));
+      const service = authContext();
+      if (!service || !currentConversation || conversationHasPendingResponse(currentConversation)) {
+        return;
+      }
+      try {
+        pendingNew = false;
+        syncConversation(
+          await sendConversationMessage(service, currentConversation.id, mergeFailureFeedback(result.code)),
+          true
+        );
+        await refreshList();
+      } catch (error) {
+        setStatus((error as Error).message);
+      }
+      return;
+    }
+
+    runtime.payload.data = result.data;
+    runtime.editor?.setValue(result.data);
+    setStatus(mergeSuccessStatus(describeMergePath(result.path)));
+    clearStatusLater();
   };
 
   const handleRealtimeEvent = (event: RealtimeEvent) => {
@@ -399,7 +319,7 @@ export const mountChatController = (runtime: ChatRuntime) => {
       return;
     }
 
-    if (currentConversation && currentConversation.id === event.conversation.id) {
+    if (currentConversation?.id === event.conversation.id) {
       pendingNew = !isNearBottom();
       syncConversation(event.conversation, !pendingNew);
     }
@@ -408,101 +328,62 @@ export const mountChatController = (runtime: ChatRuntime) => {
   };
 
   const handleRealtimeStatus = (status: RealtimeStatus) => {
-    if (status === "open") {
-      void refreshList();
-      if (currentConversation) {
-        void loadConversation(currentConversation.id);
+    if (status !== "open") {
+      return;
+    }
+    void refreshList();
+    if (currentConversation) {
+      void loadConversation(currentConversation.id);
+    }
+  };
+
+  const unbindEvents = bindChatDomEvents({
+    dom: runtime.dom,
+    onCreate: () => void startConversation(),
+    onRemove: () => {
+      const service = authContext();
+      if (!service || !currentConversation) {
+        return;
       }
-    }
-  };
-
-  const syncRealtimeBindings = () => {
-    if (!currentConversation) {
-      stopRealtimeBindings();
-      return;
-    }
-
-    if (disposeRealtime === null) {
-      disposeRealtime = subscribeRealtime(handleRealtimeEvent);
-    }
-    if (disposeRealtimeStatus === null) {
-      disposeRealtimeStatus = subscribeRealtimeStatus(handleRealtimeStatus);
-    }
-  };
-
-  runtime.dom.create?.addEventListener("click", () => {
-    void startConversation();
-  });
-
-  runtime.dom.remove?.addEventListener("click", () => {
-    if (!runtime.auth || !currentConversation) {
-      return;
-    }
-
-    const conversationId = currentConversation.id;
-    setStatus("Deleting conversation...");
-    void deleteChatConversation(runtime.auth, runtime.moduleName, {
-      id: conversationId,
-      settings: runtime.settingsKey,
-    })
-      .then(async () => {
-        syncConversation(null, true);
-        await refreshList();
-        setStatus("");
-      })
-      .catch((error) => {
-        setStatus((error as Error).message);
-      });
-  });
-
-  runtime.dom.select.addEventListener("change", () => {
-    const conversationId = runtime.dom.select.value.trim();
-    if (conversationId !== "") {
-      void loadConversation(conversationId);
-      return;
-    }
-
-    pendingNew = false;
-    syncConversation(null, true);
-    setStatus("");
-  });
-
-  runtime.dom.scroll.addEventListener("scroll", () => {
-    if (isNearBottom()) {
+      setStatus(adminText("chat.deletingConversation", "Deleting conversation..."));
+      void removeConversation(service, currentConversation.id)
+        .then(async () => {
+          syncConversation(null, true);
+          await refreshList();
+          setStatus("");
+        })
+        .catch((error) => {
+          setStatus((error as Error).message);
+        });
+    },
+    onSelect: (conversationId) => void loadConversation(conversationId),
+    onClearSelection: () => {
+      pendingNew = false;
+      syncConversation(null, true);
+      setStatus("");
+    },
+    onReachedBottom: () => {
+      if (!isNearBottom()) {
+        return;
+      }
       pendingNew = false;
       updateJumpVisibility();
-    }
-  });
-
-  runtime.dom.jump.addEventListener("click", () => {
-    scrollToBottom();
-    pendingNew = false;
-    updateJumpVisibility();
-  });
-
-  runtime.dom.form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const content = runtime.dom.input.value.trim();
-    if (content === "") {
-      return;
-    }
-    runtime.dom.input.value = "";
-    void sendMessage(content);
-  });
-
-  runtime.dom.input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      runtime.dom.form.requestSubmit();
-    }
+    },
+    onJump: () => {
+      scrollToBottom();
+      pendingNew = false;
+      updateJumpVisibility();
+    },
+    onSend: (content) => void sendMessage(content),
   });
 
   registerModuleChatCleanup(() => {
-    stopRealtimeBindings();
+    unbindEvents();
+    realtime.stop();
     processingStatus.stop();
   });
 
   updateChatInputState(runtime.dom.input, runtime.dom.send, false);
-  renderCurrentMessages();
+  messagePanel.render();
   void refreshList();
 };

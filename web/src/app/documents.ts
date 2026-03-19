@@ -124,6 +124,7 @@ export const renderDocumentView = (doc: RemoteDocument) => {
         auth: state.auth,
         doc: moduleDoc,
         editor: editorRef.get(),
+        autoLoadLatestConversation: true,
         normalizeModuleList,
         fetchModuleSettings: (moduleName, payload) =>
           fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),

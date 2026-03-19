@@ -72,6 +72,7 @@ export const renderChatModule = (panel: HTMLElement, context: ModuleRenderContex
     typeof outputSettings?.target === "string" && outputSettings.target.trim() !== ""
       ? outputSettings.target.trim()
       : context.module.name;
+  const enableDataActions = !(context.payload.page === "website-build" && context.payload.position === "system");
 
   const dom = renderChatLayout(panel, context.module, agentName, context.openSettings, context.hideHeader);
   if (!dom) {
@@ -87,6 +88,7 @@ export const renderChatModule = (panel: HTMLElement, context: ModuleRenderContex
     editor: context.editor,
     dom,
     targetKey,
+    enableDataActions,
     autoLoadLatestConversation: context.autoLoadLatestConversation,
   });
 };

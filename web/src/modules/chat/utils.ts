@@ -11,10 +11,11 @@ export type ChatMessage = {
 };
 
 export type RenderMessageOptions = {
-  enableActions?: boolean;
+  enableDataActions?: boolean;
   assistantLabel?: string;
   isSelected?: (message: ChatMessage) => boolean;
   onToggle?: (message: ChatMessage, selected: boolean) => void;
+  onMerge?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   isFolded?: (message: ChatMessage) => boolean;
   onToggleFold?: (message: ChatMessage) => void;
@@ -74,7 +75,7 @@ export const renderMessages = (
     return;
   }
 
-  const enableActions = options.enableActions ?? false;
+  const enableDataActions = options.enableDataActions ?? false;
   const messageMap = new Map(messages.map((message) => [message.id, message]));
 
   container.innerHTML = messages
@@ -84,7 +85,8 @@ export const renderMessages = (
         ? options.assistantLabel?.trim() || adminText("agents.agent", "Agent")
         : adminText("chat.you", "You");
       const roleClass = role === "assistant" ? "is-assistant" : "is-user";
-      const selectable = enableActions && role === "assistant";
+      const assistantActions = role === "assistant";
+      const selectable = enableDataActions && assistantActions;
       const foldable = role === "assistant";
       const folded = foldable && options.isFolded ? options.isFolded(message) : false;
       const selected = selectable && options.isSelected ? options.isSelected(message) : false;
@@ -93,9 +95,16 @@ export const renderMessages = (
       const toggleTitle = selected
         ? adminText("chat.removeFromData", "Remove from data")
         : adminText("chat.addToData", "Add to data");
+      const mergeTitle = adminText("chat.mergeIntoData", "Merge JSON into data");
       const toggleIcon = selected
         ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>`
         : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
+      const mergeIcon = `
+        <path d="M7 7h4v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m7 11 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M17 17h-4v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m17 13-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+      `;
       const foldTitle = folded
         ? adminText("chat.expandResponse", "Expand response")
         : adminText("chat.collapseResponse", "Collapse response");
@@ -103,21 +112,24 @@ export const renderMessages = (
         ? `<path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`
         : `<path d="m8 14 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`;
       const preview = folded ? foldedPreview(message.content) : "";
-      const actions = selectable
+      const mergeAction = selectable
         ? `
-          <div class="app-chat-message-actions">
             <button
               type="button"
               class="app-chat-action"
-              data-chat-action="fold"
+              data-chat-action="merge"
               data-message-id="${message.id}"
-              title="${foldTitle}"
-              aria-label="${foldTitle}"
+              title="${mergeTitle}"
+              aria-label="${mergeTitle}"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-                ${foldIcon}
+                ${mergeIcon}
               </svg>
             </button>
+          `
+        : "";
+      const toggleAction = selectable
+        ? `
             <button
               type="button"
               class="app-chat-action ${selected ? "is-active" : ""}"
@@ -130,6 +142,10 @@ export const renderMessages = (
                 ${toggleIcon}
               </svg>
             </button>
+          `
+        : "";
+      const copyAction = assistantActions
+        ? `
             <button
               type="button"
               class="app-chat-action"
@@ -149,10 +165,10 @@ export const renderMessages = (
                 ></path>
               </svg>
             </button>
-          </div>
-        `
-        : foldable
-          ? `
+          `
+        : "";
+      const actions = assistantActions
+        ? `
           <div class="app-chat-message-actions">
             <button
               type="button"
@@ -166,9 +182,12 @@ export const renderMessages = (
                 ${foldIcon}
               </svg>
             </button>
+            ${toggleAction}
+            ${mergeAction}
+            ${copyAction}
           </div>
         `
-          : "";
+        : "";
 
       return `
         <div class="app-chat-message ${roleClass} ${selectedClass} ${foldedClass}" data-message-id="${message.id}">
@@ -181,7 +200,7 @@ export const renderMessages = (
     })
     .join("");
 
-  if (enableActions) {
+  if (messages.length) {
     container.querySelectorAll<HTMLButtonElement>("[data-chat-action]").forEach((button) => {
       const id = button.getAttribute("data-message-id");
       if (!id) {
@@ -206,6 +225,11 @@ export const renderMessages = (
       if (action === "copy") {
         button.addEventListener("click", () => {
           options.onCopy?.(message);
+        });
+      }
+      if (action === "merge") {
+        button.addEventListener("click", () => {
+          options.onMerge?.(message);
         });
       }
     });

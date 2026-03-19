@@ -4264,9 +4264,6 @@ var renderChatLayout = (panel, module, agentName, openSettings, hideHeader) => {
   };
 };
 
-// web/src/modules/chat/controller.ts
-init_api();
-
 // web/src/features/chat/conversation.ts
 var currentData = (conversation) => {
   const payloadData = isRecord(conversation.payload.data) ? conversation.payload.data : {};
@@ -4433,6 +4430,321 @@ var createProcessingStatus = (setStatus2) => {
   };
 };
 
+// web/src/modules/chat/controller.ts
+init_translations();
+
+// web/src/modules/chat/data.ts
+var ensureDataObject = ({ payload, editor }) => {
+  if (isRecord(payload.data)) {
+    return payload.data;
+  }
+  payload.data = {};
+  editor?.setValue(payload.data);
+  return payload.data;
+};
+var ensureOutputList = (data, targetKey) => {
+  const existing = data[targetKey];
+  if (!Array.isArray(existing)) {
+    data[targetKey] = [];
+    return data[targetKey];
+  }
+  return existing;
+};
+var isMessageSelected = (context, targetKey, message) => {
+  const data = ensureDataObject(context);
+  const list = Array.isArray(data[targetKey]) ? data[targetKey] : [];
+  return list.some((entry) => isRecord(entry) && entry.id === message.id);
+};
+var toggleOutputMessage = (context, message, selected) => {
+  const data = ensureDataObject(context);
+  const list = ensureOutputList(data, context.targetKey);
+  if (selected) {
+    data[context.targetKey] = list.filter((entry) => !(isRecord(entry) && entry.id === message.id));
+  } else if (context.conversation) {
+    list.push({
+      id: message.id,
+      conversationId: context.conversation.id,
+      agent: context.agentName,
+      content: message.content,
+      createdAt: message.createdAt ?? null,
+      role: message.role
+    });
+  }
+  context.editor?.setValue(data);
+};
+
+// web/src/modules/chat/events.ts
+var bindChatDomEvents = (bindings) => {
+  const handleCreate = () => bindings.onCreate();
+  const handleRemove = () => bindings.onRemove();
+  const handleSelect = () => {
+    const conversationId = bindings.dom.select.value.trim();
+    if (conversationId) {
+      bindings.onSelect(conversationId);
+      return;
+    }
+    bindings.onClearSelection();
+  };
+  const handleScroll = () => bindings.onReachedBottom();
+  const handleJump = () => bindings.onJump();
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const content = bindings.dom.input.value.trim();
+    if (!content) {
+      return;
+    }
+    bindings.dom.input.value = "";
+    bindings.onSend(content);
+  };
+  const handleKeydown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      bindings.dom.form.requestSubmit();
+    }
+  };
+  bindings.dom.create?.addEventListener("click", handleCreate);
+  bindings.dom.remove?.addEventListener("click", handleRemove);
+  bindings.dom.select.addEventListener("change", handleSelect);
+  bindings.dom.scroll.addEventListener("scroll", handleScroll);
+  bindings.dom.jump.addEventListener("click", handleJump);
+  bindings.dom.form.addEventListener("submit", handleSubmit);
+  bindings.dom.input.addEventListener("keydown", handleKeydown);
+  return () => {
+    bindings.dom.create?.removeEventListener("click", handleCreate);
+    bindings.dom.remove?.removeEventListener("click", handleRemove);
+    bindings.dom.select.removeEventListener("change", handleSelect);
+    bindings.dom.scroll.removeEventListener("scroll", handleScroll);
+    bindings.dom.jump.removeEventListener("click", handleJump);
+    bindings.dom.form.removeEventListener("submit", handleSubmit);
+    bindings.dom.input.removeEventListener("keydown", handleKeydown);
+  };
+};
+
+// web/src/modules/chat/feedback.ts
+init_translations();
+var mergeFailureReason = (code) => {
+  if (code === "invalid_json") {
+    return adminText("chat.mergeReason.invalidJson", "The response did not contain valid JSON.");
+  }
+  if (code === "no_target") {
+    return adminText("chat.mergeReason.noTarget", "No JSON subtree matched the existing page data schema.");
+  }
+  return adminText("chat.mergeReason.schemaMismatch", "The response JSON did not match the existing page data schema.");
+};
+var mergeFailureStatus = (code) => adminText("chat.mergeValidationFailed", "JSON validation failed: {reason}", {
+  reason: mergeFailureReason(code)
+});
+var mergeFailureFeedback = (code) => adminText(
+  "chat.mergeValidationFeedback",
+  "JSON validation failed against the existing page data schema. Fix the response and return valid JSON only. Reason: {reason}",
+  { reason: mergeFailureReason(code) }
+);
+var mergeSuccessStatus = (path) => adminText("chat.mergeApplied", "Merged response into {path}.", { path });
+
+// web/src/modules/chat/merge.ts
+var clone = (value) => JSON.parse(JSON.stringify(value));
+var hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+var primitiveKind = (value) => {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  return typeof value;
+};
+var parseJsonCandidate = (value) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+var extractJsonCandidates = (content) => {
+  const trimmed = content.trim();
+  const candidates = /* @__PURE__ */ new Set();
+  if (trimmed !== "") {
+    candidates.add(trimmed);
+  }
+  const blockPattern = /```(?:json)?\s*([\s\S]*?)```/gi;
+  for (const match of trimmed.matchAll(blockPattern)) {
+    const inner = match[1]?.trim();
+    if (inner) {
+      candidates.add(inner);
+    }
+  }
+  const firstObject = trimmed.indexOf("{");
+  const lastObject = trimmed.lastIndexOf("}");
+  if (firstObject >= 0 && lastObject > firstObject) {
+    candidates.add(trimmed.slice(firstObject, lastObject + 1).trim());
+  }
+  const firstArray = trimmed.indexOf("[");
+  const lastArray = trimmed.lastIndexOf("]");
+  if (firstArray >= 0 && lastArray > firstArray) {
+    candidates.add(trimmed.slice(firstArray, lastArray + 1).trim());
+  }
+  return [...candidates];
+};
+var parseAssistantJson = (content) => {
+  for (const candidate of extractJsonCandidates(content)) {
+    const parsed = parseJsonCandidate(candidate);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+  return null;
+};
+var arraysCompatible = (target, incoming) => {
+  if (!incoming.length || !target.length) {
+    return true;
+  }
+  return incoming.every((item) => valuesCompatible(target[0], item));
+};
+var objectCompatible = (target, incoming) => Object.entries(incoming).every(([key, value]) => {
+  if (!hasOwn(target, key)) {
+    return false;
+  }
+  return valuesCompatible(target[key], value);
+});
+var valuesCompatible = (target, incoming) => {
+  if (Array.isArray(target)) {
+    return Array.isArray(incoming) && arraysCompatible(target, incoming);
+  }
+  if (isRecord(target)) {
+    return isRecord(incoming) && objectCompatible(target, incoming);
+  }
+  return !Array.isArray(incoming) && !isRecord(incoming) && primitiveKind(target) === primitiveKind(incoming);
+};
+var collectCandidateObjects = (value, nodes = []) => {
+  if (isRecord(value)) {
+    nodes.push(value);
+    Object.values(value).forEach((child) => collectCandidateObjects(child, nodes));
+    return nodes;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((child) => collectCandidateObjects(child, nodes));
+  }
+  return nodes;
+};
+var collectTargetObjects = (value, path = [], nodes = []) => {
+  if (!isRecord(value)) {
+    return nodes;
+  }
+  nodes.push({ path, value });
+  Object.entries(value).forEach(([key, child]) => {
+    if (isRecord(child)) {
+      collectTargetObjects(child, [...path, key], nodes);
+    }
+  });
+  return nodes;
+};
+var preferredPlan = (data, incoming, targetKey) => {
+  if (!hasOwn(data, targetKey)) {
+    return null;
+  }
+  const target = data[targetKey];
+  if (valuesCompatible(target, incoming)) {
+    return { path: [targetKey], value: incoming };
+  }
+  if (isRecord(incoming) && hasOwn(incoming, targetKey) && valuesCompatible(target, incoming[targetKey])) {
+    return { path: [targetKey], value: incoming[targetKey] };
+  }
+  return null;
+};
+var resolveMergePlan = (data, incoming, targetKey) => {
+  const preferred = preferredPlan(data, incoming, targetKey);
+  if (preferred) {
+    return preferred;
+  }
+  if (!isRecord(incoming)) {
+    return null;
+  }
+  const targetNodes = collectTargetObjects(data);
+  for (const candidate of collectCandidateObjects(incoming)) {
+    const match = targetNodes.find((target) => objectCompatible(target.value, candidate));
+    if (match) {
+      return { path: match.path, value: candidate };
+    }
+  }
+  return null;
+};
+var mergeValues = (target, incoming) => {
+  if (Array.isArray(target) && Array.isArray(incoming)) {
+    return [...target, ...clone(incoming)];
+  }
+  if (isRecord(target) && isRecord(incoming)) {
+    const next = clone(target);
+    Object.entries(incoming).forEach(([key, value]) => {
+      if (!hasOwn(next, key)) {
+        return;
+      }
+      next[key] = mergeValues(next[key], value);
+    });
+    return next;
+  }
+  return clone(incoming);
+};
+var getValueAtPath = (data, path) => {
+  let current = data;
+  for (const key of path) {
+    if (!isRecord(current) || !hasOwn(current, key)) {
+      return void 0;
+    }
+    current = current[key];
+  }
+  return current;
+};
+var setValueAtPath = (data, path, value) => {
+  if (!path.length) {
+    return isRecord(value) ? value : data;
+  }
+  let current = data;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const key = path[index];
+    const next = current[key];
+    if (!isRecord(next)) {
+      return data;
+    }
+    current = next;
+  }
+  current[path[path.length - 1]] = value;
+  return data;
+};
+var describeMergePath = (path) => path.length ? path.join(".") : "data";
+var mergeAssistantJson = (data, content, targetKey) => {
+  const incoming = parseAssistantJson(content);
+  if (incoming === null) {
+    return {
+      ok: false,
+      code: "invalid_json"
+    };
+  }
+  const plan = resolveMergePlan(data, incoming, targetKey);
+  if (!plan) {
+    return {
+      ok: false,
+      code: "no_target"
+    };
+  }
+  const nextData = clone(data);
+  const currentValue = getValueAtPath(nextData, plan.path);
+  if (typeof currentValue === "undefined" || !valuesCompatible(currentValue, plan.value)) {
+    return {
+      ok: false,
+      code: "schema_mismatch"
+    };
+  }
+  const mergedData = setValueAtPath(nextData, plan.path, mergeValues(currentValue, plan.value));
+  return {
+    ok: true,
+    data: mergedData,
+    path: plan.path
+  };
+};
+
+// web/src/modules/chat/message-panel.ts
+init_translations();
+
 // web/src/modules/chat/utils.ts
 init_translations();
 var messageId = (conversationId, createdAt, index) => `${conversationId}:${createdAt ?? index}`;
@@ -4470,37 +4782,46 @@ var renderMessages = (container, messages, options = {}) => {
     appendConversationProgress(container, options.progress ?? null, options.assistantLabel);
     return;
   }
-  const enableActions = options.enableActions ?? false;
+  const enableDataActions = options.enableDataActions ?? false;
   const messageMap = new Map(messages.map((message) => [message.id, message]));
   container.innerHTML = messages.map((message) => {
     const role = message.role === "assistant" ? "assistant" : "user";
     const label = role === "assistant" ? options.assistantLabel?.trim() || adminText("agents.agent", "Agent") : adminText("chat.you", "You");
     const roleClass = role === "assistant" ? "is-assistant" : "is-user";
-    const selectable = enableActions && role === "assistant";
+    const assistantActions = role === "assistant";
+    const selectable = enableDataActions && assistantActions;
     const foldable = role === "assistant";
     const folded = foldable && options.isFolded ? options.isFolded(message) : false;
     const selected = selectable && options.isSelected ? options.isSelected(message) : false;
     const selectedClass = selected ? "is-selected" : "";
     const foldedClass = folded ? "is-folded" : "";
     const toggleTitle = selected ? adminText("chat.removeFromData", "Remove from data") : adminText("chat.addToData", "Add to data");
+    const mergeTitle = adminText("chat.mergeIntoData", "Merge JSON into data");
     const toggleIcon = selected ? `<path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>` : `<path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>`;
+    const mergeIcon = `
+        <path d="M7 7h4v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m7 11 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M17 17h-4v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="m17 13-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+      `;
     const foldTitle = folded ? adminText("chat.expandResponse", "Expand response") : adminText("chat.collapseResponse", "Collapse response");
     const foldIcon = folded ? `<path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>` : `<path d="m8 14 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>`;
     const preview = folded ? foldedPreview(message.content) : "";
-    const actions = selectable ? `
-          <div class="app-chat-message-actions">
+    const mergeAction = selectable ? `
             <button
               type="button"
               class="app-chat-action"
-              data-chat-action="fold"
+              data-chat-action="merge"
               data-message-id="${message.id}"
-              title="${foldTitle}"
-              aria-label="${foldTitle}"
+              title="${mergeTitle}"
+              aria-label="${mergeTitle}"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-                ${foldIcon}
+                ${mergeIcon}
               </svg>
             </button>
+          ` : "";
+    const toggleAction = selectable ? `
             <button
               type="button"
               class="app-chat-action ${selected ? "is-active" : ""}"
@@ -4513,6 +4834,8 @@ var renderMessages = (container, messages, options = {}) => {
                 ${toggleIcon}
               </svg>
             </button>
+          ` : "";
+    const copyAction = assistantActions ? `
             <button
               type="button"
               class="app-chat-action"
@@ -4532,8 +4855,8 @@ var renderMessages = (container, messages, options = {}) => {
                 ></path>
               </svg>
             </button>
-          </div>
-        ` : foldable ? `
+          ` : "";
+    const actions = assistantActions ? `
           <div class="app-chat-message-actions">
             <button
               type="button"
@@ -4547,6 +4870,9 @@ var renderMessages = (container, messages, options = {}) => {
                 ${foldIcon}
               </svg>
             </button>
+            ${toggleAction}
+            ${mergeAction}
+            ${copyAction}
           </div>
         ` : "";
     return `
@@ -4558,7 +4884,7 @@ var renderMessages = (container, messages, options = {}) => {
         </div>
       `;
   }).join("");
-  if (enableActions) {
+  if (messages.length) {
     container.querySelectorAll("[data-chat-action]").forEach((button) => {
       const id = button.getAttribute("data-message-id");
       if (!id) {
@@ -4585,6 +4911,11 @@ var renderMessages = (container, messages, options = {}) => {
           options.onCopy?.(message);
         });
       }
+      if (action === "merge") {
+        button.addEventListener("click", () => {
+          options.onMerge?.(message);
+        });
+      }
     });
   }
   appendConversationProgress(container, options.progress ?? null, options.assistantLabel);
@@ -4605,59 +4936,15 @@ var updateChatInputState = (input, send, active2) => {
   send.disabled = !active2;
 };
 
-// web/src/modules/chat/controller.ts
-init_translations();
-var mountChatController = (runtime) => {
-  let conversations = [];
-  let currentConversation = null;
-  let pendingNew = false;
-  let attemptedInitialAutoLoad = false;
+// web/src/modules/chat/message-panel.ts
+var createChatMessagePanel = (bindings) => {
   const foldedByConversation = /* @__PURE__ */ new Map();
-  let disposeRealtime = null;
-  let disposeRealtimeStatus = null;
-  const latestConversationId = (items) => {
-    if (!items.length) {
-      return null;
-    }
-    const timestamp = (item) => {
-      const raw = item.updatedAt || item.createdAt || "";
-      const value = Date.parse(raw);
-      return Number.isNaN(value) ? 0 : value;
-    };
-    return [...items].sort((a, b) => {
-      const diff = timestamp(b) - timestamp(a);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name);
-    })[0]?.id ?? null;
-  };
-  const ensureDataObject = () => {
-    if (isRecord(runtime.payload.data)) {
-      return runtime.payload.data;
-    }
-    runtime.payload.data = {};
-    runtime.editor?.setValue(runtime.payload.data);
-    return runtime.payload.data;
-  };
-  const ensureOutputList = () => {
-    const data = ensureDataObject();
-    const existing = data[runtime.targetKey];
-    if (!Array.isArray(existing)) {
-      data[runtime.targetKey] = [];
-      return data[runtime.targetKey];
-    }
-    return existing;
-  };
-  const isMessageSelected = (message) => {
-    const data = ensureDataObject();
-    const list = Array.isArray(data[runtime.targetKey]) ? data[runtime.targetKey] : [];
-    return list.some((entry) => isRecord(entry) && entry.id === message.id);
-  };
   const ensureFoldState = (conversation) => {
     if (!conversation || foldedByConversation.has(conversation.id)) {
       return;
     }
-    const messages = extractMessages(conversation);
-    const assistantMessages = messages.filter((message) => message.role === "assistant");
-    const lastAssistantId = assistantMessages.length ? assistantMessages[assistantMessages.length - 1]?.id : null;
+    const assistantMessages = extractMessages(conversation).filter((message) => message.role === "assistant");
+    const lastAssistantId = assistantMessages[assistantMessages.length - 1]?.id ?? null;
     const folded = /* @__PURE__ */ new Set();
     assistantMessages.forEach((message) => {
       if (message.id !== lastAssistantId) {
@@ -4666,18 +4953,17 @@ var mountChatController = (runtime) => {
     });
     foldedByConversation.set(conversation.id, folded);
   };
-  const isMessageFolded = (message) => {
-    if (!currentConversation || message.role !== "assistant") {
-      return false;
-    }
-    return foldedByConversation.get(currentConversation.id)?.has(message.id) ?? false;
+  const isFolded = (message) => {
+    const conversation = bindings.getConversation();
+    return !!conversation && message.role === "assistant" && (foldedByConversation.get(conversation.id)?.has(message.id) ?? false);
   };
-  const toggleMessageFold = (message) => {
-    if (!currentConversation || message.role !== "assistant") {
+  const toggleFold = (message) => {
+    const conversation = bindings.getConversation();
+    if (!conversation || message.role !== "assistant") {
       return;
     }
-    ensureFoldState(currentConversation);
-    const folded = foldedByConversation.get(currentConversation.id);
+    ensureFoldState(conversation);
+    const folded = foldedByConversation.get(conversation.id);
     if (!folded) {
       return;
     }
@@ -4686,56 +4972,142 @@ var mountChatController = (runtime) => {
     } else {
       folded.add(message.id);
     }
-    renderCurrentMessages();
+    render();
   };
-  const renderCurrentMessages = () => {
-    const emptyState = currentConversation ? adminText("chat.noMessages", "No messages yet.") : adminText("chat.selectOrCreate", "Select or create a conversation.");
-    ensureFoldState(currentConversation);
-    renderMessages(runtime.dom.messages, extractMessages(currentConversation), {
-      enableActions: true,
-      assistantLabel: runtime.agentName,
-      progress: getConversationProgress(currentConversation),
-      isSelected: (message) => isMessageSelected(message),
-      isFolded: (message) => isMessageFolded(message),
-      onToggleFold: (message) => toggleMessageFold(message),
-      onToggle: (message, selected) => {
-        const data = ensureDataObject();
-        const list = ensureOutputList();
-        if (selected) {
-          data[runtime.targetKey] = list.filter((entry) => !(isRecord(entry) && entry.id === message.id));
-        } else if (currentConversation) {
-          list.push({
-            id: message.id,
-            conversationId: currentConversation.id,
-            agent: runtime.agentName,
-            content: message.content,
-            createdAt: message.createdAt ?? null,
-            role: message.role
-          });
-        }
-        runtime.editor?.setValue(data);
-        renderCurrentMessages();
-      },
-      onCopy: (message) => void copyMessage(message),
+  const prepareConversation = (conversation) => {
+    if (!conversation) {
+      return;
+    }
+    ensureFoldState(conversation);
+    const assistantMessages = extractMessages(conversation).filter((message) => message.role === "assistant");
+    const latestAssistant = assistantMessages[assistantMessages.length - 1];
+    if (latestAssistant) {
+      foldedByConversation.get(conversation.id)?.delete(latestAssistant.id);
+    }
+  };
+  const render = () => {
+    const conversation = bindings.getConversation();
+    const emptyState = conversation ? adminText("chat.noMessages", "No messages yet.") : adminText("chat.selectOrCreate", "Select or create a conversation.");
+    ensureFoldState(conversation);
+    renderMessages(bindings.container, extractMessages(conversation), {
+      enableDataActions: bindings.enableDataActions,
+      assistantLabel: bindings.assistantLabel,
+      progress: bindings.progress(conversation),
+      isSelected: bindings.isSelected,
+      isFolded,
+      onToggleFold: toggleFold,
+      onToggle: bindings.onToggle,
+      onMerge: bindings.onMerge,
+      onCopy: bindings.onCopy,
       emptyState
     });
   };
-  const setStatus2 = (message) => {
-    runtime.dom.status.textContent = message;
-  };
-  const processingStatus = createProcessingStatus(setStatus2);
-  const isNearBottom = () => runtime.dom.scroll.scrollHeight - runtime.dom.scroll.scrollTop - runtime.dom.scroll.clientHeight <= 48;
-  const scrollToBottom = () => {
-    runtime.dom.scroll.scrollTop = runtime.dom.scroll.scrollHeight;
-  };
-  const updateJumpVisibility = () => {
-    runtime.dom.jump.classList.toggle("is-visible", pendingNew);
-  };
-  const stopRealtimeBindings = () => {
+  return { prepareConversation, render };
+};
+
+// web/src/modules/chat/realtime.ts
+var createChatRealtimeBindings = (bindings) => {
+  let disposeRealtime = null;
+  let disposeRealtimeStatus = null;
+  const stop = () => {
     disposeRealtime?.();
     disposeRealtimeStatus?.();
     disposeRealtime = null;
     disposeRealtimeStatus = null;
+  };
+  const sync = (active2) => {
+    if (!active2) {
+      stop();
+      return;
+    }
+    if (disposeRealtime === null) {
+      disposeRealtime = subscribeRealtime(bindings.onEvent);
+    }
+    if (disposeRealtimeStatus === null) {
+      disposeRealtimeStatus = subscribeRealtimeStatus(bindings.onStatus);
+    }
+  };
+  return { sync, stop };
+};
+
+// web/src/modules/chat/service.ts
+init_api();
+var latestConversationId = (items) => {
+  if (!items.length) {
+    return null;
+  }
+  const timestamp = (item) => {
+    const raw = item.updatedAt || item.createdAt || "";
+    const value = Date.parse(raw);
+    return Number.isNaN(value) ? 0 : value;
+  };
+  return [...items].sort((a, b) => {
+    const diff = timestamp(b) - timestamp(a);
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  })[0]?.id ?? null;
+};
+var listConversations = async (context) => {
+  const response = await fetchChatConversations(context.auth, context.moduleName, {
+    settings: context.settingsKey
+  });
+  return Array.isArray(response.items) ? response.items : [];
+};
+var loadConversation = (context, conversationId) => fetchChatConversation(context.auth, context.moduleName, {
+  id: conversationId,
+  settings: context.settingsKey
+});
+var createConversation = (context) => startChatConversation(context.auth, context.moduleName, {
+  settings: context.settingsKey
+});
+var sendConversationMessage = (context, conversationId, content) => appendChatMessage(context.auth, context.moduleName, {
+  id: conversationId,
+  content,
+  settings: context.settingsKey
+});
+var removeConversation = (context, conversationId) => deleteChatConversation(context.auth, context.moduleName, {
+  id: conversationId,
+  settings: context.settingsKey
+});
+var copyMessageToClipboard = (content) => navigator.clipboard.writeText(content);
+
+// web/src/modules/chat/controller.ts
+var mountChatController = (runtime) => {
+  let conversations = [];
+  let currentConversation = null;
+  let pendingNew = false;
+  let attemptedInitialAutoLoad = false;
+  const realtime = createChatRealtimeBindings({
+    onEvent: (event) => handleRealtimeEvent(event),
+    onStatus: (status2) => handleRealtimeStatus(status2)
+  });
+  const setStatus2 = (message) => {
+    runtime.dom.status.textContent = message;
+  };
+  const processingStatus = createProcessingStatus(setStatus2);
+  const authContext = () => {
+    if (!runtime.auth) {
+      setStatus2(adminText("auth.loginRequired", "Login required."));
+      return null;
+    }
+    return {
+      auth: runtime.auth,
+      moduleName: runtime.moduleName,
+      settingsKey: runtime.settingsKey
+    };
+  };
+  const isNearBottom = () => runtime.dom.scroll.scrollHeight - runtime.dom.scroll.scrollTop - runtime.dom.scroll.clientHeight <= 48;
+  const scrollToBottom = () => {
+    runtime.dom.scroll.scrollTop = runtime.dom.scroll.scrollHeight;
+  };
+  const clearStatusLater = (delay = 1200) => {
+    window.setTimeout(() => {
+      if (!conversationHasPendingResponse(currentConversation)) {
+        setStatus2("");
+      }
+    }, delay);
+  };
+  const updateJumpVisibility = () => {
+    runtime.dom.jump.classList.toggle("is-visible", pendingNew);
   };
   const emitProgress = (conversation, pending, progress) => {
     if (typeof window === "undefined") {
@@ -4754,47 +5126,56 @@ var mountChatController = (runtime) => {
       })
     );
   };
+  const messagePanel = createChatMessagePanel({
+    container: runtime.dom.messages,
+    assistantLabel: runtime.agentName,
+    enableDataActions: runtime.enableDataActions,
+    getConversation: () => currentConversation,
+    isSelected: (message) => isMessageSelected(runtime, runtime.targetKey, message),
+    onToggle: (message, selected) => {
+      toggleOutputMessage(
+        {
+          payload: runtime.payload,
+          editor: runtime.editor,
+          targetKey: runtime.targetKey,
+          conversation: currentConversation,
+          agentName: runtime.agentName
+        },
+        message,
+        selected
+      );
+      messagePanel.render();
+    },
+    onMerge: (message) => void mergeMessage(message),
+    onCopy: (message) => void copyMessage(message),
+    progress: (conversation) => getConversationProgress(conversation)
+  });
   const syncConversation = (conversation, forceScroll = false) => {
     if (conversation) {
-      ensureFoldState(conversation);
-      const messages = extractMessages(conversation);
-      const assistantMessages = messages.filter((message) => message.role === "assistant");
-      const latestAssistant = assistantMessages[assistantMessages.length - 1];
-      if (latestAssistant) {
-        foldedByConversation.get(conversation.id)?.delete(latestAssistant.id);
-      }
+      messagePanel.prepareConversation(conversation);
     }
     currentConversation = conversation;
     updateConversationHeader(runtime.dom.title, runtime.dom.meta, conversation);
-    const shouldScroll = forceScroll || isNearBottom();
-    renderCurrentMessages();
+    messagePanel.render();
     const pending = conversationHasPendingResponse(conversation);
-    const progress = getConversationProgress(conversation);
-    emitProgress(conversation, pending, progress);
+    emitProgress(conversation, pending, getConversationProgress(conversation));
     updateChatInputState(runtime.dom.input, runtime.dom.send, !!conversation && !pending);
-    if (conversation) {
-      runtime.dom.select.value = conversation.id;
-      if (runtime.dom.remove) {
-        runtime.dom.remove.disabled = false;
-      }
-    } else {
-      runtime.dom.select.value = "";
-      if (runtime.dom.remove) {
-        runtime.dom.remove.disabled = true;
-      }
+    runtime.dom.select.value = conversation?.id ?? "";
+    if (runtime.dom.remove) {
+      runtime.dom.remove.disabled = !conversation;
     }
-    if (shouldScroll) {
+    if (forceScroll || isNearBottom()) {
       scrollToBottom();
       pendingNew = false;
     }
     updateJumpVisibility();
     if (pending) {
-      processingStatus.start(progress?.status ?? "");
-      syncRealtimeBindings();
+      processingStatus.start(getConversationProgress(conversation)?.status ?? "");
+      realtime.sync(true);
       return;
     }
     processingStatus.stop();
-    syncRealtimeBindings();
+    realtime.sync(!!currentConversation);
   };
   const updateSelectOptions = () => {
     runtime.dom.select.innerHTML = `<option value="">${adminText("chat.selectConversation", "Select chat")}</option>` + conversations.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
@@ -4803,21 +5184,18 @@ var mountChatController = (runtime) => {
     }
   };
   const refreshList = async () => {
-    if (!runtime.auth) {
-      setStatus2(adminText("auth.loginRequired", "Login required."));
+    const service = authContext();
+    if (!service) {
       return;
     }
     try {
-      const response = await fetchChatConversations(runtime.auth, runtime.moduleName, {
-        settings: runtime.settingsKey
-      });
-      conversations = Array.isArray(response.items) ? response.items : [];
+      conversations = await listConversations(service);
       updateSelectOptions();
       if (runtime.autoLoadLatestConversation && !currentConversation && !attemptedInitialAutoLoad) {
         attemptedInitialAutoLoad = true;
         const conversationId = latestConversationId(conversations);
         if (conversationId) {
-          await loadConversation(conversationId);
+          await loadConversation2(conversationId);
           return;
         }
       }
@@ -4828,34 +5206,27 @@ var mountChatController = (runtime) => {
       setStatus2(error.message);
     }
   };
-  const loadConversation = async (conversationId) => {
-    if (!runtime.auth) {
-      setStatus2(adminText("auth.loginRequired", "Login required."));
+  const loadConversation2 = async (conversationId) => {
+    const service = authContext();
+    if (!service) {
       return;
     }
     try {
-      const conversation = await fetchChatConversation(runtime.auth, runtime.moduleName, {
-        id: conversationId,
-        settings: runtime.settingsKey
-      });
       pendingNew = false;
-      syncConversation(conversation, true);
+      syncConversation(await loadConversation(service, conversationId), true);
       updateSelectOptions();
     } catch (error) {
       setStatus2(error.message);
     }
   };
   const startConversation = async () => {
-    if (!runtime.auth) {
-      setStatus2(adminText("auth.loginRequired", "Login required."));
+    const service = authContext();
+    if (!service) {
       return;
     }
     try {
-      const conversation = await startChatConversation(runtime.auth, runtime.moduleName, {
-        settings: runtime.settingsKey
-      });
       pendingNew = false;
-      syncConversation(conversation, true);
+      syncConversation(await createConversation(service), true);
       await refreshList();
       setStatus2("");
     } catch (error) {
@@ -4863,46 +5234,65 @@ var mountChatController = (runtime) => {
     }
   };
   const sendMessage = async (content) => {
-    if (!runtime.auth || !currentConversation || conversationHasPendingResponse(currentConversation)) {
+    const service = authContext();
+    if (!service || !currentConversation || conversationHasPendingResponse(currentConversation)) {
       return;
     }
     appendConversationMessage(currentConversation, "user", content);
     syncConversation(currentConversation, true);
     try {
-      const updated = await appendChatMessage(runtime.auth, runtime.moduleName, {
-        id: currentConversation.id,
-        content,
-        settings: runtime.settingsKey
-      });
       pendingNew = false;
-      syncConversation(updated, true);
+      syncConversation(await sendConversationMessage(service, currentConversation.id, content), true);
       await refreshList();
     } catch (error) {
-      if (currentConversation) {
-        markConversationPending(currentConversation, false);
-        appendConversationMessage(
-          currentConversation,
-          "assistant",
-          adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
-            message: error.message || adminText("common.tryAgain", "Please try again.")
-          })
-        );
-        syncConversation(currentConversation, true);
+      if (!currentConversation) {
+        return;
       }
+      markConversationPending(currentConversation, false);
+      appendConversationMessage(
+        currentConversation,
+        "assistant",
+        adminText("agents.replyFailed", "Something went wrong while I was replying: {message}", {
+          message: error.message || adminText("common.tryAgain", "Please try again.")
+        })
+      );
+      syncConversation(currentConversation, true);
     }
   };
   const copyMessage = async (message) => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await copyMessageToClipboard(message.content);
       setStatus2(adminText("common.copied", "Copied."));
-      window.setTimeout(() => {
-        if (!conversationHasPendingResponse(currentConversation)) {
-          setStatus2("");
-        }
-      }, 1200);
+      clearStatusLater();
     } catch {
       setStatus2(adminText("common.copyFailed", "Copy failed."));
     }
+  };
+  const mergeMessage = async (message) => {
+    const data = ensureDataObject(runtime);
+    const result = mergeAssistantJson(data, message.content, runtime.targetKey);
+    if (!result.ok) {
+      setStatus2(mergeFailureStatus(result.code));
+      const service = authContext();
+      if (!service || !currentConversation || conversationHasPendingResponse(currentConversation)) {
+        return;
+      }
+      try {
+        pendingNew = false;
+        syncConversation(
+          await sendConversationMessage(service, currentConversation.id, mergeFailureFeedback(result.code)),
+          true
+        );
+        await refreshList();
+      } catch (error) {
+        setStatus2(error.message);
+      }
+      return;
+    }
+    runtime.payload.data = result.data;
+    runtime.editor?.setValue(result.data);
+    setStatus2(mergeSuccessStatus(describeMergePath(result.path)));
+    clearStatusLater();
   };
   const handleRealtimeEvent = (event) => {
     if (event.type !== "chat.conversation.updated") {
@@ -4912,94 +5302,65 @@ var mountChatController = (runtime) => {
     if (data.moduleKey !== runtime.settingsKey) {
       return;
     }
-    if (currentConversation && currentConversation.id === event.conversation.id) {
+    if (currentConversation?.id === event.conversation.id) {
       pendingNew = !isNearBottom();
       syncConversation(event.conversation, !pendingNew);
     }
     void refreshList();
   };
   const handleRealtimeStatus = (status2) => {
-    if (status2 === "open") {
-      void refreshList();
-      if (currentConversation) {
-        void loadConversation(currentConversation.id);
+    if (status2 !== "open") {
+      return;
+    }
+    void refreshList();
+    if (currentConversation) {
+      void loadConversation2(currentConversation.id);
+    }
+  };
+  const unbindEvents = bindChatDomEvents({
+    dom: runtime.dom,
+    onCreate: () => void startConversation(),
+    onRemove: () => {
+      const service = authContext();
+      if (!service || !currentConversation) {
+        return;
       }
-    }
-  };
-  const syncRealtimeBindings = () => {
-    if (!currentConversation) {
-      stopRealtimeBindings();
-      return;
-    }
-    if (disposeRealtime === null) {
-      disposeRealtime = subscribeRealtime(handleRealtimeEvent);
-    }
-    if (disposeRealtimeStatus === null) {
-      disposeRealtimeStatus = subscribeRealtimeStatus(handleRealtimeStatus);
-    }
-  };
-  runtime.dom.create?.addEventListener("click", () => {
-    void startConversation();
-  });
-  runtime.dom.remove?.addEventListener("click", () => {
-    if (!runtime.auth || !currentConversation) {
-      return;
-    }
-    const conversationId = currentConversation.id;
-    setStatus2("Deleting conversation...");
-    void deleteChatConversation(runtime.auth, runtime.moduleName, {
-      id: conversationId,
-      settings: runtime.settingsKey
-    }).then(async () => {
+      setStatus2(adminText("chat.deletingConversation", "Deleting conversation..."));
+      void removeConversation(service, currentConversation.id).then(async () => {
+        syncConversation(null, true);
+        await refreshList();
+        setStatus2("");
+      }).catch((error) => {
+        setStatus2(error.message);
+      });
+    },
+    onSelect: (conversationId) => void loadConversation2(conversationId),
+    onClearSelection: () => {
+      pendingNew = false;
       syncConversation(null, true);
-      await refreshList();
       setStatus2("");
-    }).catch((error) => {
-      setStatus2(error.message);
-    });
-  });
-  runtime.dom.select.addEventListener("change", () => {
-    const conversationId = runtime.dom.select.value.trim();
-    if (conversationId !== "") {
-      void loadConversation(conversationId);
-      return;
-    }
-    pendingNew = false;
-    syncConversation(null, true);
-    setStatus2("");
-  });
-  runtime.dom.scroll.addEventListener("scroll", () => {
-    if (isNearBottom()) {
+    },
+    onReachedBottom: () => {
+      if (!isNearBottom()) {
+        return;
+      }
       pendingNew = false;
       updateJumpVisibility();
-    }
-  });
-  runtime.dom.jump.addEventListener("click", () => {
-    scrollToBottom();
-    pendingNew = false;
-    updateJumpVisibility();
-  });
-  runtime.dom.form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const content = runtime.dom.input.value.trim();
-    if (content === "") {
-      return;
-    }
-    runtime.dom.input.value = "";
-    void sendMessage(content);
-  });
-  runtime.dom.input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      runtime.dom.form.requestSubmit();
-    }
+    },
+    onJump: () => {
+      scrollToBottom();
+      pendingNew = false;
+      updateJumpVisibility();
+    },
+    onSend: (content) => void sendMessage(content)
   });
   registerModuleChatCleanup(() => {
-    stopRealtimeBindings();
+    unbindEvents();
+    realtime.stop();
     processingStatus.stop();
   });
   updateChatInputState(runtime.dom.input, runtime.dom.send, false);
-  renderCurrentMessages();
+  messagePanel.render();
   void refreshList();
 };
 
@@ -5060,6 +5421,7 @@ var renderChatModule = (panel, context) => {
   }
   const outputSettings = settings && isRecord(settings.output) ? settings.output : null;
   const targetKey = typeof outputSettings?.target === "string" && outputSettings.target.trim() !== "" ? outputSettings.target.trim() : context.module.name;
+  const enableDataActions = !(context.payload.page === "website-build" && context.payload.position === "system");
   const dom = renderChatLayout(panel, context.module, agentName, context.openSettings, context.hideHeader);
   if (!dom) {
     return;
@@ -5073,6 +5435,7 @@ var renderChatModule = (panel, context) => {
     editor: context.editor,
     dom,
     targetKey,
+    enableDataActions,
     autoLoadLatestConversation: context.autoLoadLatestConversation
   });
 };
@@ -6084,9 +6447,9 @@ init_api();
 // web/src/json-editor.ts
 init_translations();
 var isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
-var clone = (value) => JSON.parse(JSON.stringify(value));
+var clone2 = (value) => JSON.parse(JSON.stringify(value));
 var buildJsonEditor = (container, initialValue) => {
-  let data = clone(initialValue ?? {});
+  let data = clone2(initialValue ?? {});
   const openState = /* @__PURE__ */ new Map();
   const getPath = (parentPath, key) => {
     if (key === null) {
@@ -6298,7 +6661,7 @@ var buildJsonEditor = (container, initialValue) => {
     addBtn.textContent = adminText("jsonEditor.addItem", "Add item");
     addBtn.addEventListener("click", () => {
       if (arr.length > 0) {
-        arr.push(clone(arr[0]));
+        arr.push(clone2(arr[0]));
       } else {
         arr.push(defaultValueForType(typeSelect.value));
       }
@@ -6329,9 +6692,9 @@ var buildJsonEditor = (container, initialValue) => {
   };
   render();
   return {
-    getValue: () => clone(data),
+    getValue: () => clone2(data),
     setValue: (value) => {
-      data = clone(value ?? {});
+      data = clone2(value ?? {});
       rerender();
     }
   };
@@ -6361,7 +6724,7 @@ var valueAtPath = (settings, key) => {
   }
   return settings[key];
 };
-var setValueAtPath = (target, path, value) => {
+var setValueAtPath2 = (target, path, value) => {
   let current = target;
   path.forEach((segment, index) => {
     if (index === path.length - 1) {
@@ -6608,7 +6971,7 @@ var renderModuleSettingsForm = ({
       } else {
         value = field.element.value.trim();
       }
-      setValueAtPath(output, field.path, value);
+      setValueAtPath2(output, field.path, value);
     });
     return output;
   };
@@ -7341,15 +7704,15 @@ var inlineCanvasSnapshots = (sourceDoc, clonedRoot) => {
   const sourceCanvases = Array.from(sourceDoc.querySelectorAll("canvas"));
   const clonedCanvases = Array.from(clonedRoot.querySelectorAll("canvas"));
   sourceCanvases.forEach((canvas, index) => {
-    const clone2 = clonedCanvases[index];
-    if (!clone2) {
+    const clone3 = clonedCanvases[index];
+    if (!clone3) {
       return;
     }
     try {
       const image = sourceDoc.createElement("img");
       image.setAttribute("src", canvas.toDataURL("image/png"));
       image.setAttribute("alt", "");
-      clone2.replaceWith(image);
+      clone3.replaceWith(image);
     } catch {
     }
   });
@@ -8038,6 +8401,7 @@ var renderDocumentView = (doc) => {
       auth: state.auth,
       doc: moduleDoc,
       editor: editorRef.get(),
+      autoLoadLatestConversation: true,
       normalizeModuleList,
       fetchModuleSettings: (moduleName, payload) => fetchModuleSettings(state.auth, payload, moduleName, state.moduleSettingsCache),
       findModuleDefinition: (name) => findModuleDefinition(state.modules, name),
@@ -8480,7 +8844,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
   };
   const renderConversations = () => {
     renderConversationList(conversations, state.currentConversation?.id ?? null, (id) => {
-      void loadConversation(id);
+      void loadConversation2(id);
     });
   };
   const handleRealtimeEvent = (event) => {
@@ -8501,7 +8865,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
   const handleRealtimeStatus = (status2) => {
     if (status2 === "open" && state.currentConversation) {
       void refreshConversations();
-      void loadConversation(state.currentConversation.id);
+      void loadConversation2(state.currentConversation.id);
     }
   };
   const syncRealtimeBindings = () => {
@@ -8547,7 +8911,7 @@ var renderAgentView = async ({ auth, agentDoc, reloadAgents }) => {
       pushNotice("error", err.message);
     }
   };
-  const loadConversation = async (conversationId) => {
+  const loadConversation2 = async (conversationId) => {
     if (!auth) {
       return;
     }
