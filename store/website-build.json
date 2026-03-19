@@ -9,6 +9,7 @@
         "chat"
     ],
     "position": "system",
+    "position_view": "footer",
     "order": 3
 }
 

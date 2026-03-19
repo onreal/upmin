@@ -1,5 +1,7 @@
 import type { NavigationPage, NavigationPageGroup, NavigationSectionGroup, NavigationVariant } from "../api";
 
+type NavigationStore = "public" | "private";
+
 const normalizeLanguage = (value?: string | null) => {
   if (typeof value !== "string") {
     return null;
@@ -7,6 +9,16 @@ const normalizeLanguage = (value?: string | null) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 };
+
+const normalizeStore = (value?: string | null): NavigationStore | null => {
+  if (value === "public" || value === "private") {
+    return value;
+  }
+  return null;
+};
+
+const variantsForStore = (variants: NavigationVariant[], store: NavigationStore) =>
+  variants.filter((variant) => normalizeStore(variant.store) === store);
 
 const collectLanguages = (variants: NavigationVariant[]) => {
   const seen = new Set<string>();
@@ -22,7 +34,7 @@ const collectLanguages = (variants: NavigationVariant[]) => {
   return ordered;
 };
 
-const pickVariant = (variants: NavigationVariant[], language: string | null) => {
+const pickPublicVariant = (variants: NavigationVariant[], language: string | null) => {
   if (!variants.length) {
     return null;
   }
@@ -32,19 +44,49 @@ const pickVariant = (variants: NavigationVariant[], language: string | null) => 
       return match;
     }
   }
+  const untagged = variants.find((variant) => normalizeLanguage(variant.language) === null);
+  if (untagged) {
+    return untagged;
+  }
+  return null;
+};
+
+const pickPrivateVariant = (variants: NavigationVariant[]) => {
+  if (!variants.length) {
+    return null;
+  }
   return variants[variants.length - 1];
 };
 
-const pickFirstLanguage = (groups: NavigationPageGroup[]) => {
+const storesForGroup = (group: NavigationPageGroup): NavigationStore[] => {
+  const stores = new Set<NavigationStore>();
+  group.variants.forEach((variant) => {
+    const store = normalizeStore(variant.store);
+    if (store) {
+      stores.add(store);
+    }
+  });
+  group.sections.forEach((section) => {
+    section.variants.forEach((variant) => {
+      const store = normalizeStore(variant.store);
+      if (store) {
+        stores.add(store);
+      }
+    });
+  });
+  return Array.from(stores);
+};
+
+const pickFirstPublicLanguage = (groups: NavigationPageGroup[]) => {
   for (const page of groups) {
-    for (const variant of page.variants) {
+    for (const variant of variantsForStore(page.variants, "public")) {
       const lang = normalizeLanguage(variant.language);
       if (lang) {
         return lang;
       }
     }
     for (const section of page.sections) {
-      for (const variant of section.variants) {
+      for (const variant of variantsForStore(section.variants, "public")) {
         const lang = normalizeLanguage(variant.language);
         if (lang) {
           return lang;
@@ -61,32 +103,42 @@ export const resolveNavigationPages = (
   activeLanguage: string | null
 ) => {
   const normalizedDefault = normalizeLanguage(defaultLanguage);
-  const seedLanguage = normalizedDefault ?? activeLanguage ?? pickFirstLanguage(groups);
+  const seedLanguage = normalizedDefault ?? activeLanguage ?? pickFirstPublicLanguage(groups);
   const resolvedLanguage = seedLanguage ?? null;
 
-  const resolvedPages: NavigationPage[] = groups.map((group) => {
-    const pageVariant = pickVariant(group.variants, resolvedLanguage);
-    const pageLanguages = collectLanguages(group.variants);
+  const resolvedPages: NavigationPage[] = groups.flatMap((group) =>
+    storesForGroup(group)
+      .map((store) => {
+        const scopedVariants = variantsForStore(group.variants, store);
+        const pageVariant =
+          store === "public"
+            ? pickPublicVariant(scopedVariants, resolvedLanguage)
+            : pickPrivateVariant(scopedVariants);
+        const resolvedSections = group.sections
+          .map((section) => resolveSection(section, resolvedLanguage, store))
+          .filter(Boolean) as NavigationPage["sections"];
 
-    const resolvedSections = group.sections
-      .map((section) => resolveSection(section, resolvedLanguage))
-      .filter(Boolean) as NavigationPage["sections"];
+        if (!pageVariant && !resolvedSections.length) {
+          return null;
+        }
 
-    return {
-      page: group.page,
-      name: pageVariant?.name ?? group.page,
-      language: normalizeLanguage(pageVariant?.language),
-      order: pageVariant?.order ?? null,
-      documentId: pageVariant?.id ?? null,
-      store: pageVariant?.store ?? null,
-      path: pageVariant?.path ?? null,
-      position: pageVariant?.position ?? null,
-      position_view: pageVariant?.position_view ?? null,
-      languages: pageLanguages,
-      variants: group.variants,
-      sections: resolvedSections,
-    };
-  });
+        return {
+          page: group.page,
+          name: pageVariant?.name ?? group.page,
+          language: store === "public" ? normalizeLanguage(pageVariant?.language) : null,
+          order: pageVariant?.order ?? null,
+          documentId: pageVariant?.id ?? null,
+          store,
+          path: pageVariant?.path ?? null,
+          position: pageVariant?.position ?? null,
+          position_view: pageVariant?.position_view ?? null,
+          languages: store === "public" ? collectLanguages(scopedVariants) : [],
+          variants: scopedVariants,
+          sections: resolvedSections,
+        };
+      })
+      .filter(Boolean) as NavigationPage[]
+  );
 
   resolvedPages.sort(compareByOrder);
   resolvedPages.forEach((page) => {
@@ -99,22 +151,30 @@ export const resolveNavigationPages = (
   };
 };
 
-const resolveSection = (section: NavigationSectionGroup, language: string | null) => {
-  const variant = pickVariant(section.variants, language);
+const resolveSection = (
+  section: NavigationSectionGroup,
+  language: string | null,
+  store: NavigationStore
+) => {
+  const scopedVariants = variantsForStore(section.variants, store);
+  const variant =
+    store === "public"
+      ? pickPublicVariant(scopedVariants, language)
+      : pickPrivateVariant(scopedVariants);
   if (!variant) {
     return null;
   }
   return {
     id: variant.id,
     name: variant.name,
-    language: normalizeLanguage(variant.language),
+    language: store === "public" ? normalizeLanguage(variant.language) : null,
     order: variant.order ?? section.order ?? null,
-    store: variant.store ?? "public",
+    store: variant.store ?? store,
     path: variant.path ?? "",
     position: variant.position ?? null,
     position_view: variant.position_view ?? null,
-    languages: collectLanguages(section.variants),
-    variants: section.variants,
+    languages: store === "public" ? collectLanguages(scopedVariants) : [],
+    variants: scopedVariants,
   };
 };
 
@@ -125,17 +185,25 @@ export const findDocumentVariants = (
   for (const page of groups) {
     const pageMatch = page.variants.find((variant) => variant.id === documentId);
     if (pageMatch) {
+      if (normalizeStore(pageMatch.store) !== "public") {
+        return null;
+      }
+      const scopedVariants = variantsForStore(page.variants, "public");
       return {
-        variants: page.variants,
-        languages: collectLanguages(page.variants),
+        variants: scopedVariants,
+        languages: collectLanguages(scopedVariants),
       };
     }
     for (const section of page.sections) {
       const sectionMatch = section.variants.find((variant) => variant.id === documentId);
       if (sectionMatch) {
+        if (normalizeStore(sectionMatch.store) !== "public") {
+          return null;
+        }
+        const scopedVariants = variantsForStore(section.variants, "public");
         return {
-          variants: section.variants,
-          languages: collectLanguages(section.variants),
+          variants: scopedVariants,
+          languages: collectLanguages(scopedVariants),
         };
       }
     }

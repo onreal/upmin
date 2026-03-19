@@ -205,11 +205,35 @@ body {
   flex-wrap: wrap;
 }
 
+.app-nav-shortcuts .button.app-button {
+  min-height: 2.2rem;
+  padding: 0 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--app-muted);
+}
+
+.app-nav-shortcuts .button.app-button:hover,
+.app-nav-shortcuts .button.app-button:focus-visible,
+.app-nav-shortcuts .button.app-button.is-active {
+  background: transparent;
+  box-shadow: none;
+  color: var(--app-text);
+}
+
 .app-footer-nav {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.6rem;
   flex-wrap: wrap;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .app-footer-nav.is-hidden {
@@ -219,15 +243,15 @@ body {
 .app-footer-nav-link {
   display: inline-flex;
   align-items: center;
-  padding: 0.45rem 0.75rem;
-  border-radius: var(--app-radius-sm);
-  color: var(--app-text);
-  font-size: 0.92rem;
+  padding: 0.25rem 0;
+  border-radius: 0;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .app-footer-nav-link:hover,
 .app-footer-nav-link.is-active {
-  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
   color: var(--app-text);
 }
 
@@ -399,19 +423,19 @@ body {
 }
 
 .menu-list a {
-  border-radius: var(--app-radius-sm);
+  border-radius: 0;
   color: var(--app-text);
 }
 
 .menu-list a.is-active {
-  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  background: transparent;
   color: var(--app-text);
 }
 
 .navbar-dropdown {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
-  box-shadow: var(--app-shadow);
+  box-shadow: none;
 }
 
 .navbar-divider {
@@ -423,7 +447,7 @@ body {
 }
 
 .navbar-dropdown .navbar-item:hover {
-  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  background: transparent;
 }
 
 .app-mobile-drawer {

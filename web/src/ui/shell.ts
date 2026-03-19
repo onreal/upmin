@@ -381,6 +381,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
 
           <section class="app-mobile-accordion-section">
             <button
+              id="mobile-private-toggle"
               class="app-mobile-accordion-toggle"
               type="button"
               data-mobile-accordion
@@ -494,7 +495,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
               <aside class="menu">
                 <p class="menu-label">${sidebar.publicLabel}</p>
                 <ul id="nav-public" class="menu-list"></ul>
-                <p class="menu-label mt-4">${sidebar.privateLabel}</p>
+                <p id="nav-private-label" class="menu-label mt-4">${sidebar.privateLabel}</p>
                 <ul id="nav-private" class="menu-list"></ul>
               </aside>
             </div>

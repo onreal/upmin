@@ -707,8 +707,8 @@ var getUserLabel = () => {
   return adminText("layout.user.guest", "Guest");
 };
 var headerCopy = () => ({
-  title: adminConfiguredText(state.layoutConfig.header?.title, "layout.header.title", "Manage"),
-  subtitle: adminConfiguredText(state.layoutConfig.header?.subtitle, "layout.header.subtitle", "Stateless Admin"),
+  title: typeof state.layoutConfig.header?.title === "string" && state.layoutConfig.header.title.trim() !== "" ? state.layoutConfig.header.title : adminText("layout.header.title", "Manage"),
+  subtitle: typeof state.layoutConfig.header?.subtitle === "string" && state.layoutConfig.header.subtitle.trim() !== "" ? state.layoutConfig.header.subtitle : adminText("layout.header.subtitle", "Stateless Admin"),
   settingsLabel: adminConfiguredText(state.layoutConfig.header?.settingsLabel, "layout.header.settingsLabel", "Settings"),
   themeLabel: adminConfiguredText(state.layoutConfig.header?.themeLabel, "layout.header.themeLabel", "Theme"),
   createLabel: adminConfiguredText(state.layoutConfig.header?.createLabel, "layout.header.createLabel", "Create +"),
@@ -1099,6 +1099,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
 
           <section class="app-mobile-accordion-section">
             <button
+              id="mobile-private-toggle"
               class="app-mobile-accordion-toggle"
               type="button"
               data-mobile-accordion
@@ -1212,7 +1213,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
               <aside class="menu">
                 <p class="menu-label">${sidebar.publicLabel}</p>
                 <ul id="nav-public" class="menu-list"></ul>
-                <p class="menu-label mt-4">${sidebar.privateLabel}</p>
+                <p id="nav-private-label" class="menu-label mt-4">${sidebar.privateLabel}</p>
                 <ul id="nav-private" class="menu-list"></ul>
               </aside>
             </div>
@@ -2963,7 +2964,7 @@ var isCurrentDocument = (documentId, variants) => {
   const currentId = state.currentDocument?.id;
   return !!currentId && (documentId === currentId || (variants ?? []).some((variant) => variant.id === currentId));
 };
-var matchesPlacement = (item, placement, mode) => item.position !== "system" && item.store === "private" && item.position_view === placement && (!mode || item.store === mode);
+var matchesPlacement = (item, placement, mode) => item.store === "private" && item.position_view === placement && (!mode || item.store === mode);
 var collectPlacementLinks = (pages, placement, mode) => {
   const seen = /* @__PURE__ */ new Set();
   const items = [];
@@ -3116,6 +3117,8 @@ var renderNavigation = (pages, onSelectDocument) => {
   const navPrivate = document.getElementById("nav-private");
   const navPublicMobile = document.getElementById("nav-mobile-public");
   const navPrivateMobile = document.getElementById("nav-mobile-private");
+  const navPrivateLabel = document.getElementById("nav-private-label");
+  const mobilePrivateToggle = document.getElementById("mobile-private-toggle");
   const navSystem = document.getElementById("nav-system-pages");
   const navSystemMobile = document.getElementById("nav-system-pages-mobile");
   const navSettings = document.getElementById("nav-settings-pages");
@@ -3129,11 +3132,17 @@ var renderNavigation = (pages, onSelectDocument) => {
   state.authDocumentId = findAuthDocumentId(pages);
   renderDesktopNavList(navPublic, pages, "public", onSelectDocument);
   renderDesktopNavList(navPrivate, pages, "private", onSelectDocument);
+  const hasPrivateSidebarItems = navPrivate.children.length > 0;
+  navPrivate.classList.toggle("is-hidden", !hasPrivateSidebarItems);
+  navPrivateLabel?.classList.toggle("is-hidden", !hasPrivateSidebarItems);
   if (navPublicMobile) {
     renderMobileNavList(navPublicMobile, pages, "public", onSelectDocument);
   }
   if (navPrivateMobile) {
     renderMobileNavList(navPrivateMobile, pages, "private", onSelectDocument);
+    const hasMobilePrivateItems = navPrivateMobile.children.length > 0;
+    navPrivateMobile.classList.toggle("is-hidden", !hasMobilePrivateItems);
+    mobilePrivateToggle?.closest(".app-mobile-accordion-section")?.classList.toggle("is-hidden", !hasMobilePrivateItems);
   }
   if (navSettings) {
     renderPlacementLinks(navSettings, pages, "settings", onSelectDocument, "desktop");
@@ -3288,6 +3297,13 @@ var normalizeLanguage2 = (value) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 };
+var normalizeStore = (value) => {
+  if (value === "public" || value === "private") {
+    return value;
+  }
+  return null;
+};
+var variantsForStore = (variants, store) => variants.filter((variant) => normalizeStore(variant.store) === store);
 var collectLanguages = (variants) => {
   const seen = /* @__PURE__ */ new Set();
   const ordered = [];
@@ -3301,7 +3317,7 @@ var collectLanguages = (variants) => {
   });
   return ordered;
 };
-var pickVariant = (variants, language) => {
+var pickPublicVariant = (variants, language) => {
   if (!variants.length) {
     return null;
   }
@@ -3311,18 +3327,46 @@ var pickVariant = (variants, language) => {
       return match;
     }
   }
+  const untagged = variants.find((variant) => normalizeLanguage2(variant.language) === null);
+  if (untagged) {
+    return untagged;
+  }
+  return null;
+};
+var pickPrivateVariant = (variants) => {
+  if (!variants.length) {
+    return null;
+  }
   return variants[variants.length - 1];
 };
-var pickFirstLanguage = (groups) => {
+var storesForGroup = (group) => {
+  const stores = /* @__PURE__ */ new Set();
+  group.variants.forEach((variant) => {
+    const store = normalizeStore(variant.store);
+    if (store) {
+      stores.add(store);
+    }
+  });
+  group.sections.forEach((section) => {
+    section.variants.forEach((variant) => {
+      const store = normalizeStore(variant.store);
+      if (store) {
+        stores.add(store);
+      }
+    });
+  });
+  return Array.from(stores);
+};
+var pickFirstPublicLanguage = (groups) => {
   for (const page of groups) {
-    for (const variant of page.variants) {
+    for (const variant of variantsForStore(page.variants, "public")) {
       const lang = normalizeLanguage2(variant.language);
       if (lang) {
         return lang;
       }
     }
     for (const section of page.sections) {
-      for (const variant of section.variants) {
+      for (const variant of variantsForStore(section.variants, "public")) {
         const lang = normalizeLanguage2(variant.language);
         if (lang) {
           return lang;
@@ -3334,27 +3378,32 @@ var pickFirstLanguage = (groups) => {
 };
 var resolveNavigationPages = (groups, defaultLanguage, activeLanguage) => {
   const normalizedDefault = normalizeLanguage2(defaultLanguage);
-  const seedLanguage = normalizedDefault ?? activeLanguage ?? pickFirstLanguage(groups);
+  const seedLanguage = normalizedDefault ?? activeLanguage ?? pickFirstPublicLanguage(groups);
   const resolvedLanguage = seedLanguage ?? null;
-  const resolvedPages = groups.map((group) => {
-    const pageVariant = pickVariant(group.variants, resolvedLanguage);
-    const pageLanguages = collectLanguages(group.variants);
-    const resolvedSections = group.sections.map((section) => resolveSection(section, resolvedLanguage)).filter(Boolean);
-    return {
-      page: group.page,
-      name: pageVariant?.name ?? group.page,
-      language: normalizeLanguage2(pageVariant?.language),
-      order: pageVariant?.order ?? null,
-      documentId: pageVariant?.id ?? null,
-      store: pageVariant?.store ?? null,
-      path: pageVariant?.path ?? null,
-      position: pageVariant?.position ?? null,
-      position_view: pageVariant?.position_view ?? null,
-      languages: pageLanguages,
-      variants: group.variants,
-      sections: resolvedSections
-    };
-  });
+  const resolvedPages = groups.flatMap(
+    (group) => storesForGroup(group).map((store) => {
+      const scopedVariants = variantsForStore(group.variants, store);
+      const pageVariant = store === "public" ? pickPublicVariant(scopedVariants, resolvedLanguage) : pickPrivateVariant(scopedVariants);
+      const resolvedSections = group.sections.map((section) => resolveSection(section, resolvedLanguage, store)).filter(Boolean);
+      if (!pageVariant && !resolvedSections.length) {
+        return null;
+      }
+      return {
+        page: group.page,
+        name: pageVariant?.name ?? group.page,
+        language: store === "public" ? normalizeLanguage2(pageVariant?.language) : null,
+        order: pageVariant?.order ?? null,
+        documentId: pageVariant?.id ?? null,
+        store,
+        path: pageVariant?.path ?? null,
+        position: pageVariant?.position ?? null,
+        position_view: pageVariant?.position_view ?? null,
+        languages: store === "public" ? collectLanguages(scopedVariants) : [],
+        variants: scopedVariants,
+        sections: resolvedSections
+      };
+    }).filter(Boolean)
+  );
   resolvedPages.sort(compareByOrder);
   resolvedPages.forEach((page) => {
     page.sections.sort(compareByOrder);
@@ -3364,39 +3413,48 @@ var resolveNavigationPages = (groups, defaultLanguage, activeLanguage) => {
     activeLanguage: resolvedLanguage
   };
 };
-var resolveSection = (section, language) => {
-  const variant = pickVariant(section.variants, language);
+var resolveSection = (section, language, store) => {
+  const scopedVariants = variantsForStore(section.variants, store);
+  const variant = store === "public" ? pickPublicVariant(scopedVariants, language) : pickPrivateVariant(scopedVariants);
   if (!variant) {
     return null;
   }
   return {
     id: variant.id,
     name: variant.name,
-    language: normalizeLanguage2(variant.language),
+    language: store === "public" ? normalizeLanguage2(variant.language) : null,
     order: variant.order ?? section.order ?? null,
-    store: variant.store ?? "public",
+    store: variant.store ?? store,
     path: variant.path ?? "",
     position: variant.position ?? null,
     position_view: variant.position_view ?? null,
-    languages: collectLanguages(section.variants),
-    variants: section.variants
+    languages: store === "public" ? collectLanguages(scopedVariants) : [],
+    variants: scopedVariants
   };
 };
 var findDocumentVariants = (groups, documentId) => {
   for (const page of groups) {
     const pageMatch = page.variants.find((variant) => variant.id === documentId);
     if (pageMatch) {
+      if (normalizeStore(pageMatch.store) !== "public") {
+        return null;
+      }
+      const scopedVariants = variantsForStore(page.variants, "public");
       return {
-        variants: page.variants,
-        languages: collectLanguages(page.variants)
+        variants: scopedVariants,
+        languages: collectLanguages(scopedVariants)
       };
     }
     for (const section of page.sections) {
       const sectionMatch = section.variants.find((variant) => variant.id === documentId);
       if (sectionMatch) {
+        if (normalizeStore(sectionMatch.store) !== "public") {
+          return null;
+        }
+        const scopedVariants = variantsForStore(section.variants, "public");
         return {
-          variants: section.variants,
-          languages: collectLanguages(section.variants)
+          variants: scopedVariants,
+          languages: collectLanguages(scopedVariants)
         };
       }
     }

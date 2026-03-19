@@ -38,7 +38,6 @@ const matchesPlacement = (
   placement: NavigationPlacement,
   mode?: "public" | "private"
 ) =>
-  item.position !== "system" &&
   item.store === "private" &&
   item.position_view === placement &&
   (!mode || item.store === mode);
@@ -241,6 +240,8 @@ export const renderNavigation = (pages: NavigationPage[], onSelectDocument: (id:
   const navPrivate = document.getElementById("nav-private");
   const navPublicMobile = document.getElementById("nav-mobile-public");
   const navPrivateMobile = document.getElementById("nav-mobile-private");
+  const navPrivateLabel = document.getElementById("nav-private-label");
+  const mobilePrivateToggle = document.getElementById("mobile-private-toggle");
   const navSystem = document.getElementById("nav-system-pages");
   const navSystemMobile = document.getElementById("nav-system-pages-mobile");
   const navSettings = document.getElementById("nav-settings-pages");
@@ -256,11 +257,17 @@ export const renderNavigation = (pages: NavigationPage[], onSelectDocument: (id:
   state.authDocumentId = findAuthDocumentId(pages);
   renderDesktopNavList(navPublic, pages, "public", onSelectDocument);
   renderDesktopNavList(navPrivate, pages, "private", onSelectDocument);
+  const hasPrivateSidebarItems = navPrivate.children.length > 0;
+  navPrivate.classList.toggle("is-hidden", !hasPrivateSidebarItems);
+  navPrivateLabel?.classList.toggle("is-hidden", !hasPrivateSidebarItems);
   if (navPublicMobile) {
     renderMobileNavList(navPublicMobile, pages, "public", onSelectDocument);
   }
   if (navPrivateMobile) {
     renderMobileNavList(navPrivateMobile, pages, "private", onSelectDocument);
+    const hasMobilePrivateItems = navPrivateMobile.children.length > 0;
+    navPrivateMobile.classList.toggle("is-hidden", !hasMobilePrivateItems);
+    mobilePrivateToggle?.closest(".app-mobile-accordion-section")?.classList.toggle("is-hidden", !hasMobilePrivateItems);
   }
   if (navSettings) {
     renderPlacementLinks(navSettings, pages, "settings", onSelectDocument, "desktop");

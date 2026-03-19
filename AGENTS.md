@@ -126,7 +126,8 @@ Current behavior:
 
 - `public/index.html` provides the initial `<html lang>`, but the runtime admin locale is seeded from `store/system/configuration.json:data.defaultLanguage` once config/navigation loads.
 - Admin UI copy is supplied from `store/layout.json:data.translations`, keyed by language code and then translation key.
-- `store/layout.json` header/sidebar/profile fields act as fallback copy when a translation key is missing.
+- `store/layout.json:data.header.title` and `store/layout.json:data.header.subtitle` are direct configured values for the shell brand/title area.
+- Other header/sidebar/profile labels may still be translated through `store/layout.json:data.translations`, with the config fields acting as fallback values.
 - The supported admin locales are currently `en` and `el`, with `en` as the fallback dictionary.
 - There is currently no dedicated runtime admin language switcher beyond changing the configured default language.
 
@@ -145,7 +146,8 @@ Admin translation rules:
 - Treat `store/layout.json:data.translations.en` as the canonical fallback dictionary.
 - Keep translation keys stable and namespaced by feature, for example `integrations.syncStarted`.
 - Do not rely on mixed Greek/English UI or `document.documentElement.lang` checks inside features for copy selection.
-- Header, sidebar, and profile config fields in `store/layout.json` are fallback values only; translated UI text must still have explicit keys in `data.translations`.
+- Keep `layout.header.title` and `layout.header.subtitle` aligned with the direct header config values when used as translation fallbacks, but the configured header values should win at runtime.
+- Keep other `layout.header.*`, `layout.sidebar.*`, and `layout.profile.*` label keys in `data.translations` so those shell labels can be localized.
 
 Adding a new admin language:
 
@@ -166,9 +168,12 @@ Important behavior:
 - `language` is optional on documents and agents.
 - Navigation groups documents by `page`, then resolves one variant per page/section using language matching.
 - `defaultLanguage` comes from `store/system/configuration.json`.
-- Navigation resolution currently uses `defaultLanguage` first, then `activeLanguage`, then the first language found in the document set.
+- Public navigation shows the variant whose `language` exactly matches the resolved language.
+- If a public page or section has no `language` value, that untagged public variant is shown as fallback.
+- If a public page or section has only non-matching tagged variants, it is hidden from public navigation.
+- Private navigation ignores document `language` entirely.
 - Agent lists are filtered by the resolved active language, with fallback to untagged agents if no direct match exists.
-- The document editor shows a language-variant switcher only when multiple variants of the same page/section exist.
+- The document editor shows a language-variant switcher only for public documents when multiple public variants of the same page/section exist.
 
 Important limitation:
 
@@ -308,6 +313,7 @@ Important rules:
 - Allowed values are `settings`, `sidebar`, `header`, and `footer`.
 - `null`, empty, or missing means the document should not appear in admin navigation.
 - This property applies only to private documents. Public navigation ignores it.
+- `position_view` can be used on both normal private pages and private system pages.
 - `settings` places the private document under the header settings submenu.
 - `sidebar` places the private document in the private sidebar navigation.
 - `header` places the private document as a direct header action/button.
@@ -371,9 +377,9 @@ Important rules:
 `store/layout.json`
 
 - Wrapper type is `page`.
-- Supplies fallback copy for header, sidebar, and profile UI sections.
+- Supplies configured copy for header, sidebar, and profile UI sections.
 - Also supplies the admin translation dictionary under `data.translations`, keyed by language code and then translation key.
-- Localized admin chrome should live under `data.translations`; fixed header/sidebar/profile strings are only fallback values when a translation key is missing.
+- Localized admin chrome should live under `data.translations`, but the direct header title/subtitle config values remain authoritative for the shell brand area.
 - This is copy configuration, not a full localization engine.
 
 `store/auth.json`

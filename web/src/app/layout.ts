@@ -35,8 +35,14 @@ export const getUserLabel = () => {
 };
 
 export const headerCopy = (): HeaderCopy => ({
-  title: adminConfiguredText(state.layoutConfig.header?.title, "layout.header.title", "Manage"),
-  subtitle: adminConfiguredText(state.layoutConfig.header?.subtitle, "layout.header.subtitle", "Stateless Admin"),
+  title:
+    typeof state.layoutConfig.header?.title === "string" && state.layoutConfig.header.title.trim() !== ""
+      ? state.layoutConfig.header.title
+      : adminText("layout.header.title", "Manage"),
+  subtitle:
+    typeof state.layoutConfig.header?.subtitle === "string" && state.layoutConfig.header.subtitle.trim() !== ""
+      ? state.layoutConfig.header.subtitle
+      : adminText("layout.header.subtitle", "Stateless Admin"),
   settingsLabel: adminConfiguredText(state.layoutConfig.header?.settingsLabel, "layout.header.settingsLabel", "Settings"),
   themeLabel: adminConfiguredText(state.layoutConfig.header?.themeLabel, "layout.header.themeLabel", "Theme"),
   createLabel: adminConfiguredText(state.layoutConfig.header?.createLabel, "layout.header.createLabel", "Create +"),
