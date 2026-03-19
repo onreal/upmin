@@ -543,6 +543,8 @@ This app already has a clear visual system. Extend it instead of replacing it.
 - Custom classes provide the real product styling: `app-surface`, `app-button`, `app-panel`, `app-muted`, `app-module-*`, `app-chat-*`, `app-landing-*`.
 - Desktop structure is top navbar + left sidebar + boxed content panel.
 - Mobile structure is top navbar + drawer/accordion navigation.
+- The current admin version belongs in the desktop footer area, to the right of footer navigation.
+- The desktop header should not show the current version; it should only surface a compact update control when an admin update is available or currently running.
 
 ### Visual Rules
 

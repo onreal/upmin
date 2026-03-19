@@ -198,6 +198,10 @@ body {
   flex: 0 0 auto;
 }
 
+#system-update-label {
+  display: none;
+}
+
 .app-nav-shortcuts {
   display: inline-flex;
   gap: var(--app-gap-sm);
@@ -226,10 +230,8 @@ body {
 .app-footer-nav {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 0.6rem;
   flex-wrap: wrap;
-  width: 100%;
   padding: 0;
   background: transparent;
   border: 0;
@@ -253,6 +255,49 @@ body {
 .app-footer-nav-link:hover,
 .app-footer-nav-link.is-active {
   color: var(--app-text);
+}
+
+.app-footer-nav-link + .app-footer-nav-link::before {
+  content: "";
+  display: inline-block;
+  width: 0.32rem;
+  height: 0.32rem;
+  margin-right: 0.6rem;
+  border-radius: 999px;
+  background: #27ae60;
+  vertical-align: middle;
+}
+
+.app-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.app-footer-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.app-footer-version-dot {
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-text) 28%, transparent);
+}
+
+.app-footer-version-dot.is-ready {
+  background: #27ae60;
 }
 
 .app-update-status-chip {
