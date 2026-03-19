@@ -654,6 +654,80 @@ var profileCopy = () => ({
 });
 
 // web/src/ui/shell.ts
+var defaultLandingCards = () => {
+  const isGreek = document.documentElement.lang.toLowerCase().startsWith("el");
+  return {
+    eyebrow: isGreek ? "\u0393\u03C1\u03AE\u03B3\u03BF\u03C1\u03B7 \u03B5\u03BA\u03BA\u03AF\u03BD\u03B7\u03C3\u03B7" : "Quick Start",
+    title: isGreek ? "\u039E\u03B5\u03BA\u03B9\u03BD\u03AE\u03C3\u03C4\u03B5 \u03B1\u03C0\u03CC \u03B5\u03B4\u03CE" : "Start here",
+    subtitle: isGreek ? "\u0394\u03B7\u03BC\u03B9\u03BF\u03C5\u03C1\u03B3\u03AE\u03C3\u03C4\u03B5 \u03C4\u03BF site, \u03C3\u03C5\u03BD\u03B4\u03AD\u03C3\u03C4\u03B5 \u03C4\u03B1 AI \u03BA\u03BB\u03B5\u03B9\u03B4\u03B9\u03AC \u03C3\u03B1\u03C2 \u03BA\u03B1\u03B9 \u03B4\u03B9\u03B1\u03C7\u03B5\u03B9\u03C1\u03B9\u03C3\u03C4\u03B5\u03AF\u03C4\u03B5 \u03CC\u03BB\u03B1 \u03C4\u03B1 snapshots \u03B1\u03C0\u03CC \u03AD\u03BD\u03B1 \u03C3\u03B7\u03BC\u03B5\u03AF\u03BF." : "Build the site, connect your AI keys, and manage every snapshot from one place.",
+    cards: [
+      {
+        action: "builder",
+        title: isGreek ? "\u039E\u03B5\u03BA\u03B9\u03BD\u03AE\u03C3\u03C4\u03B5 \u03BD\u03B1 \u03C7\u03C4\u03AF\u03B6\u03B5\u03C4\u03B5 \u03C4\u03BF website \u03C3\u03B1\u03C2" : "Start building your website now",
+        body: isGreek ? "\u0391\u03BD\u03BF\u03AF\u03BE\u03C4\u03B5 \u03C4\u03BF\u03BD builder \u03B3\u03B9\u03B1 \u03BD\u03B1 \u03C3\u03C4\u03AE\u03C3\u03B5\u03C4\u03B5 \u03C3\u03B5\u03BB\u03AF\u03B4\u03B5\u03C2, \u03B5\u03BD\u03CC\u03C4\u03B7\u03C4\u03B5\u03C2 \u03BA\u03B1\u03B9 \u03C1\u03BF\u03AD\u03C2 \u03C0\u03B5\u03C1\u03B9\u03B5\u03C7\u03BF\u03BC\u03AD\u03BD\u03BF\u03C5." : "Open the builder to shape pages, sections, and content flows.",
+        cta: isGreek ? "\u0386\u03BD\u03BF\u03B9\u03B3\u03BC\u03B1 Builder" : "Open Builder",
+        svg: `
+          <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
+            <defs>
+              <linearGradient id="builderGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#ffd166"></stop>
+                <stop offset="100%" stop-color="#f97316"></stop>
+              </linearGradient>
+            </defs>
+            <rect x="14" y="20" width="292" height="140" rx="28" fill="rgba(255,255,255,0.08)"></rect>
+            <rect x="36" y="42" width="124" height="96" rx="18" fill="url(#builderGlow)"></rect>
+            <rect x="176" y="42" width="108" height="18" rx="9" fill="rgba(255,255,255,0.78)"></rect>
+            <rect x="176" y="74" width="88" height="14" rx="7" fill="rgba(255,255,255,0.56)"></rect>
+            <rect x="176" y="100" width="64" height="14" rx="7" fill="rgba(255,255,255,0.36)"></rect>
+            <path d="M78 88h40M98 68v40" stroke="#fff7ed" stroke-width="10" stroke-linecap="round"></path>
+          </svg>
+        `
+      },
+      {
+        action: "integrations",
+        title: isGreek ? "\u03A0\u03C1\u03BF\u03C3\u03B8\u03AD\u03C3\u03C4\u03B5 \u03C4\u03B1 API Keys \u03C4\u03C9\u03BD AI \u03C3\u03B1\u03C2" : "Add your AI's API keys",
+        body: isGreek ? "\u03A3\u03C5\u03BD\u03B4\u03AD\u03C3\u03C4\u03B5 providers, \u03BC\u03BF\u03BD\u03C4\u03AD\u03BB\u03B1 \u03BA\u03B1\u03B9 \u03BC\u03C5\u03C3\u03C4\u03B9\u03BA\u03AC \u03CE\u03C3\u03C4\u03B5 \u03BF\u03B9 agents \u03BA\u03B1\u03B9 \u03C4\u03B1 \u03B5\u03C1\u03B3\u03B1\u03BB\u03B5\u03AF\u03B1 \u03BD\u03B1 \u03B4\u03BF\u03C5\u03BB\u03B5\u03CD\u03BF\u03C5\u03BD \u03C3\u03C9\u03C3\u03C4\u03AC." : "Connect providers, models, and secrets so your agents and tools can work.",
+        cta: isGreek ? "\u0386\u03BD\u03BF\u03B9\u03B3\u03BC\u03B1 Integrations" : "Open Integrations",
+        svg: `
+          <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
+            <defs>
+              <linearGradient id="integrationGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#7dd3fc"></stop>
+                <stop offset="100%" stop-color="#0ea5e9"></stop>
+              </linearGradient>
+            </defs>
+            <circle cx="82" cy="90" r="44" fill="url(#integrationGlow)"></circle>
+            <circle cx="236" cy="64" r="26" fill="rgba(255,255,255,0.78)"></circle>
+            <circle cx="236" cy="118" r="26" fill="rgba(255,255,255,0.38)"></circle>
+            <path d="M116 90h84M236 64v54" stroke="rgba(255,255,255,0.82)" stroke-width="12" stroke-linecap="round"></path>
+            <path d="M65 90l12 12 22-26" stroke="#082f49" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        `
+      },
+      {
+        action: "creations",
+        title: isGreek ? "\u0394\u03B9\u03B1\u03C7\u03B5\u03B9\u03C1\u03B9\u03C3\u03C4\u03B5\u03AF\u03C4\u03B5 \u03C4\u03B1 creations \u03C3\u03B1\u03C2" : "Manage your creations",
+        body: isGreek ? "\u0394\u03B5\u03AF\u03C4\u03B5 snapshots, exports \u03BA\u03B1\u03B9 backups \u03B3\u03B9\u03B1 \u03BD\u03B1 \u03C0\u03B1\u03C1\u03B1\u03BA\u03BF\u03BB\u03BF\u03C5\u03B8\u03B5\u03AF\u03C4\u03B5 \u03BA\u03AC\u03B8\u03B5 \u03B4\u03B7\u03BC\u03BF\u03C3\u03AF\u03B5\u03C5\u03C3\u03B7." : "Review snapshots, exports, and backups to track every publish.",
+        cta: isGreek ? "\u0386\u03BD\u03BF\u03B9\u03B3\u03BC\u03B1 Creations" : "Open Creations",
+        svg: `
+          <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
+            <defs>
+              <linearGradient id="creationGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#86efac"></stop>
+                <stop offset="100%" stop-color="#22c55e"></stop>
+              </linearGradient>
+            </defs>
+            <rect x="32" y="28" width="92" height="124" rx="22" fill="rgba(255,255,255,0.18)"></rect>
+            <rect x="114" y="50" width="92" height="102" rx="22" fill="rgba(255,255,255,0.3)"></rect>
+            <rect x="196" y="20" width="92" height="132" rx="22" fill="url(#creationGlow)"></rect>
+            <path d="M224 56h36M224 82h36M224 108h22" stroke="#052e16" stroke-width="10" stroke-linecap="round"></path>
+            <circle cx="248" cy="131" r="12" fill="#052e16"></circle>
+          </svg>
+        `
+      }
+    ]
+  };
+};
 var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
   const app = document.getElementById("app");
   if (!app) {
@@ -661,6 +735,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
   }
   const header = headerCopy();
   const sidebar = sidebarCopy();
+  const landing = defaultLandingCards();
   const createIcon = `
     <span class="icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
@@ -1039,7 +1114,27 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
           </aside>
           <div class="column">
             <div id="content" class="box app-surface">
-              <p class="app-muted">\u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03BC\u03B9\u03B1 \u03B5\u03BD\u03CC\u03C4\u03B7\u03C4\u03B1.</p>
+              <section class="app-landing-shell">
+                <div class="app-landing-header">
+                  <p class="app-landing-eyebrow">${landing.eyebrow}</p>
+                  <h1 class="title is-3">${landing.title}</h1>
+                  <p class="app-muted app-landing-subtitle">${landing.subtitle}</p>
+                </div>
+                <div class="app-landing-grid">
+                  ${landing.cards.map(
+    (card) => `
+                        <button class="app-landing-card" type="button" data-shell-action="${card.action}">
+                          <div class="app-landing-card-art">${card.svg}</div>
+                          <div class="app-landing-card-copy">
+                            <h2 class="title is-5">${card.title}</h2>
+                            <p class="app-muted">${card.body}</p>
+                            <span class="app-landing-card-link">${card.cta}</span>
+                          </div>
+                        </button>
+                      `
+  ).join("")}
+                </div>
+              </section>
             </div>
           </div>
         </div>
@@ -1747,6 +1842,7 @@ var initShellEvents = ({
   onShowProfile,
   onShowModules,
   onShowIntegrations,
+  onShowCreations,
   onShowLogs,
   onShowForms,
   onExportAll,
@@ -1837,6 +1933,7 @@ var initShellEvents = ({
   bindAction("profile", onShowProfile);
   bindAction("modules", onShowModules);
   bindAction("integrations", onShowIntegrations);
+  bindAction("creations", onShowCreations);
   bindAction("logs", onShowLogs);
   bindAction("forms", onShowForms);
   bindAction("export", onExportAll);
@@ -8268,14 +8365,18 @@ var exportAll = async () => {
   }
 };
 var openWebsiteBuilder = async () => {
-  const builderPage = state.navigationPages.find(
-    (page) => page.store === "private" && page.path === "website-build.json" && page.documentId
-  );
-  if (!builderPage?.documentId) {
-    pushNotice("error", "Website Builder page not found.");
+  await openPrivateDocument("website-build.json", "Website Builder page not found.");
+};
+var openPrivateDocument = async (path, errorMessage) => {
+  const page = state.navigationPages.find((entry) => entry.store === "private" && entry.path === path && entry.documentId);
+  if (!page?.documentId) {
+    pushNotice("error", errorMessage);
     return;
   }
-  await loadDocument(builderPage.documentId);
+  await loadDocument(page.documentId);
+};
+var openCreationsPage = async () => {
+  await openPrivateDocument("creations.json", "Creations page not found.");
 };
 var renderApp = async () => {
   const app = document.getElementById("app");
@@ -8341,6 +8442,9 @@ var renderApp = async () => {
     },
     onShowModules: showModulesView,
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
+    onShowCreations: () => {
+      void openCreationsPage();
+    },
     onShowLogs: () => {
       void showLogsView();
     },

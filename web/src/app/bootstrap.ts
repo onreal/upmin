@@ -136,16 +136,22 @@ const exportAll = async () => {
 };
 
 const openWebsiteBuilder = async () => {
-  const builderPage = state.navigationPages.find(
-    (page) => page.store === "private" && page.path === "website-build.json" && page.documentId
-  );
+  await openPrivateDocument("website-build.json", "Website Builder page not found.");
+};
 
-  if (!builderPage?.documentId) {
-    pushNotice("error", "Website Builder page not found.");
+const openPrivateDocument = async (path: string, errorMessage: string) => {
+  const page = state.navigationPages.find((entry) => entry.store === "private" && entry.path === path && entry.documentId);
+
+  if (!page?.documentId) {
+    pushNotice("error", errorMessage);
     return;
   }
 
-  await loadDocument(builderPage.documentId);
+  await loadDocument(page.documentId);
+};
+
+const openCreationsPage = async () => {
+  await openPrivateDocument("creations.json", "Creations page not found.");
 };
 
 const renderApp = async () => {
@@ -226,6 +232,9 @@ const renderApp = async () => {
     },
     onShowModules: showModulesView,
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),
+    onShowCreations: () => {
+      void openCreationsPage();
+    },
     onShowLogs: () => {
       void showLogsView();
     },

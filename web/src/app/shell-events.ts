@@ -7,6 +7,7 @@ export type ShellEventHandlers = {
   onShowProfile: () => void;
   onShowModules: () => void;
   onShowIntegrations: () => void;
+  onShowCreations: () => void;
   onShowLogs: () => void;
   onShowForms: () => void;
   onExportAll: () => void;
@@ -21,6 +22,7 @@ export const initShellEvents = ({
   onShowProfile,
   onShowModules,
   onShowIntegrations,
+  onShowCreations,
   onShowLogs,
   onShowForms,
   onExportAll,
@@ -124,6 +126,7 @@ export const initShellEvents = ({
   bindAction("profile", onShowProfile);
   bindAction("modules", onShowModules);
   bindAction("integrations", onShowIntegrations);
+  bindAction("creations", onShowCreations);
   bindAction("logs", onShowLogs);
   bindAction("forms", onShowForms);
   bindAction("export", onExportAll);

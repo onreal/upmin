@@ -108,6 +108,96 @@
   color: var(--app-text);
 }
 
+.app-landing-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.app-landing-header {
+  max-width: 42rem;
+}
+
+.app-landing-eyebrow {
+  margin: 0 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+.app-landing-subtitle {
+  max-width: 36rem;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.app-landing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.app-landing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 1.4rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--app-accent) 18%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 92%, white 8%), var(--app-surface));
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.app-landing-card:hover,
+.app-landing-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--app-accent) 40%, var(--app-border));
+  box-shadow: var(--app-shadow);
+  outline: none;
+}
+
+.app-landing-card-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 11rem;
+  border-radius: 1.1rem;
+  background: linear-gradient(135deg, rgb(10 15 22 / 0.92), rgb(25 34 48 / 0.88));
+  overflow: hidden;
+}
+
+.app-landing-card-art svg {
+  width: 100%;
+  height: auto;
+}
+
+.app-landing-card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.app-landing-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  color: var(--app-accent);
+}
+
+.app-landing-card-link::after {
+  content: "->";
+  font-size: 0.95rem;
+}
+
 .menu-label {
   color: var(--app-muted);
   letter-spacing: 0.08em;
@@ -147,6 +237,10 @@
 }
 
 @media screen and (max-width: 1023px) {
+  .app-landing-grid {
+    grid-template-columns: 1fr;
+  }
+
   body.app-mobile-drawer-open {
     overflow: hidden;
   }

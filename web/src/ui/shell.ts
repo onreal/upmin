@@ -5,6 +5,90 @@ export type ShellContext = {
   moduleChecklistHtml: (selected?: string[]) => string;
 };
 
+const defaultLandingCards = () => {
+  const isGreek = document.documentElement.lang.toLowerCase().startsWith("el");
+
+  return {
+    eyebrow: isGreek ? "Γρήγορη εκκίνηση" : "Quick Start",
+    title: isGreek ? "Ξεκινήστε από εδώ" : "Start here",
+    subtitle: isGreek
+      ? "Δημιουργήστε το site, συνδέστε τα AI κλειδιά σας και διαχειριστείτε όλα τα snapshots από ένα σημείο."
+      : "Build the site, connect your AI keys, and manage every snapshot from one place.",
+    cards: [
+      {
+        action: "builder",
+        title: isGreek ? "Ξεκινήστε να χτίζετε το website σας" : "Start building your website now",
+        body: isGreek
+          ? "Ανοίξτε τον builder για να στήσετε σελίδες, ενότητες και ροές περιεχομένου."
+          : "Open the builder to shape pages, sections, and content flows.",
+        cta: isGreek ? "Άνοιγμα Builder" : "Open Builder",
+        svg: `
+          <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
+            <defs>
+              <linearGradient id="builderGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#ffd166"></stop>
+                <stop offset="100%" stop-color="#f97316"></stop>
+              </linearGradient>
+            </defs>
+            <rect x="14" y="20" width="292" height="140" rx="28" fill="rgba(255,255,255,0.08)"></rect>
+            <rect x="36" y="42" width="124" height="96" rx="18" fill="url(#builderGlow)"></rect>
+            <rect x="176" y="42" width="108" height="18" rx="9" fill="rgba(255,255,255,0.78)"></rect>
+            <rect x="176" y="74" width="88" height="14" rx="7" fill="rgba(255,255,255,0.56)"></rect>
+            <rect x="176" y="100" width="64" height="14" rx="7" fill="rgba(255,255,255,0.36)"></rect>
+            <path d="M78 88h40M98 68v40" stroke="#fff7ed" stroke-width="10" stroke-linecap="round"></path>
+          </svg>
+        `,
+      },
+      {
+        action: "integrations",
+        title: isGreek ? "Προσθέστε τα API Keys των AI σας" : "Add your AI's API keys",
+        body: isGreek
+          ? "Συνδέστε providers, μοντέλα και μυστικά ώστε οι agents και τα εργαλεία να δουλεύουν σωστά."
+          : "Connect providers, models, and secrets so your agents and tools can work.",
+        cta: isGreek ? "Άνοιγμα Integrations" : "Open Integrations",
+        svg: `
+          <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
+            <defs>
+              <linearGradient id="integrationGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#7dd3fc"></stop>
+                <stop offset="100%" stop-color="#0ea5e9"></stop>
+              </linearGradient>
+            </defs>
+            <circle cx="82" cy="90" r="44" fill="url(#integrationGlow)"></circle>
+            <circle cx="236" cy="64" r="26" fill="rgba(255,255,255,0.78)"></circle>
+            <circle cx="236" cy="118" r="26" fill="rgba(255,255,255,0.38)"></circle>
+            <path d="M116 90h84M236 64v54" stroke="rgba(255,255,255,0.82)" stroke-width="12" stroke-linecap="round"></path>
+            <path d="M65 90l12 12 22-26" stroke="#082f49" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        `,
+      },
+      {
+        action: "creations",
+        title: isGreek ? "Διαχειριστείτε τα creations σας" : "Manage your creations",
+        body: isGreek
+          ? "Δείτε snapshots, exports και backups για να παρακολουθείτε κάθε δημοσίευση."
+          : "Review snapshots, exports, and backups to track every publish.",
+        cta: isGreek ? "Άνοιγμα Creations" : "Open Creations",
+        svg: `
+          <svg viewBox="0 0 320 180" role="presentation" aria-hidden="true">
+            <defs>
+              <linearGradient id="creationGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#86efac"></stop>
+                <stop offset="100%" stop-color="#22c55e"></stop>
+              </linearGradient>
+            </defs>
+            <rect x="32" y="28" width="92" height="124" rx="22" fill="rgba(255,255,255,0.18)"></rect>
+            <rect x="114" y="50" width="92" height="102" rx="22" fill="rgba(255,255,255,0.3)"></rect>
+            <rect x="196" y="20" width="92" height="132" rx="22" fill="url(#creationGlow)"></rect>
+            <path d="M224 56h36M224 82h36M224 108h22" stroke="#052e16" stroke-width="10" stroke-linecap="round"></path>
+            <circle cx="248" cy="131" r="12" fill="#052e16"></circle>
+          </svg>
+        `,
+      },
+    ],
+  };
+};
+
 export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
   const app = document.getElementById("app");
   if (!app) {
@@ -13,6 +97,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
 
   const header = headerCopy();
   const sidebar = sidebarCopy();
+  const landing = defaultLandingCards();
   const createIcon = `
     <span class="icon" aria-hidden="true">
       <svg viewBox="0 0 20 20" width="16" height="16" focusable="false" aria-hidden="true">
@@ -392,7 +477,29 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
           </aside>
           <div class="column">
             <div id="content" class="box app-surface">
-              <p class="app-muted">Επιλέξτε μια ενότητα.</p>
+              <section class="app-landing-shell">
+                <div class="app-landing-header">
+                  <p class="app-landing-eyebrow">${landing.eyebrow}</p>
+                  <h1 class="title is-3">${landing.title}</h1>
+                  <p class="app-muted app-landing-subtitle">${landing.subtitle}</p>
+                </div>
+                <div class="app-landing-grid">
+                  ${landing.cards
+                    .map(
+                      (card) => `
+                        <button class="app-landing-card" type="button" data-shell-action="${card.action}">
+                          <div class="app-landing-card-art">${card.svg}</div>
+                          <div class="app-landing-card-copy">
+                            <h2 class="title is-5">${card.title}</h2>
+                            <p class="app-muted">${card.body}</p>
+                            <span class="app-landing-card-link">${card.cta}</span>
+                          </div>
+                        </button>
+                      `
+                    )
+                    .join("")}
+                </div>
+              </section>
             </div>
           </div>
         </div>
