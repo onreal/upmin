@@ -923,7 +923,7 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
   app.innerHTML = `
     <nav class="navbar app-surface is-spaced" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
       <div class="navbar-brand">
-        <a class="navbar-item">
+        <a class="navbar-item" href="./" aria-label="${adminText("navigation.home", "Go to home")}">
           <span class="title is-5 mb-0">${header.title}</span>
         </a>
         <a
