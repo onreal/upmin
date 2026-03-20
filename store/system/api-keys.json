@@ -1,0 +1,11 @@
+{
+    "type": "page",
+    "page": "api-keys",
+    "name": "API Keys",
+    "data": [],
+    "id": "0b4fd1f8-20f0-4239-bd98-ad1e2de29bf1",
+    "section": false,
+    "position": "system",
+    "order": 5,
+    "update_deploy": true
+}
