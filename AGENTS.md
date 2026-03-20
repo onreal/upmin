@@ -309,6 +309,13 @@ Important rules:
 - The app creates some system pages automatically, for example configuration/auth/build pages, creations pages, and generated form-submission stores.
 - Admin updater deploy filtering also keys off wrapper `position: "system"` for deployable system JSON pages.
 
+`update_deploy`
+
+- Optional wrapper-level boolean used by the admin updater deploy scanner.
+- A private JSON page is considered deployable system content only when both `position: "system"` and `update_deploy: true` are present.
+- Without `update_deploy: true`, system pages are ignored by the updater's deployable system-page replacement step.
+- Treat this as an explicit opt-in for updater-managed private system pages.
+
 `position_view`
 
 - Wrapper-level `position_view` is optional.
@@ -390,6 +397,23 @@ Important rules:
 - Wrapper position is `system`.
 - `data.users` is the login user list.
 - Each user record includes fields like `uuid`, `firstname`, `lastname`, `email`, `password`, `roles`.
+- Users may also include `apiKeys`, which is the per-user delegated-login credential list.
+- `apiKeys` entries are typed auth records, not free-form JSON. Expected fields are `id`, `name`, `keyHash`, `keyPrefix`, `expiry`, `createdAt`, and optional `lastUsedAt`.
+- Never persist raw per-user API keys in `auth.json`. Raw keys are shown only once at creation time; afterwards only the hash and display prefix remain stored.
+- Per-user delegated-login API keys are not the same thing as the env-level admin `X-API-KEY`. Do not mix these auth systems or reuse one for the other.
+
+### Delegated Login Business Rules
+
+- Delegated login is a two-step flow:
+  1. an external system submits a user-owned API key to request a one-time login grant
+  2. the browser exchanges that short-lived grant for the normal admin bearer token
+- The browser must never authenticate admin requests directly with the long-lived per-user API key.
+- Per-user API keys exist only for requesting delegated-login grants.
+- Delegated-login grants must be one-time and short-lived. They are invalid after first successful exchange or expiry.
+- Grant request and exchange live on the public auth route set, but API key management endpoints are bearer-token admin endpoints scoped to the current signed-in user only.
+- API key management belongs to the dedicated private system page `store/system/api-keys.json`, opened from the profile dropdown. Do not fold this behavior into the profile editor document.
+- The API Keys page lists, creates, and revokes keys only for the current authenticated user UUID.
+- If delegated login behavior changes, update both the written security rules here and the typed PHP auth models/store logic in the same task.
 
 `store/creations.json`
 
@@ -629,6 +653,7 @@ This app already has a clear visual system. Extend it instead of replacing it.
 ### Visual Rules
 
 - Reuse existing spacing, radius, border, and color tokens.
+- Keep all non-zero UI radii in the 4px to 8px range. Do not introduce larger card, pill, chip, or tooltip radii.
 - Preserve the restrained neutral surface style with accent highlights.
 - Keep landing cards, settings panels, and chat panels visually consistent with current custom CSS.
 - Prefer extending the existing CSS files over adding one-off inline styles.

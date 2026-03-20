@@ -45,7 +45,7 @@ body.app-build-mode .section > .container > .columns > .column {
   min-height: 36px;
   padding: 0.45rem 0.75rem;
   gap: 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   color: var(--app-muted);
   background: color-mix(in srgb, var(--app-surface) 88%, var(--app-text) 12%);
   border-color: color-mix(in srgb, var(--app-border) 85%, transparent);
@@ -100,7 +100,7 @@ body.app-build-mode .section > .container > .columns > .column {
   min-width: 220px;
   max-width: 280px;
   padding: 0.55rem 0.7rem;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-text) 92%, #000 8%);
   color: var(--app-surface);
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
@@ -220,7 +220,7 @@ body.app-build-mode .section > .container > .columns > .column {
 .app-build-spinner {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--app-radius-lg);
   border: 3px solid color-mix(in srgb, var(--app-accent) 20%, transparent);
   border-top-color: var(--app-accent);
   animation: app-build-spin 1s linear infinite;

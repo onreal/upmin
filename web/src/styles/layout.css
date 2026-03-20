@@ -4,6 +4,11 @@
   border-bottom: 1px solid var(--app-border);
 }
 
+.navbar.app-surface > .container {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
 .navbar.app-surface .navbar-item,
 .navbar.app-surface .navbar-link {
   color: var(--app-text);
@@ -19,7 +24,6 @@
 
 .navbar.app-surface .navbar-menu {
   background: var(--app-surface);
-  border-top: 1px solid var(--app-border);
 }
 
 .app-nav-actions {
@@ -110,7 +114,7 @@
   width: 0.32rem;
   height: 0.32rem;
   margin-right: 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: #27ae60;
   vertical-align: middle;
 }
@@ -139,7 +143,7 @@
 .app-footer-version-dot {
   width: 0.32rem;
   height: 0.32rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-text) 28%, transparent);
 }
 
@@ -153,7 +157,7 @@
   min-height: 2.5rem;
   padding: 0 0.8rem;
   border: 1px solid var(--app-border);
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%);
   color: var(--app-text);
   font-size: 0.84rem;
@@ -256,7 +260,7 @@
   width: 100%;
   padding: 1.1rem;
   border: 1px solid var(--app-border);
-  border-radius: 1.4rem;
+  border-radius: var(--app-radius-lg);
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--app-accent) 18%, transparent), transparent 42%),
     linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 92%, white 8%), var(--app-surface));
@@ -279,7 +283,7 @@
   align-items: center;
   justify-content: center;
   min-height: 11rem;
-  border-radius: 1.1rem;
+  border-radius: var(--app-radius-lg);
   background: linear-gradient(135deg, rgb(10 15 22 / 0.92), rgb(25 34 48 / 0.88));
   overflow: hidden;
 }

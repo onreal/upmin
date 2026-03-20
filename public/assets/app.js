@@ -268,7 +268,7 @@ var init_client = __esm({
 });
 
 // web/src/api/auth.ts
-var loginWithApiKey, loginWithPassword;
+var loginWithApiKey, loginWithPassword, requestDelegatedLoginGrant, exchangeDelegatedLoginGrant, listUserApiKeys, createUserApiKey, deleteUserApiKey;
 var init_auth = __esm({
   "web/src/api/auth.ts"() {
     "use strict";
@@ -289,6 +289,34 @@ var init_auth = __esm({
       },
       null
     );
+    requestDelegatedLoginGrant = (apiKey) => request(
+      "/api/auth/delegated-login/request",
+      {
+        method: "POST",
+        body: JSON.stringify({ apiKey })
+      },
+      null,
+      { notify: false }
+    );
+    exchangeDelegatedLoginGrant = (grant) => request(
+      "/api/auth/delegated-login/exchange",
+      {
+        method: "POST",
+        body: JSON.stringify({ grant })
+      },
+      null,
+      { notify: false }
+    );
+    listUserApiKeys = (auth) => request("/api/auth/api-keys", { method: "GET" }, auth, { notify: false });
+    createUserApiKey = (auth, payload) => request(
+      "/api/auth/api-keys",
+      {
+        method: "POST",
+        body: JSON.stringify(payload)
+      },
+      auth
+    );
+    deleteUserApiKey = (auth, id) => request(`/api/auth/api-keys/${encodeURIComponent(id)}`, { method: "DELETE" }, auth);
   }
 });
 
@@ -576,12 +604,15 @@ __export(api_exports, {
   createAgentConversation: () => createAgentConversation,
   createCreationSnapshot: () => createCreationSnapshot,
   createDocument: () => createDocument,
+  createUserApiKey: () => createUserApiKey,
   deleteChatConversation: () => deleteChatConversation,
   deleteCreationSnapshot: () => deleteCreationSnapshot,
   deleteModuleFile: () => deleteModuleFile,
+  deleteUserApiKey: () => deleteUserApiKey,
   downloadArchive: () => downloadArchive,
   downloadCreationSnapshot: () => downloadCreationSnapshot,
   downloadDocument: () => downloadDocument,
+  exchangeDelegatedLoginGrant: () => exchangeDelegatedLoginGrant,
   fetchAgent: () => fetchAgent,
   fetchAgentConversation: () => fetchAgentConversation,
   fetchAgentConversations: () => fetchAgentConversations,
@@ -601,6 +632,7 @@ __export(api_exports, {
   fetchRealtimeTicket: () => fetchRealtimeTicket,
   fetchSystemUpdate: () => fetchSystemUpdate,
   fetchUiConfig: () => fetchUiConfig,
+  listUserApiKeys: () => listUserApiKeys,
   loadAuth: () => loadAuth,
   loginWithApiKey: () => loginWithApiKey,
   loginWithPassword: () => loginWithPassword,
@@ -608,6 +640,7 @@ __export(api_exports, {
   request: () => request,
   requestAsset: () => requestAsset,
   requestBlob: () => requestBlob,
+  requestDelegatedLoginGrant: () => requestDelegatedLoginGrant,
   requestForm: () => requestForm,
   restoreCreationSnapshot: () => restoreCreationSnapshot,
   runSystemUpdate: () => runSystemUpdate,
@@ -921,106 +954,108 @@ var renderAppShell = ({ moduleChecklistHtml: moduleChecklistHtml2 }) => {
     </span>
   `;
   app.innerHTML = `
-    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
-      <div class="navbar-brand">
-        <a class="navbar-item" href="./" aria-label="${adminText("navigation.home", "Go to home")}">
-          <span class="title is-5 mb-0">${header.title}</span>
-        </a>
-        <a
-          role="button"
-          class="navbar-burger"
-          aria-label="${adminText("navigation.open", "Open navigation")}"
-          aria-expanded="false"
-          aria-controls="mobileNavDrawer"
-        >
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-        </a>
-      </div>
-      <div id="adminNavbar" class="navbar-menu">
-        <div class="navbar-start">
-          <div class="navbar-item app-muted">${header.subtitle}</div>
+    <nav class="navbar app-surface" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
+      <div class="container">
+        <div class="navbar-brand">
+          <a class="navbar-item" href="./" aria-label="${adminText("navigation.home", "Go to home")}">
+            <span class="title is-5 mb-0">${header.title}</span>
+          </a>
+          <a
+            role="button"
+            class="navbar-burger"
+            aria-label="${adminText("navigation.open", "Open navigation")}"
+            aria-expanded="false"
+            aria-controls="mobileNavDrawer"
+          >
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </a>
         </div>
-        <div class="navbar-end">
-          <div class="navbar-item">
-            <div class="app-nav-actions">
-              <button
-                id="create-action"
-                class="button app-button app-primary app-icon-button"
-                data-shell-action="create"
-                aria-label="${header.createLabel}"
-                title="${header.createLabel}"
-              >
-                ${createIcon}
-              </button>
-              <button
-                class="button app-button app-ghost"
-                type="button"
-                data-shell-action="builder"
-              >
-                ${builderIcon}
-                <span>${builderLabel}</span>
-              </button>
-              <div id="nav-header-links" class="app-nav-shortcuts"></div>
-              <button
-                id="system-update-action"
-                class="button app-button app-ghost app-icon-button is-hidden"
-                type="button"
-                data-shell-action="system-update"
-                aria-label="${updateLabel}"
-                title="${updateLabel}"
-              >
-                ${updateIcon}
-                <span id="system-update-label">${updateLabel}</span>
-              </button>
-              <button
-                id="export-zip-header"
-                class="button app-button app-ghost"
-                data-shell-action="export"
-                aria-label="${downloadContentLabel}"
-                title="${downloadContentLabel}"
-              >
-                ${downloadIcon}
-              </button>
-              <button
-                id="theme-toggle"
-                class="button app-button app-ghost"
-                data-shell-action="theme"
-                aria-label="${header.themeLabel}"
-                title="${header.themeLabel}"
-              >
-                ${themeIcon}
-              </button>
-            </div>
+        <div id="adminNavbar" class="navbar-menu">
+          <div class="navbar-start">
+            <div class="navbar-item app-muted">${header.subtitle}</div>
           </div>
-          <div class="navbar-item has-dropdown" id="private-dropdown">
-            <a class="navbar-link">${header.settingsLabel}</a>
-            <div class="navbar-dropdown">
-              <a class="navbar-item" id="modules-link" data-shell-action="modules">${modulesLabel}</a>
-              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
-              <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
-              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
-              <div id="nav-settings-pages"></div>
-              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
-              <hr class="navbar-divider" />
-              <div id="nav-system-pages"></div>
+          <div class="navbar-end">
+            <div class="navbar-item">
+              <div class="app-nav-actions">
+                <button
+                  id="create-action"
+                  class="button app-button app-primary app-icon-button"
+                  data-shell-action="create"
+                  aria-label="${header.createLabel}"
+                  title="${header.createLabel}"
+                >
+                  ${createIcon}
+                </button>
+                <button
+                  class="button app-button app-ghost"
+                  type="button"
+                  data-shell-action="builder"
+                >
+                  ${builderIcon}
+                  <span>${builderLabel}</span>
+                </button>
+                <div id="nav-header-links" class="app-nav-shortcuts"></div>
+                <button
+                  id="system-update-action"
+                  class="button app-button app-ghost app-icon-button is-hidden"
+                  type="button"
+                  data-shell-action="system-update"
+                  aria-label="${updateLabel}"
+                  title="${updateLabel}"
+                >
+                  ${updateIcon}
+                  <span id="system-update-label">${updateLabel}</span>
+                </button>
+                <button
+                  id="export-zip-header"
+                  class="button app-button app-ghost"
+                  data-shell-action="export"
+                  aria-label="${downloadContentLabel}"
+                  title="${downloadContentLabel}"
+                >
+                  ${downloadIcon}
+                </button>
+                <button
+                  id="theme-toggle"
+                  class="button app-button app-ghost"
+                  data-shell-action="theme"
+                  aria-label="${header.themeLabel}"
+                  title="${header.themeLabel}"
+                >
+                  ${themeIcon}
+                </button>
+              </div>
             </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="agents-dropdown">
-            <a class="navbar-link">${agentsLabel}</a>
-            <div class="navbar-dropdown">
-              <div id="nav-agents"></div>
-              <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">${createAgentLabel}</a>
+            <div class="navbar-item has-dropdown" id="private-dropdown">
+              <a class="navbar-link">${header.settingsLabel}</a>
+              <div class="navbar-dropdown">
+                <a class="navbar-item" id="modules-link" data-shell-action="modules">${modulesLabel}</a>
+                <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
+                <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
+                <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
+                <div id="nav-settings-pages"></div>
+                <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
+                <hr class="navbar-divider" />
+                <div id="nav-system-pages"></div>
+              </div>
             </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="user-dropdown">
-            <a class="navbar-link" id="user-label">${getUserLabel()}</a>
-            <div class="navbar-dropdown">
-              <a class="navbar-item" id="profile-link" data-shell-action="profile">${header.profileLabel}</a>
-              <hr class="navbar-divider" />
-              <a class="navbar-item" id="logout" data-shell-action="logout">${header.logoutLabel}</a>
+            <div class="navbar-item has-dropdown" id="agents-dropdown">
+              <a class="navbar-link">${agentsLabel}</a>
+              <div class="navbar-dropdown">
+                <div id="nav-agents"></div>
+                <hr class="navbar-divider" />
+                <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">${createAgentLabel}</a>
+              </div>
+            </div>
+            <div class="navbar-item has-dropdown" id="user-dropdown">
+              <a class="navbar-link" id="user-label">${getUserLabel()}</a>
+              <div class="navbar-dropdown">
+                <a class="navbar-item" id="profile-link" data-shell-action="profile">${header.profileLabel}</a>
+                <hr class="navbar-divider" />
+                <a class="navbar-item" id="logout" data-shell-action="logout">${header.logoutLabel}</a>
+              </div>
             </div>
           </div>
         </div>
@@ -1974,6 +2009,7 @@ var MOBILE_DRAWER_CLOSE_EVENT = "app:mobile-drawer-close";
 var initShellEvents = ({
   onLogout,
   onShowProfile,
+  onShowApiKeys,
   onShowModules,
   onShowIntegrations,
   onShowCreations,
@@ -2065,6 +2101,7 @@ var initShellEvents = ({
   };
   bindAction("logout", onLogout);
   bindAction("profile", onShowProfile);
+  bindAction("api-keys", onShowApiKeys);
   bindAction("modules", onShowModules);
   bindAction("integrations", onShowIntegrations);
   bindAction("creations", onShowCreations);
@@ -7493,6 +7530,185 @@ var ensureModuleSettingsDocument = async (auth, payload, module, cache) => {
   }
 };
 
+// web/src/features/auth/api-keys.ts
+init_api();
+init_translations();
+
+// web/src/views/api-keys.ts
+init_translations();
+var escapeHtml3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var formatDate = (value) => {
+  if (!value) {
+    return adminText("common.unknownTime", "Unknown time");
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
+var copyIcon = `
+  <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+    <path d="M15 9V7a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path>
+  </svg>
+`;
+var renderApiKeysView = ({ content, keys, rawKey, onCreate, onDelete }) => {
+  if (!content) {
+    return;
+  }
+  const rows = keys.length ? keys.map(
+    (key) => `
+            <tr>
+              <td data-label="${adminText("apiKeys.name", "Name")}">${escapeHtml3(key.name)}</td>
+              <td data-label="${adminText("apiKeys.prefix", "Prefix")}"><code class="app-api-keys-code">${escapeHtml3(key.keyPrefix)}</code></td>
+              <td data-label="${adminText("apiKeys.expiry", "Expiry")}">${escapeHtml3(formatDate(key.expiry))}</td>
+              <td data-label="${adminText("apiKeys.lastUsedAt", "Last used")}">${escapeHtml3(formatDate(key.lastUsedAt))}</td>
+              <td data-label="${adminText("common.delete", "Delete")}" class="app-api-keys-actions-cell">
+                <button class="button app-button app-danger is-small" data-api-key-delete="${escapeHtml3(key.id)}">
+                  ${adminText("common.delete", "Delete")}
+                </button>
+              </td>
+            </tr>
+          `
+  ).join("") : `<tr><td colspan="5" class="app-muted">${adminText("apiKeys.none", "No API keys yet.")}</td></tr>`;
+  const rawKeyNotice = rawKey ? `
+      <div class="app-api-keys-secret">
+        <strong class="app-api-keys-secret-title">${adminText("apiKeys.rawKeyTitle", "Copy this key now.")}</strong>
+        <p class="app-muted">${adminText("apiKeys.rawKeyHelp", "The full key is shown only once and cannot be recovered later.")}</p>
+        <div class="app-api-keys-secret-row">
+          <code id="api-key-raw-value" class="app-api-keys-secret-value">${escapeHtml3(rawKey)}</code>
+          <button
+            id="api-key-copy"
+            class="button app-button app-ghost app-icon-button app-api-keys-copy"
+            type="button"
+            aria-label="${adminText("common.copy", "Copy")}"
+            title="${adminText("common.copy", "Copy")}"
+          >
+            ${copyIcon}
+          </button>
+        </div>
+      </div>
+    ` : "";
+  content.innerHTML = `
+    <section class="app-panel app-api-keys">
+      <div class="app-panel-header app-api-keys-header">
+        <div>
+          <h1 class="title is-4">${adminText("apiKeys.title", "API Keys")}</h1>
+          <p class="app-muted">${adminText("apiKeys.subtitle", "Create and revoke delegated login keys for your user account.")}</p>
+        </div>
+      </div>
+      ${rawKeyNotice}
+      <div class="app-api-keys-create">
+        <div class="app-api-keys-grid">
+          <div class="field">
+            <label class="label">${adminText("apiKeys.name", "Name")}</label>
+            <div class="control">
+              <input id="api-key-name" class="input" type="text" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">${adminText("apiKeys.expiry", "Expiry")}</label>
+            <div class="control">
+              <input id="api-key-expiry" class="input" type="datetime-local" />
+            </div>
+          </div>
+        </div>
+        <div class="app-api-keys-create-actions">
+          <button id="api-key-create" class="button app-button app-primary">${adminText("apiKeys.create", "Create API key")}</button>
+        </div>
+      </div>
+      <div class="app-api-keys-table-wrap">
+        <table class="table is-fullwidth app-api-keys-table">
+          <thead>
+            <tr>
+              <th>${adminText("apiKeys.name", "Name")}</th>
+              <th>${adminText("apiKeys.prefix", "Prefix")}</th>
+              <th>${adminText("apiKeys.expiry", "Expiry")}</th>
+              <th>${adminText("apiKeys.lastUsedAt", "Last used")}</th>
+              <th>${adminText("common.delete", "Delete")}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+  document.getElementById("api-key-create")?.addEventListener("click", () => {
+    const name = document.getElementById("api-key-name")?.value.trim() ?? "";
+    const expiryValue = document.getElementById("api-key-expiry")?.value ?? "";
+    if (!name || !expiryValue) {
+      return;
+    }
+    const expiry = new Date(expiryValue);
+    void onCreate(name, Number.isNaN(expiry.getTime()) ? expiryValue : expiry.toISOString());
+  });
+  content.querySelectorAll("[data-api-key-delete]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.getAttribute("data-api-key-delete") || "";
+      if (!id) {
+        return;
+      }
+      if (!window.confirm(adminText("apiKeys.confirmDelete", "Delete this API key?"))) {
+        return;
+      }
+      void onDelete(id);
+    });
+  });
+};
+
+// web/src/features/auth/api-keys.ts
+var isApiKeysDocument = (doc) => doc.store === "private" && doc.path === "system/api-keys.json";
+var renderApiKeysPage = async () => {
+  const content = document.getElementById("content");
+  if (!content) {
+    return;
+  }
+  clearAgentState();
+  clearRegisteredIntegrationCleanup();
+  if (!isTokenAuth(state.auth) || !state.auth.user) {
+    content.innerHTML = `<p class="app-muted">${adminText("apiKeys.unavailable", "API Keys are available only for signed-in users.")}</p>`;
+    return;
+  }
+  let rawKey = null;
+  const render = async () => {
+    if (!isTokenAuth(state.auth)) {
+      return;
+    }
+    const response = await listUserApiKeys(state.auth);
+    renderApiKeysView({
+      content,
+      keys: response.items,
+      rawKey,
+      onCreate: async (name, expiry) => {
+        if (!isTokenAuth(state.auth)) {
+          return;
+        }
+        const created = await createUserApiKey(state.auth, { name, expiry });
+        rawKey = created.key;
+        await render();
+      },
+      onDelete: async (id) => {
+        if (!isTokenAuth(state.auth)) {
+          return;
+        }
+        await deleteUserApiKey(state.auth, id);
+        rawKey = null;
+        await render();
+      }
+    });
+    const copyButton = document.getElementById("api-key-copy");
+    copyButton?.addEventListener("click", async () => {
+      if (!rawKey) {
+        return;
+      }
+      await navigator.clipboard.writeText(rawKey);
+    });
+  };
+  try {
+    await render();
+  } catch (err) {
+    content.innerHTML = `<p class="app-muted">${err.message}</p>`;
+  }
+};
+
 // web/src/features/creations/controller.ts
 init_api();
 
@@ -7502,7 +7718,7 @@ var timestampFormatter = new Intl.DateTimeFormat(void 0, {
   dateStyle: "medium",
   timeStyle: "short"
 });
-var escapeHtml3 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var escapeHtml4 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var reasonLabel = (reason) => {
   if (reason === "before-clear") {
     return adminText("creations.reason.beforeClear", "Pre-clear snapshot");
@@ -7537,22 +7753,22 @@ var buildCard = (creation) => {
   article.innerHTML = `
     <div class="app-creation-preview is-loading">
       <div class="app-creation-preview-glow"></div>
-      <img alt="${escapeHtml3(creation.id)}" loading="lazy" />
+      <img alt="${escapeHtml4(creation.id)}" loading="lazy" />
     </div>
     <div class="app-creation-copy">
       <div class="app-creation-copy-top">
-        <span class="app-creation-badge">${escapeHtml3(`${targetLabel(creation.target)} \xB7 ${reasonLabel(creation.reason)}`)}</span>
-        <span class="app-creation-date">${escapeHtml3(formatTimestamp2(creation.createdAt))}</span>
+        <span class="app-creation-badge">${escapeHtml4(`${targetLabel(creation.target)} \xB7 ${reasonLabel(creation.reason)}`)}</span>
+        <span class="app-creation-date">${escapeHtml4(formatTimestamp2(creation.createdAt))}</span>
       </div>
-      <h2 class="app-creation-title">${escapeHtml3(creation.id)}</h2>
+      <h2 class="app-creation-title">${escapeHtml4(creation.id)}</h2>
       <div class="app-creation-paths">
         <div>
           <span class="app-creation-label">${adminText("creations.backup", "Backup")}</span>
-          <code>manage/store/${escapeHtml3(creation.backupPath)}</code>
+          <code>manage/store/${escapeHtml4(creation.backupPath)}</code>
         </div>
         <div>
           <span class="app-creation-label">${adminText("creations.preview", "Preview")}</span>
-          <code>manage/store/${escapeHtml3(creation.snapshotPath)}</code>
+          <code>manage/store/${escapeHtml4(creation.snapshotPath)}</code>
         </div>
       </div>
     </div>
@@ -7584,7 +7800,7 @@ var renderCreationsView = ({
       <div class="app-creations-hero app-surface">
         <div>
           <p class="app-creations-kicker">${adminText("documents.systemPage", "System page")}</p>
-          <h1 class="title is-4">${escapeHtml3(doc.payload.name)}</h1>
+          <h1 class="title is-4">${escapeHtml4(doc.payload.name)}</h1>
           <p class="app-muted app-creations-subtitle">
             ${adminText("creations.subtitle", "Capture visual snapshots of the public website and store a restorable tar.gz backup of the website files.")}
           </p>
@@ -7595,7 +7811,7 @@ var renderCreationsView = ({
             <span class="app-creations-stat-label">${adminText("creations.snapshots", "Snapshots")}</span>
           </div>
           <div>
-            <span class="app-creations-stat-value">${escapeHtml3(doc.store)}</span>
+            <span class="app-creations-stat-value">${escapeHtml4(doc.store)}</span>
             <span class="app-creations-stat-label">${adminText("documents.store", "Store")}</span>
           </div>
         </div>
@@ -8033,7 +8249,7 @@ init_api();
 
 // web/src/views/website-build.ts
 init_translations();
-var escapeHtml4 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var escapeHtml5 = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var actionIcon = (name) => {
   if (name === "visit") {
     return `
@@ -8078,13 +8294,13 @@ var actionButton = (id, label, icon, tooltip, extraClass = "") => {
     id="${id}"
     class="${className}"
     type="button"
-    data-busy-label="${escapeHtml4(label)}..."
-    data-tooltip="${escapeHtml4(tooltip)}"
-    aria-label="${escapeHtml4(tooltip)}"
-    title="${escapeHtml4(tooltip)}"
+    data-busy-label="${escapeHtml5(label)}..."
+    data-tooltip="${escapeHtml5(tooltip)}"
+    aria-label="${escapeHtml5(tooltip)}"
+    title="${escapeHtml5(tooltip)}"
   >
     <span class="app-build-action-icon" aria-hidden="true">${actionIcon(icon)}</span>
-    <span class="app-build-action-label">${escapeHtml4(label)}</span>
+    <span class="app-build-action-label">${escapeHtml5(label)}</span>
   </button>
 `;
 };
@@ -8127,7 +8343,7 @@ var renderWebsiteBuildView = ({
       <div class="app-build-header">
         <div class="app-build-heading">
           <p class="app-build-kicker app-muted">${adminText("documents.systemPage", "System page")}</p>
-          <h1 class="title is-4">${escapeHtml4(doc.payload.name)}</h1>
+          <h1 class="title is-4">${escapeHtml5(doc.payload.name)}</h1>
         </div>
         <div class="app-build-actions" role="toolbar" aria-label="${adminText("websiteBuild.actions", "Website build actions")}">
           ${actionButton("build-visit", adminText("common.visit", "Visit"), "visit", adminText("websiteBuild.visitHelp", "Open the current generated build in a new tab."))}
@@ -8449,6 +8665,12 @@ var renderDocumentView = (doc) => {
         renderDocumentView(updated);
       }
     });
+    return;
+  }
+  if (isApiKeysDocument(doc)) {
+    clearAgentState();
+    editorRef.set(null);
+    void renderApiKeysPage();
     return;
   }
   renderDocument({
@@ -9129,7 +9351,8 @@ var loadAgent = async (id, reloadAgents) => {
 // web/src/app/bootstrap.ts
 init_translations();
 var systemUpdatePollHandle = null;
-var showLogin = (app) => {
+var DELEGATED_LOGIN_GRANT_PARAM = "loginGrant";
+var showLogin = (app, error) => {
   renderLogin({
     container: app,
     onAuth: (next) => {
@@ -9137,7 +9360,36 @@ var showLogin = (app) => {
     },
     onSuccess: renderApp,
     onClearAgentState: clearAgentState
-  });
+  }, error);
+};
+var clearDelegatedLoginParam = () => {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(DELEGATED_LOGIN_GRANT_PARAM)) {
+    return;
+  }
+  url.searchParams.delete(DELEGATED_LOGIN_GRANT_PARAM);
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, document.title, nextUrl || "/");
+};
+var completeDelegatedLogin = async () => {
+  const url = new URL(window.location.href);
+  const grant = url.searchParams.get(DELEGATED_LOGIN_GRANT_PARAM)?.trim() ?? "";
+  if (!grant) {
+    return null;
+  }
+  try {
+    const response = await exchangeDelegatedLoginGrant(grant);
+    const nextAuth = { type: "token", value: response.token, user: response.user };
+    state.auth = nextAuth;
+    saveAuth(nextAuth);
+    clearDelegatedLoginParam();
+    return null;
+  } catch (err) {
+    state.auth = null;
+    saveAuth(null);
+    clearDelegatedLoginParam();
+    return err.message;
+  }
 };
 var stopSystemUpdatePolling = () => {
   if (systemUpdatePollHandle !== null) {
@@ -9244,6 +9496,45 @@ var openPrivateDocument = async (path, errorMessage) => {
 var openCreationsPage = async () => {
   await openPrivateDocument("creations.json", adminText("documents.creationsNotFound", "Creations page not found."));
 };
+var openApiKeysPage = async () => {
+  await openPrivateDocument("system/api-keys.json", adminText("apiKeys.pageNotFound", "API Keys page not found."));
+};
+var installAccountActionLink = ({
+  anchorSelector,
+  linkId,
+  action,
+  label,
+  className
+}) => {
+  const anchor = document.querySelector(anchorSelector);
+  if (!anchor || document.getElementById(linkId)) {
+    return;
+  }
+  const link = document.createElement("a");
+  link.id = linkId;
+  link.href = "#";
+  link.dataset.shellAction = action;
+  link.className = className;
+  link.textContent = label;
+  anchor.insertAdjacentElement("afterend", link);
+};
+var installApiKeysLinks = () => {
+  const label = adminText("apiKeys.menuLabel", "API Keys");
+  installAccountActionLink({
+    anchorSelector: "#profile-link",
+    linkId: "api-keys-link",
+    action: "api-keys",
+    label,
+    className: "navbar-item"
+  });
+  installAccountActionLink({
+    anchorSelector: '#mobile-account-panel [data-shell-action="profile"]',
+    linkId: "api-keys-link-mobile",
+    action: "api-keys",
+    label,
+    className: "app-mobile-action-link"
+  });
+};
 var renderApp = async () => {
   const app = document.getElementById("app");
   if (!app) {
@@ -9253,8 +9544,9 @@ var renderApp = async () => {
     state.auth = null;
     saveAuth(null);
   }
+  const delegatedLoginError = state.auth ? null : await completeDelegatedLogin();
   if (!state.auth) {
-    showLogin(app);
+    showLogin(app, delegatedLoginError ?? void 0);
     return;
   }
   const initialUpdateStatus = await refreshSystemUpdateStatus(true);
@@ -9270,6 +9562,7 @@ var renderApp = async () => {
   await loadModules();
   await preloadAdminLanguage();
   renderAppShell({ moduleChecklistHtml: (selected) => moduleChecklistHtml(state.modules, selected) });
+  installApiKeysLinks();
   initNotifications();
   renderSystemUpdateControls();
   startRealtime(() => state.auth);
@@ -9306,6 +9599,9 @@ var renderApp = async () => {
     },
     onShowProfile: () => {
       void renderProfile();
+    },
+    onShowApiKeys: () => {
+      void openApiKeysPage();
     },
     onShowModules: showModulesView,
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),

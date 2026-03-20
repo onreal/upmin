@@ -203,106 +203,108 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
   `;
 
   app.innerHTML = `
-    <nav class="navbar app-surface is-spaced" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
-      <div class="navbar-brand">
-        <a class="navbar-item" href="./" aria-label="${adminText("navigation.home", "Go to home")}">
-          <span class="title is-5 mb-0">${header.title}</span>
-        </a>
-        <a
-          role="button"
-          class="navbar-burger"
-          aria-label="${adminText("navigation.open", "Open navigation")}"
-          aria-expanded="false"
-          aria-controls="mobileNavDrawer"
-        >
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-        </a>
-      </div>
-      <div id="adminNavbar" class="navbar-menu">
-        <div class="navbar-start">
-          <div class="navbar-item app-muted">${header.subtitle}</div>
+    <nav class="navbar app-surface" role="navigation" aria-label="${adminText("navigation.main", "main navigation")}">
+      <div class="container">
+        <div class="navbar-brand">
+          <a class="navbar-item" href="./" aria-label="${adminText("navigation.home", "Go to home")}">
+            <span class="title is-5 mb-0">${header.title}</span>
+          </a>
+          <a
+            role="button"
+            class="navbar-burger"
+            aria-label="${adminText("navigation.open", "Open navigation")}"
+            aria-expanded="false"
+            aria-controls="mobileNavDrawer"
+          >
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </a>
         </div>
-        <div class="navbar-end">
-          <div class="navbar-item">
-            <div class="app-nav-actions">
-              <button
-                id="create-action"
-                class="button app-button app-primary app-icon-button"
-                data-shell-action="create"
-                aria-label="${header.createLabel}"
-                title="${header.createLabel}"
-              >
-                ${createIcon}
-              </button>
-              <button
-                class="button app-button app-ghost"
-                type="button"
-                data-shell-action="builder"
-              >
-                ${builderIcon}
-                <span>${builderLabel}</span>
-              </button>
-              <div id="nav-header-links" class="app-nav-shortcuts"></div>
-              <button
-                id="system-update-action"
-                class="button app-button app-ghost app-icon-button is-hidden"
-                type="button"
-                data-shell-action="system-update"
-                aria-label="${updateLabel}"
-                title="${updateLabel}"
-              >
-                ${updateIcon}
-                <span id="system-update-label">${updateLabel}</span>
-              </button>
-              <button
-                id="export-zip-header"
-                class="button app-button app-ghost"
-                data-shell-action="export"
-                aria-label="${downloadContentLabel}"
-                title="${downloadContentLabel}"
-              >
-                ${downloadIcon}
-              </button>
-              <button
-                id="theme-toggle"
-                class="button app-button app-ghost"
-                data-shell-action="theme"
-                aria-label="${header.themeLabel}"
-                title="${header.themeLabel}"
-              >
-                ${themeIcon}
-              </button>
-            </div>
+        <div id="adminNavbar" class="navbar-menu">
+          <div class="navbar-start">
+            <div class="navbar-item app-muted">${header.subtitle}</div>
           </div>
-          <div class="navbar-item has-dropdown" id="private-dropdown">
-            <a class="navbar-link">${header.settingsLabel}</a>
-            <div class="navbar-dropdown">
-              <a class="navbar-item" id="modules-link" data-shell-action="modules">${modulesLabel}</a>
-              <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
-              <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
-              <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
-              <div id="nav-settings-pages"></div>
-              <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
-              <hr class="navbar-divider" />
-              <div id="nav-system-pages"></div>
+          <div class="navbar-end">
+            <div class="navbar-item">
+              <div class="app-nav-actions">
+                <button
+                  id="create-action"
+                  class="button app-button app-primary app-icon-button"
+                  data-shell-action="create"
+                  aria-label="${header.createLabel}"
+                  title="${header.createLabel}"
+                >
+                  ${createIcon}
+                </button>
+                <button
+                  class="button app-button app-ghost"
+                  type="button"
+                  data-shell-action="builder"
+                >
+                  ${builderIcon}
+                  <span>${builderLabel}</span>
+                </button>
+                <div id="nav-header-links" class="app-nav-shortcuts"></div>
+                <button
+                  id="system-update-action"
+                  class="button app-button app-ghost app-icon-button is-hidden"
+                  type="button"
+                  data-shell-action="system-update"
+                  aria-label="${updateLabel}"
+                  title="${updateLabel}"
+                >
+                  ${updateIcon}
+                  <span id="system-update-label">${updateLabel}</span>
+                </button>
+                <button
+                  id="export-zip-header"
+                  class="button app-button app-ghost"
+                  data-shell-action="export"
+                  aria-label="${downloadContentLabel}"
+                  title="${downloadContentLabel}"
+                >
+                  ${downloadIcon}
+                </button>
+                <button
+                  id="theme-toggle"
+                  class="button app-button app-ghost"
+                  data-shell-action="theme"
+                  aria-label="${header.themeLabel}"
+                  title="${header.themeLabel}"
+                >
+                  ${themeIcon}
+                </button>
+              </div>
             </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="agents-dropdown">
-            <a class="navbar-link">${agentsLabel}</a>
-            <div class="navbar-dropdown">
-              <div id="nav-agents"></div>
-              <hr class="navbar-divider" />
-              <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">${createAgentLabel}</a>
+            <div class="navbar-item has-dropdown" id="private-dropdown">
+              <a class="navbar-link">${header.settingsLabel}</a>
+              <div class="navbar-dropdown">
+                <a class="navbar-item" id="modules-link" data-shell-action="modules">${modulesLabel}</a>
+                <a class="navbar-item" id="integrations-link" data-shell-action="integrations">${integrationsLabel}</a>
+                <a class="navbar-item" id="logs-link" data-shell-action="logs">${logsLabel}</a>
+                <a class="navbar-item is-hidden" id="forms-link" data-shell-action="forms">${formsLabel}</a>
+                <div id="nav-settings-pages"></div>
+                <a class="navbar-item is-hidden" id="system-update-menu-link" data-shell-action="system-update">${adminText("systemUpdate.updateAdmin", "Update admin")}</a>
+                <hr class="navbar-divider" />
+                <div id="nav-system-pages"></div>
+              </div>
             </div>
-          </div>
-          <div class="navbar-item has-dropdown" id="user-dropdown">
-            <a class="navbar-link" id="user-label">${getUserLabel()}</a>
-            <div class="navbar-dropdown">
-              <a class="navbar-item" id="profile-link" data-shell-action="profile">${header.profileLabel}</a>
-              <hr class="navbar-divider" />
-              <a class="navbar-item" id="logout" data-shell-action="logout">${header.logoutLabel}</a>
+            <div class="navbar-item has-dropdown" id="agents-dropdown">
+              <a class="navbar-link">${agentsLabel}</a>
+              <div class="navbar-dropdown">
+                <div id="nav-agents"></div>
+                <hr class="navbar-divider" />
+                <a class="navbar-item" id="agents-create-link" data-shell-action="agents-create">${createAgentLabel}</a>
+              </div>
+            </div>
+            <div class="navbar-item has-dropdown" id="user-dropdown">
+              <a class="navbar-link" id="user-label">${getUserLabel()}</a>
+              <div class="navbar-dropdown">
+                <a class="navbar-item" id="profile-link" data-shell-action="profile">${header.profileLabel}</a>
+                <hr class="navbar-divider" />
+                <a class="navbar-item" id="logout" data-shell-action="logout">${header.logoutLabel}</a>
+              </div>
             </div>
           </div>
         </div>

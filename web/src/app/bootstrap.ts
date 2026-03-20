@@ -1,4 +1,4 @@
-import { downloadArchive, fetchSystemUpdate, runSystemUpdate, saveAuth } from "../api";
+import { downloadArchive, exchangeDelegatedLoginGrant, fetchSystemUpdate, runSystemUpdate, saveAuth, type AuthState } from "../api";
 import { state } from "./state";
 import { renderAppShell, renderSystemUpdateControls } from "../ui/shell";
 import { initNotifications } from "../ui/notifications";
@@ -22,8 +22,9 @@ import { pushNotice } from "../ui/notice";
 import { adminText } from "./translations";
 
 let systemUpdatePollHandle: number | null = null;
+const DELEGATED_LOGIN_GRANT_PARAM = "loginGrant";
 
-const showLogin = (app: HTMLElement) => {
+const showLogin = (app: HTMLElement, error?: string) => {
   renderLogin({
     container: app,
     onAuth: (next) => {
@@ -31,7 +32,39 @@ const showLogin = (app: HTMLElement) => {
     },
     onSuccess: renderApp,
     onClearAgentState: clearAgentState,
-  });
+  }, error);
+};
+
+const clearDelegatedLoginParam = () => {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(DELEGATED_LOGIN_GRANT_PARAM)) {
+    return;
+  }
+  url.searchParams.delete(DELEGATED_LOGIN_GRANT_PARAM);
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, document.title, nextUrl || "/");
+};
+
+const completeDelegatedLogin = async (): Promise<string | null> => {
+  const url = new URL(window.location.href);
+  const grant = url.searchParams.get(DELEGATED_LOGIN_GRANT_PARAM)?.trim() ?? "";
+  if (!grant) {
+    return null;
+  }
+
+  try {
+    const response = await exchangeDelegatedLoginGrant(grant);
+    const nextAuth: AuthState = { type: "token", value: response.token, user: response.user };
+    state.auth = nextAuth;
+    saveAuth(nextAuth);
+    clearDelegatedLoginParam();
+    return null;
+  } catch (err) {
+    state.auth = null;
+    saveAuth(null);
+    clearDelegatedLoginParam();
+    return (err as Error).message;
+  }
 };
 
 const stopSystemUpdatePolling = () => {
@@ -155,6 +188,55 @@ const openCreationsPage = async () => {
   await openPrivateDocument("creations.json", adminText("documents.creationsNotFound", "Creations page not found."));
 };
 
+const openApiKeysPage = async () => {
+  await openPrivateDocument("system/api-keys.json", adminText("apiKeys.pageNotFound", "API Keys page not found."));
+};
+
+const installAccountActionLink = ({
+  anchorSelector,
+  linkId,
+  action,
+  label,
+  className,
+}: {
+  anchorSelector: string;
+  linkId: string;
+  action: string;
+  label: string;
+  className: string;
+}) => {
+  const anchor = document.querySelector<HTMLElement>(anchorSelector);
+  if (!anchor || document.getElementById(linkId)) {
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.id = linkId;
+  link.href = "#";
+  link.dataset.shellAction = action;
+  link.className = className;
+  link.textContent = label;
+  anchor.insertAdjacentElement("afterend", link);
+};
+
+const installApiKeysLinks = () => {
+  const label = adminText("apiKeys.menuLabel", "API Keys");
+  installAccountActionLink({
+    anchorSelector: "#profile-link",
+    linkId: "api-keys-link",
+    action: "api-keys",
+    label,
+    className: "navbar-item",
+  });
+  installAccountActionLink({
+    anchorSelector: '#mobile-account-panel [data-shell-action="profile"]',
+    linkId: "api-keys-link-mobile",
+    action: "api-keys",
+    label,
+    className: "app-mobile-action-link",
+  });
+};
+
 const renderApp = async () => {
   const app = document.getElementById("app");
   if (!app) {
@@ -166,8 +248,9 @@ const renderApp = async () => {
     saveAuth(null);
   }
 
+  const delegatedLoginError = state.auth ? null : await completeDelegatedLogin();
   if (!state.auth) {
-    showLogin(app);
+    showLogin(app, delegatedLoginError ?? undefined);
     return;
   }
 
@@ -187,6 +270,7 @@ const renderApp = async () => {
   await preloadAdminLanguage();
 
   renderAppShell({ moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected) });
+  installApiKeysLinks();
   initNotifications();
   renderSystemUpdateControls();
   startRealtime(() => state.auth);
@@ -231,6 +315,9 @@ const renderApp = async () => {
     },
     onShowProfile: () => {
       void renderProfile();
+    },
+    onShowApiKeys: () => {
+      void openApiKeysPage();
     },
     onShowModules: showModulesView,
     onShowIntegrations: () => showIntegrationsView(refreshIntegrationControls),

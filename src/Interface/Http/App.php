@@ -10,9 +10,13 @@ use Manage\Application\UseCases\AppendAgentMessage;
 use Manage\Application\UseCases\CreateDocument;
 use Manage\Application\UseCases\CreateAgent;
 use Manage\Application\UseCases\CreateAgentConversation;
+use Manage\Application\UseCases\CreateUserApiKey;
+use Manage\Application\UseCases\DeleteUserApiKey;
+use Manage\Application\UseCases\EnsureApiKeysPage;
 use Manage\Application\UseCases\ExportAllDocuments;
 use Manage\Application\UseCases\ExportAllPayloads;
 use Manage\Application\UseCases\ExportDocument;
+use Manage\Application\UseCases\ExchangeDelegatedLoginGrant;
 use Manage\Application\UseCases\GetAgent;
 use Manage\Application\UseCases\GetAgentConversation;
 use Manage\Application\UseCases\GetDocument;
@@ -27,6 +31,7 @@ use Manage\Application\UseCases\EnsureDocumentId;
 use Manage\Application\UseCases\FindDocumentByWrapperId;
 use Manage\Application\UseCases\GetIntegrationSettings;
 use Manage\Application\UseCases\ListAgents;
+use Manage\Application\UseCases\ListUserApiKeys;
 use Manage\Application\UseCases\ListIntegrations;
 use Manage\Application\UseCases\ListAgentConversations;
 use Manage\Application\UseCases\ListModules;
@@ -35,6 +40,7 @@ use Manage\Application\UseCases\ListLogs;
 use Manage\Application\UseCases\ListForms;
 use Manage\Application\UseCases\QueueIntegrationModelSync;
 use Manage\Application\UseCases\ReorderDocuments;
+use Manage\Application\UseCases\RequestDelegatedLoginGrant;
 use Manage\Application\UseCases\SendAgentMessage;
 use Manage\Application\UseCases\RunSystemUpdate;
 use Manage\Application\UseCases\UpdateAgent;
@@ -42,6 +48,9 @@ use Manage\Application\UseCases\UpdateDocument;
 use Manage\Application\UseCases\UpsertIntegrationSettings;
 use Manage\Application\PublicArea\SubmitFormEntry;
 use Manage\Infrastructure\Config\Env;
+use Manage\Infrastructure\Auth\AuthUserStore;
+use Manage\Infrastructure\Auth\DelegatedLoginGrantStore;
+use Manage\Infrastructure\Auth\UserApiKeyHasher;
 use Manage\Infrastructure\FileSystem\JsonDocumentRepository;
 use Manage\Infrastructure\FileSystem\JsonUserRepository;
 use Manage\Infrastructure\Security\BcryptPasswordHasher;
@@ -63,8 +72,10 @@ use Manage\Interface\Http\Controllers\AuthController;
 use Manage\Interface\Http\Controllers\AgentController;
 use Manage\Interface\Http\Controllers\AgentConversationController;
 use Manage\Interface\Http\Controllers\CreationController;
+use Manage\Interface\Http\Controllers\DelegatedLoginController;
 use Manage\Interface\Http\Controllers\DocumentController;
 use Manage\Interface\Http\Controllers\ExportController;
+use Manage\Interface\Http\Controllers\UserApiKeyController;
 use Manage\Interface\Http\Controllers\WebsiteBuildController;
 use Manage\Interface\Http\Controllers\LogController;
 use Manage\Interface\Http\Controllers\FormController;
@@ -99,6 +110,7 @@ final class App
     private ModuleRegistry $moduleRegistry;
     private ErrorLogger $errorLogger;
     private ManageCreations $manageCreations;
+    private EnsureApiKeysPage $ensureApiKeysPage;
     private AuthMiddleware $authMiddleware;
     private AdminUpdater $adminUpdater;
     private Router $adminRouter;
@@ -137,6 +149,9 @@ final class App
         $this->errorLogger = new ErrorLogger($this->manageRoot);
         $creationStore = new CreationStore($documentRepository, $this->projectRoot, $this->manageRoot);
         $websiteBuildStore = new WebsiteBuildStore($this->projectRoot, $creationStore);
+        $userApiKeyHasher = new UserApiKeyHasher($this->env);
+        $authUserStore = new AuthUserStore($documentRepository, $userApiKeyHasher);
+        $delegatedLoginGrantStore = new DelegatedLoginGrantStore($this->manageRoot, $userApiKeyHasher);
         $apiKeyProvider = new EnvApiKeyProvider($this->env);
         $tokenService = new HmacTokenService($this->env);
         $realtimeConfig = new RealtimeConfig($this->env);
@@ -184,6 +199,12 @@ final class App
         $exportDocument = new ExportDocument($documentRepository);
         $exportAllDocuments = new ExportAllDocuments($documentRepository);
         $exportAllPayloads = new ExportAllPayloads($documentRepository);
+        $this->ensureApiKeysPage = new EnsureApiKeysPage($documentRepository);
+        $listUserApiKeys = new ListUserApiKeys($authUserStore);
+        $createUserApiKey = new CreateUserApiKey($authUserStore, $userApiKeyHasher);
+        $deleteUserApiKey = new DeleteUserApiKey($authUserStore);
+        $requestDelegatedLoginGrant = new RequestDelegatedLoginGrant($authUserStore, $delegatedLoginGrantStore);
+        $exchangeDelegatedLoginGrant = new ExchangeDelegatedLoginGrant($delegatedLoginGrantStore, $authUserStore, $tokenService);
         $getLayoutConfig = new GetLayoutConfig($documentRepository);
         $this->manageCreations = new ManageCreations($creationStore);
         $manageWebsiteBuild = new ManageWebsiteBuild($websiteBuildStore);
@@ -218,6 +239,8 @@ final class App
         $documentController = new DocumentController($getDocument, $updateDocument, $createDocument, $exportDocument);
         $exportController = new ExportController($exportAllDocuments, $exportAllPayloads);
         $authController = new AuthController($authenticateUser, $authenticateApiKey);
+        $delegatedLoginController = new DelegatedLoginController($requestDelegatedLoginGrant, $exchangeDelegatedLoginGrant);
+        $userApiKeyController = new UserApiKeyController($listUserApiKeys, $createUserApiKey, $deleteUserApiKey, $tokenService);
         $layoutConfigController = new LayoutConfigController($getLayoutConfig);
         $realtimeController = new RealtimeController($authenticateApiKey, $tokenService, $realtimeTicketService, $realtimeConfig);
         $uiConfigController = new UiConfigController($getUiConfig);
@@ -253,6 +276,7 @@ final class App
             'agents' => $agentController,
             'creations' => $creationController,
             'websiteBuild' => $websiteBuildController,
+            'userApiKeys' => $userApiKeyController,
             'agentConversations' => $agentConversationController,
             'layout' => $layoutConfigController,
             'realtime' => $realtimeController,
@@ -265,6 +289,7 @@ final class App
         $this->publicRouter = new Router();
         PublicRoutes::register($this->publicRouter, [
             'auth' => $authController,
+            'delegatedLogin' => $delegatedLoginController,
             'publicModules' => $publicModuleController,
         ], $publicAuthMiddleware);
     }
@@ -285,7 +310,12 @@ final class App
 
         $router = $this->adminRouter;
         $requiresAdmin = true;
-        if ($path === '/api/auth/login' || str_starts_with($path, '/api/public/')) {
+        if (
+            $path === '/api/auth/login'
+            || $path === '/api/auth/delegated-login/request'
+            || $path === '/api/auth/delegated-login/exchange'
+            || str_starts_with($path, '/api/public/')
+        ) {
             $router = $this->publicRouter;
             $requiresAdmin = false;
         }
@@ -307,6 +337,7 @@ final class App
         $this->errorLogger->ensureSettings();
         $this->errorLogger->ensureLogFile();
         $this->manageCreations->ensurePage();
+        $this->ensureApiKeysPage->handle();
 
         try {
             $response = $router->dispatch($request);

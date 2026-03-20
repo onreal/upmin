@@ -5,9 +5,9 @@
   --app-gap-sm: 0.5rem;
   --app-gap-md: 0.8rem;
   --app-gap-lg: 1.2rem;
-  --app-radius-sm: 6px;
-  --app-radius-md: 12px;
-  --app-radius-lg: 16px;
+  --app-radius-sm: 4px;
+  --app-radius-md: 6px;
+  --app-radius-lg: 8px;
   --app-shadow: 0 14px 30px rgba(16, 16, 16, 0.08);
   --app-border: #e2e2e2;
   --app-bg: #f6f6f3;

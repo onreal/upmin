@@ -6,6 +6,15 @@ export type AuthUser = {
   attributes?: Record<string, unknown>;
 };
 
+export type UserApiKeySummary = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  expiry?: string | null;
+  createdAt: string;
+  lastUsedAt?: string | null;
+};
+
 export type AuthState =
   | { type: "apiKey"; value: string }
   | { type: "token"; value: string; user?: AuthUser }

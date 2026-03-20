@@ -13,6 +13,7 @@ import {
 } from "../features/modules/helpers";
 import { ensureModuleSettingsDocument, fetchModuleSettings } from "../features/modules/settings";
 import { clearAgentState } from "../features/agents/state";
+import { isApiKeysDocument, renderApiKeysPage } from "../features/auth/api-keys";
 import { isCreationsDocument, renderCreationsPage } from "../features/creations/controller";
 import { isWebsiteBuildDocument, renderWebsiteBuildPage } from "../features/website-build/controller";
 import { clearRegisteredIntegrationCleanup } from "../features/integrations/runtime";
@@ -91,6 +92,13 @@ export const renderDocumentView = (doc: RemoteDocument) => {
         renderDocumentView(updated);
       },
     });
+    return;
+  }
+
+  if (isApiKeysDocument(doc)) {
+    clearAgentState();
+    editorRef.set(null);
+    void renderApiKeysPage();
     return;
   }
 

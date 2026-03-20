@@ -36,7 +36,7 @@
 
 .app-creations-stats > div {
   border: 1px solid color-mix(in srgb, var(--app-border) 72%, transparent);
-  border-radius: calc(var(--app-radius-md) - 4px);
+  border-radius: var(--app-radius-sm);
   padding: 0.85rem 1rem;
   background: color-mix(in srgb, var(--app-surface) 85%, transparent);
 }
@@ -114,7 +114,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   padding: 0.4rem 0.75rem;
   background: color-mix(in srgb, var(--app-danger) 18%, var(--app-surface));
   color: var(--app-text);
@@ -138,7 +138,7 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
   color: var(--app-text);
   font-size: 0.78rem;
@@ -173,7 +173,7 @@
 .app-creation-paths code {
   display: block;
   padding: 0.55rem 0.65rem;
-  border-radius: calc(var(--app-radius-md) - 6px);
+  border-radius: var(--app-radius-sm);
   background: color-mix(in srgb, var(--app-bg) 75%, var(--app-surface));
   color: var(--app-text);
   word-break: break-word;

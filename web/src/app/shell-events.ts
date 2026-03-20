@@ -5,6 +5,7 @@ const MOBILE_DRAWER_CLOSE_EVENT = "app:mobile-drawer-close";
 export type ShellEventHandlers = {
   onLogout: () => void;
   onShowProfile: () => void;
+  onShowApiKeys: () => void;
   onShowModules: () => void;
   onShowIntegrations: () => void;
   onShowCreations: () => void;
@@ -20,6 +21,7 @@ export type ShellEventHandlers = {
 export const initShellEvents = ({
   onLogout,
   onShowProfile,
+  onShowApiKeys,
   onShowModules,
   onShowIntegrations,
   onShowCreations,
@@ -124,6 +126,7 @@ export const initShellEvents = ({
 
   bindAction("logout", onLogout);
   bindAction("profile", onShowProfile);
+  bindAction("api-keys", onShowApiKeys);
   bindAction("modules", onShowModules);
   bindAction("integrations", onShowIntegrations);
   bindAction("creations", onShowCreations);

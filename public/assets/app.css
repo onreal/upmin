@@ -5,9 +5,9 @@
   --app-gap-sm: 0.5rem;
   --app-gap-md: 0.8rem;
   --app-gap-lg: 1.2rem;
-  --app-radius-sm: 6px;
-  --app-radius-md: 12px;
-  --app-radius-lg: 16px;
+  --app-radius-sm: 4px;
+  --app-radius-md: 6px;
+  --app-radius-lg: 8px;
   --app-shadow: 0 14px 30px rgba(16, 16, 16, 0.08);
   --app-border: #e2e2e2;
   --app-bg: #f6f6f3;
@@ -165,6 +165,11 @@ body {
   border-bottom: 1px solid var(--app-border);
 }
 
+.navbar.app-surface > .container {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
 .navbar.app-surface .navbar-item,
 .navbar.app-surface .navbar-link {
   color: var(--app-text);
@@ -180,7 +185,6 @@ body {
 
 .navbar.app-surface .navbar-menu {
   background: var(--app-surface);
-  border-top: 1px solid var(--app-border);
 }
 
 .app-nav-actions {
@@ -271,7 +275,7 @@ body {
   width: 0.32rem;
   height: 0.32rem;
   margin-right: 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: #27ae60;
   vertical-align: middle;
 }
@@ -300,7 +304,7 @@ body {
 .app-footer-version-dot {
   width: 0.32rem;
   height: 0.32rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-text) 28%, transparent);
 }
 
@@ -314,7 +318,7 @@ body {
   min-height: 2.5rem;
   padding: 0 0.8rem;
   border: 1px solid var(--app-border);
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%);
   color: var(--app-text);
   font-size: 0.84rem;
@@ -417,7 +421,7 @@ body {
   width: 100%;
   padding: 1.1rem;
   border: 1px solid var(--app-border);
-  border-radius: 1.4rem;
+  border-radius: var(--app-radius-lg);
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--app-accent) 18%, transparent), transparent 42%),
     linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 92%, white 8%), var(--app-surface));
@@ -440,7 +444,7 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 11rem;
-  border-radius: 1.1rem;
+  border-radius: var(--app-radius-lg);
   background: linear-gradient(135deg, rgb(10 15 22 / 0.92), rgb(25 34 48 / 0.88));
   overflow: hidden;
 }
@@ -844,7 +848,7 @@ body {
   gap: 0.5rem;
   margin-top: 0.35rem;
   padding: 0.2rem 0.5rem 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   border: 1px solid color-mix(in srgb, var(--app-accent) 35%, transparent);
   background: color-mix(in srgb, var(--app-accent) 12%, transparent);
   font-size: 0.8rem;
@@ -860,7 +864,7 @@ body {
 .app-doc-meta-value {
   font-size: 0.78rem;
   padding: 0.1rem 0.35rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-accent) 22%, transparent);
   color: var(--app-text);
 }
@@ -874,7 +878,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   cursor: pointer;
   transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
@@ -1356,7 +1360,7 @@ body {
   width: 28px;
   height: 28px;
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   border: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-surface) 85%, transparent);
   color: var(--app-text);
@@ -1527,7 +1531,7 @@ body {
 
 .app-creations-stats > div {
   border: 1px solid color-mix(in srgb, var(--app-border) 72%, transparent);
-  border-radius: calc(var(--app-radius-md) - 4px);
+  border-radius: var(--app-radius-sm);
   padding: 0.85rem 1rem;
   background: color-mix(in srgb, var(--app-surface) 85%, transparent);
 }
@@ -1605,7 +1609,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   padding: 0.4rem 0.75rem;
   background: color-mix(in srgb, var(--app-danger) 18%, var(--app-surface));
   color: var(--app-text);
@@ -1629,7 +1633,7 @@ body {
   align-items: center;
   gap: 0.35rem;
   padding: 0.3rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-accent) 16%, var(--app-surface));
   color: var(--app-text);
   font-size: 0.78rem;
@@ -1664,7 +1668,7 @@ body {
 .app-creation-paths code {
   display: block;
   padding: 0.55rem 0.65rem;
-  border-radius: calc(var(--app-radius-md) - 6px);
+  border-radius: var(--app-radius-sm);
   background: color-mix(in srgb, var(--app-bg) 75%, var(--app-surface));
   color: var(--app-text);
   word-break: break-word;
@@ -1709,6 +1713,168 @@ body {
 @media (max-width: 640px) {
   .app-creation-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+.app-api-keys {
+  display: grid;
+  gap: var(--app-gap-md);
+}
+
+.app-api-keys-header {
+  margin-bottom: 0;
+}
+
+.app-api-keys-create {
+  display: grid;
+  gap: var(--app-gap-md);
+  padding: var(--app-gap-md);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  background: color-mix(in srgb, var(--app-surface-muted) 72%, var(--app-surface));
+}
+
+.app-api-keys-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-gap-md);
+}
+
+.app-api-keys-create .label {
+  color: var(--app-text);
+}
+
+.app-api-keys-create .input {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.app-api-keys-create .input::placeholder {
+  color: var(--app-muted);
+}
+
+.app-api-keys-create-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.app-api-keys-secret {
+  display: grid;
+  gap: 0.45rem;
+  padding: var(--app-gap-md);
+  border-radius: var(--app-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--app-accent) 24%, var(--app-border));
+  background: color-mix(in srgb, var(--app-accent) 9%, var(--app-surface));
+}
+
+.app-api-keys-secret-title {
+  color: var(--app-text);
+}
+
+.app-api-keys-secret-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-api-keys-secret-value,
+.app-api-keys-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, var(--app-text) 7%, var(--app-surface));
+  color: var(--app-text);
+  font-size: 0.92rem;
+  line-break: anywhere;
+  word-break: break-all;
+}
+
+.app-api-keys-secret-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-api-keys-copy {
+  flex: 0 0 auto;
+}
+
+.app-api-keys-table-wrap {
+  overflow-x: auto;
+}
+
+.app-api-keys-table {
+  background: transparent;
+  color: var(--app-text);
+}
+
+.app-api-keys-table thead th {
+  color: var(--app-muted);
+  border-color: var(--app-border);
+}
+
+.app-api-keys-table td {
+  border-color: color-mix(in srgb, var(--app-border) 82%, transparent);
+  vertical-align: middle;
+}
+
+.app-api-keys-actions-cell {
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .app-api-keys-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-api-keys-secret-row {
+    align-items: stretch;
+  }
+
+  .app-api-keys-secret-value {
+    width: 100%;
+  }
+
+  .app-api-keys-table thead {
+    display: none;
+  }
+
+  .app-api-keys-table,
+  .app-api-keys-table tbody,
+  .app-api-keys-table tr,
+  .app-api-keys-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .app-api-keys-table tr {
+    padding: var(--app-gap-md);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: color-mix(in srgb, var(--app-surface-muted) 68%, var(--app-surface));
+  }
+
+  .app-api-keys-table tr + tr {
+    margin-top: var(--app-gap-sm);
+  }
+
+  .app-api-keys-table td {
+    display: grid;
+    grid-template-columns: minmax(6rem, 8rem) minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border: none;
+  }
+
+  .app-api-keys-table td::before {
+    content: attr(data-label);
+    color: var(--app-muted);
+    font-weight: 600;
+  }
+
+  .app-api-keys-actions-cell {
+    text-align: left;
   }
 }
 
@@ -1759,7 +1925,7 @@ body.app-build-mode .section > .container > .columns > .column {
   min-height: 36px;
   padding: 0.45rem 0.75rem;
   gap: 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--app-radius-lg);
   color: var(--app-muted);
   background: color-mix(in srgb, var(--app-surface) 88%, var(--app-text) 12%);
   border-color: color-mix(in srgb, var(--app-border) 85%, transparent);
@@ -1814,7 +1980,7 @@ body.app-build-mode .section > .container > .columns > .column {
   min-width: 220px;
   max-width: 280px;
   padding: 0.55rem 0.7rem;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: color-mix(in srgb, var(--app-text) 92%, #000 8%);
   color: var(--app-surface);
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
@@ -1934,7 +2100,7 @@ body.app-build-mode .section > .container > .columns > .column {
 .app-build-spinner {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--app-radius-lg);
   border: 3px solid color-mix(in srgb, var(--app-accent) 20%, transparent);
   border-top-color: var(--app-accent);
   animation: app-build-spin 1s linear infinite;

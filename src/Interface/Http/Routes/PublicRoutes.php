@@ -14,6 +14,8 @@ final class PublicRoutes
     public static function register(Router $router, array $controllers, PublicAuthMiddleware $publicAuth): void
     {
         $router->add('POST', '/api/auth/login', [$controllers['auth'], 'login']);
+        $router->add('POST', '/api/auth/delegated-login/request', [$controllers['delegatedLogin'], 'request']);
+        $router->add('POST', '/api/auth/delegated-login/exchange', [$controllers['delegatedLogin'], 'exchange']);
 
         $router->add('POST', '/api/public/{module}/{pageId}/{action}', function (Request $request, array $params) use ($controllers, $publicAuth): Response {
             $actor = $publicAuth->authenticate($request);
