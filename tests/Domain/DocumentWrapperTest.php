@@ -57,6 +57,25 @@ final class DocumentWrapperTest extends TestCase
         $this->assertSame('footer', $wrapper->toArray()['position_view']);
     }
 
+    public function testDeployFieldsAreAccepted(): void
+    {
+        $wrapper = DocumentWrapper::fromArray([
+            'page' => 'content',
+            'name' => 'Content',
+            'order' => 1,
+            'section' => false,
+            'position' => 'system',
+            'update_deploy' => true,
+            'strategy_deploy' => 'merge',
+            'data' => [],
+        ]);
+
+        $this->assertTrue($wrapper->updateDeploy());
+        $this->assertSame('merge', $wrapper->strategyDeploy());
+        $this->assertTrue($wrapper->toArray()['update_deploy']);
+        $this->assertSame('merge', $wrapper->toArray()['strategy_deploy']);
+    }
+
     public function testInvalidWrapperThrows(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -77,6 +96,19 @@ final class DocumentWrapperTest extends TestCase
             'order' => 1,
             'section' => false,
             'position_view' => 'content',
+            'data' => [],
+        ]);
+    }
+
+    public function testInvalidStrategyDeployThrows(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        DocumentWrapper::fromArray([
+            'page' => 'content',
+            'name' => 'Content',
+            'order' => 1,
+            'section' => false,
+            'strategy_deploy' => 'append',
             'data' => [],
         ]);
     }

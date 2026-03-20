@@ -316,6 +316,21 @@ Important rules:
 - Without `update_deploy: true`, system pages are ignored by the updater's deployable system-page replacement step.
 - Treat this as an explicit opt-in for updater-managed private system pages.
 
+`strategy_deploy`
+
+- Optional wrapper-level string used only for updater-managed private system pages.
+- Allowed values are `overwrite` and `merge`.
+- Missing or empty means `overwrite`.
+- `overwrite` replaces the local deployable system JSON file with the release version.
+- `merge` preserves existing local values and only adds newly released properties recursively.
+- `merge` rules:
+  - existing scalar values stay unchanged
+  - missing object properties from the release file are added recursively
+  - missing top-level properties from the release file are added
+  - arrays are additive: new release items are appended only when they are not already present
+  - release-side removals do not delete local values
+- This property is intended to be managed from JSON files, not from the normal create/edit document form.
+
 `position_view`
 
 - Wrapper-level `position_view` is optional.

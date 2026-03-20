@@ -16,6 +16,8 @@ final class DocumentWrapper
     /** @var string[] */
     private array $modules;
     private ?string $position;
+    private bool $updateDeploy;
+    private ?string $strategyDeploy;
     private ?string $positionView;
     private mixed $data;
 
@@ -29,6 +31,8 @@ final class DocumentWrapper
         bool $section,
         array $modules,
         ?string $position,
+        bool $updateDeploy,
+        ?string $strategyDeploy,
         ?string $positionView,
         mixed $data
     )
@@ -42,6 +46,8 @@ final class DocumentWrapper
         $this->section = $section;
         $this->modules = $modules;
         $this->position = $position;
+        $this->updateDeploy = $updateDeploy;
+        $this->strategyDeploy = $strategyDeploy;
         $this->positionView = $positionView;
         $this->data = $data;
     }
@@ -134,6 +140,27 @@ final class DocumentWrapper
             }
         }
 
+        $updateDeploy = false;
+        if (array_key_exists('update_deploy', $payload)) {
+            if (!is_bool($payload['update_deploy'])) {
+                throw new \InvalidArgumentException('Document.update_deploy must be boolean.');
+            }
+            $updateDeploy = $payload['update_deploy'];
+        }
+
+        $strategyDeploy = null;
+        if (array_key_exists('strategy_deploy', $payload) && $payload['strategy_deploy'] !== null) {
+            if (!is_string($payload['strategy_deploy'])) {
+                throw new \InvalidArgumentException('Document.strategy_deploy must be a string.');
+            }
+            $strategyDeploy = strtolower(trim($payload['strategy_deploy']));
+            if ($strategyDeploy === '') {
+                $strategyDeploy = null;
+            } elseif (!in_array($strategyDeploy, ['overwrite', 'merge'], true)) {
+                throw new \InvalidArgumentException('Document.strategy_deploy must be one of: overwrite, merge.');
+            }
+        }
+
         $positionView = null;
         if (array_key_exists('position_view', $payload) && $payload['position_view'] !== null) {
             if (!is_string($payload['position_view'])) {
@@ -157,6 +184,8 @@ final class DocumentWrapper
             $sectionValue,
             $modules,
             $position,
+            $updateDeploy,
+            $strategyDeploy,
             $positionView,
             $payload['data']
         );
@@ -208,6 +237,16 @@ final class DocumentWrapper
         return $this->position;
     }
 
+    public function updateDeploy(): bool
+    {
+        return $this->updateDeploy;
+    }
+
+    public function strategyDeploy(): ?string
+    {
+        return $this->strategyDeploy;
+    }
+
     public function positionView(): ?string
     {
         return $this->positionView;
@@ -220,17 +259,17 @@ final class DocumentWrapper
 
     public function withData(mixed $data): self
     {
-        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->positionView, $data);
+        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->updateDeploy, $this->strategyDeploy, $this->positionView, $data);
     }
 
     public function withOrder(int $order): self
     {
-        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->positionView, $this->data);
+        return new self($this->id, $this->type, $this->page, $this->name, $this->language, $order, $this->section, $this->modules, $this->position, $this->updateDeploy, $this->strategyDeploy, $this->positionView, $this->data);
     }
 
     public function withId(string $id): self
     {
-        return new self($id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->positionView, $this->data);
+        return new self($id, $this->type, $this->page, $this->name, $this->language, $this->order, $this->section, $this->modules, $this->position, $this->updateDeploy, $this->strategyDeploy, $this->positionView, $this->data);
     }
 
     public function toArray(): array
@@ -258,6 +297,12 @@ final class DocumentWrapper
         }
         if ($this->position !== null) {
             $payload['position'] = $this->position;
+        }
+        if ($this->updateDeploy) {
+            $payload['update_deploy'] = true;
+        }
+        if ($this->strategyDeploy !== null) {
+            $payload['strategy_deploy'] = $this->strategyDeploy;
         }
         if ($this->positionView !== null) {
             $payload['position_view'] = $this->positionView;

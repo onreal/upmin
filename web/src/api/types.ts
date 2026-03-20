@@ -80,6 +80,8 @@ export type DocumentPayload = {
   modules?: string[] | null;
   module?: string | null;
   position?: string | null;
+  update_deploy?: boolean;
+  strategy_deploy?: "overwrite" | "merge" | null;
   position_view?: string | null;
   data: unknown;
 };

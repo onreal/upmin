@@ -97,6 +97,50 @@ final class AdminUpdaterTest extends TestCase
         $this->assertSame('1.2.0', $this->readVersion());
     }
 
+    public function testRunMergesDeployableSystemPagesWhenMergeStrategyIsConfigured(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/store/system/local-system.json',
+            json_encode([
+                'position' => 'system',
+                'update_deploy' => true,
+                'strategy_deploy' => 'merge',
+                'items' => ['1', '2', '3', '4'],
+                'person' => [
+                    'name' => 'nikos',
+                    'surname' => 'mixos',
+                ],
+            ], JSON_PRETTY_PRINT)
+        );
+
+        $updater = $this->buildUpdater($this->buildRemoteArchive('1.3.0', [
+            'local-system' => [
+                'position' => 'system',
+                'update_deploy' => true,
+                'strategy_deploy' => 'merge',
+                'items' => ['5'],
+                'person' => [
+                    'name' => 'antreas',
+                    'surname' => 'midres',
+                    'age' => null,
+                ],
+                'parents' => [],
+            ],
+        ]), '1.3.0');
+
+        $updater->run();
+
+        $decoded = json_decode((string) file_get_contents($this->projectRoot . '/store/system/local-system.json'), true);
+
+        $this->assertSame(['1', '2', '3', '4', '5'], $decoded['items']);
+        $this->assertSame([
+            'name' => 'nikos',
+            'surname' => 'mixos',
+            'age' => null,
+        ], $decoded['person']);
+        $this->assertSame([], $decoded['parents']);
+    }
+
     private function buildUpdater(string $archivePath, string $remoteVersion): AdminUpdater
     {
         $source = new class($archivePath, $remoteVersion) implements RepositorySource {
@@ -128,7 +172,8 @@ final class AdminUpdaterTest extends TestCase
         );
     }
 
-    private function buildRemoteArchive(string $version): string
+    /** @param array<string, array<string, mixed>> $systemPages */
+    private function buildRemoteArchive(string $version, array $systemPages = []): string
     {
         $remoteRoot = $this->workspace . '/remote/upmin-main';
         mkdir($remoteRoot . '/control-panel/bin', 0755, true);
@@ -149,10 +194,16 @@ final class AdminUpdaterTest extends TestCase
         file_put_contents($remoteRoot . '/control-panel/store/ignored.json', '{"ignored":true}');
         file_put_contents($remoteRoot . '/control-panel/store/version.json', json_encode(['version' => $version], JSON_PRETTY_PRINT));
         file_put_contents($remoteRoot . '/control-panel/bootstrap.php', 'new-root-bootstrap');
-        file_put_contents(
-            $remoteRoot . '/store/system/local-system.json',
-            json_encode(['position' => 'system', 'update_deploy' => true, 'title' => 'remote'], JSON_PRETTY_PRINT)
-        );
+        $deployablePages = $systemPages !== [] ? $systemPages : [
+            'local-system' => ['position' => 'system', 'update_deploy' => true, 'title' => 'remote'],
+        ];
+
+        foreach ($deployablePages as $name => $payload) {
+            file_put_contents(
+                $remoteRoot . '/store/system/' . $name . '.json',
+                json_encode($payload, JSON_PRETTY_PRINT)
+            );
+        }
         file_put_contents(
             $remoteRoot . '/store/system/remote-private.json',
             json_encode(['position' => 'system', 'update_deploy' => false, 'title' => 'ignore'], JSON_PRETTY_PRINT)

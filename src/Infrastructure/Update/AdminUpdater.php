@@ -419,14 +419,22 @@ final class AdminUpdater
             }
         }
 
-        foreach ($remoteFiles as $relativePath => $sourcePath) {
-            $this->copyFile($sourcePath, $localStoreRoot . '/' . $relativePath);
+        foreach ($remoteFiles as $relativePath => $remoteFile) {
+            $targetPath = $localStoreRoot . '/' . $relativePath;
+            $strategy = $remoteFile['strategy'] ?? 'overwrite';
+
+            if ($strategy === 'merge') {
+                $this->mergeDeployableSystemPage($remoteFile['path'], $targetPath);
+                continue;
+            }
+
+            $this->copyFile($remoteFile['path'], $targetPath);
         }
 
         return count($remoteFiles);
     }
 
-    /** @return array<string, string> */
+    /** @return array<string, array{path: string, strategy: string}> */
     private function collectDeployableSystemPages(string $root): array
     {
         if (!is_dir($root)) {
@@ -467,7 +475,18 @@ final class AdminUpdater
                 continue;
             }
 
-            $result[$relativePath] = $path;
+            $strategy = 'overwrite';
+            if (is_string($decoded['strategy_deploy'] ?? null)) {
+                $candidate = strtolower(trim((string) $decoded['strategy_deploy']));
+                if (in_array($candidate, ['overwrite', 'merge'], true)) {
+                    $strategy = $candidate;
+                }
+            }
+
+            $result[$relativePath] = [
+                'path' => $path,
+                'strategy' => $strategy,
+            ];
         }
 
         ksort($result);
@@ -516,6 +535,134 @@ final class AdminUpdater
         if (!copy($source, $target)) {
             throw new \RuntimeException('Failed to copy file: ' . $source);
         }
+    }
+
+    private function mergeDeployableSystemPage(string $source, string $target): void
+    {
+        $sourceDecoded = $this->decodeJsonFile($source);
+        if (!is_file($target)) {
+            $this->writeJsonFile($target, $sourceDecoded);
+            return;
+        }
+
+        $targetDecoded = $this->decodeJsonFile($target);
+        $merged = $this->mergeDeployValue($targetDecoded, $sourceDecoded);
+        $this->writeJsonFile($target, $merged);
+    }
+
+    private function decodeJsonFile(string $path): array
+    {
+        $raw = file_get_contents($path);
+        if (!is_string($raw) || trim($raw) === '') {
+            throw new \RuntimeException('Failed to read JSON file: ' . $path);
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            throw new \RuntimeException('Invalid JSON file: ' . $path);
+        }
+
+        return $decoded;
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function writeJsonFile(string $path, array $payload): void
+    {
+        $dir = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new \RuntimeException('Failed to create directory: ' . $dir);
+        }
+
+        $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        if ($encoded === false) {
+            throw new \RuntimeException('Failed to encode merged JSON.');
+        }
+
+        file_put_contents($path, $encoded, LOCK_EX);
+    }
+
+    private function mergeDeployValue(mixed $target, mixed $source): mixed
+    {
+        if (is_array($target) && is_array($source)) {
+            if (array_is_list($target) && array_is_list($source)) {
+                $merged = $target;
+                foreach ($source as $candidate) {
+                    if ($this->containsListValue($merged, $candidate)) {
+                        continue;
+                    }
+                    $merged[] = $candidate;
+                }
+
+                return $merged;
+            }
+
+            if (!array_is_list($target) && !array_is_list($source)) {
+                $merged = $target;
+                foreach ($source as $key => $value) {
+                    if (!array_key_exists($key, $merged)) {
+                        $merged[$key] = $value;
+                        continue;
+                    }
+                    $merged[$key] = $this->mergeDeployValue($merged[$key], $value);
+                }
+
+                return $merged;
+            }
+        }
+
+        return $target;
+    }
+
+    /** @param array<int, mixed> $list */
+    private function containsListValue(array $list, mixed $candidate): bool
+    {
+        foreach ($list as $item) {
+            if ($this->valuesAreEqual($item, $candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function valuesAreEqual(mixed $left, mixed $right): bool
+    {
+        if (is_array($left) && is_array($right)) {
+            if (array_is_list($left) !== array_is_list($right)) {
+                return false;
+            }
+
+            if (array_is_list($left)) {
+                if (count($left) !== count($right)) {
+                    return false;
+                }
+
+                foreach ($left as $index => $value) {
+                    if (!$this->valuesAreEqual($value, $right[$index] ?? null)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            ksort($left);
+            ksort($right);
+
+            if (array_keys($left) !== array_keys($right)) {
+                return false;
+            }
+
+            foreach ($left as $key => $value) {
+                if (!$this->valuesAreEqual($value, $right[$key])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return $left === $right;
     }
 
     private function deletePath(string $path): void
