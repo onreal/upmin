@@ -61,7 +61,11 @@ final class IntegrationRegistry implements IntegrationCatalog
             throw new \RuntimeException('YAML parser not available. Install symfony/yaml or enable ext-yaml.');
         }
 
-        $manifests = glob($this->integrationsPath . '/*/manifest.{yaml,yml}', GLOB_BRACE) ?: [];
+        $manifests = [
+            ...(glob($this->integrationsPath . '/*/manifest.yaml') ?: []),
+            ...(glob($this->integrationsPath . '/*/manifest.yml') ?: []),
+        ];
+        $manifests = array_values(array_unique($manifests));
         sort($manifests);
 
         foreach ($manifests as $manifest) {

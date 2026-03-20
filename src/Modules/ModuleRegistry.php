@@ -60,7 +60,11 @@ final class ModuleRegistry
             throw new \RuntimeException('YAML parser not available. Install symfony/yaml or enable ext-yaml.');
         }
 
-        $manifests = glob($this->modulesPath . '/*/manifest.{yaml,yml}', GLOB_BRACE) ?: [];
+        $manifests = [
+            ...(glob($this->modulesPath . '/*/manifest.yaml') ?: []),
+            ...(glob($this->modulesPath . '/*/manifest.yml') ?: []),
+        ];
+        $manifests = array_values(array_unique($manifests));
         sort($manifests);
 
         foreach ($manifests as $manifest) {
