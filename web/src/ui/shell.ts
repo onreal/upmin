@@ -248,7 +248,7 @@ export const renderAppShell = ({ moduleChecklistHtml }: ShellContext) => {
                 <div id="nav-header-links" class="app-nav-shortcuts"></div>
                 <button
                   id="system-update-action"
-                  class="button app-button app-ghost app-icon-button is-hidden"
+                  class="button app-button app-ghost is-hidden"
                   type="button"
                   data-shell-action="system-update"
                   aria-label="${updateLabel}"
@@ -862,9 +862,14 @@ export const renderSystemUpdateControls = () => {
   const isReady = Boolean(status?.updateAvailable);
   button.toggleAttribute("disabled", isRunning || !isReady);
   mobileButton.toggleAttribute("disabled", isRunning || !isReady);
+  button.classList.toggle("app-icon-button", !isRunning && !isReady);
   buttonLabel.textContent = isRunning
     ? adminText("systemUpdate.updating", "Updating...")
-    : adminText("systemUpdate.action", "Update");
+    : isReady
+      ? adminText("systemUpdate.updateVersion", "Update {version}", {
+          version: status?.latestVersion ?? adminText("common.latest", "latest"),
+        })
+      : adminText("systemUpdate.action", "Update");
   mobileButtonLabel.textContent = buttonLabel.textContent;
   menuLink.textContent = isRunning
     ? adminText("systemUpdate.inProgress", "Admin update in progress")

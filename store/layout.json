@@ -739,6 +739,7 @@
     "section": false,
     "language": "el",
     "position": "system",
+    "update_deploy": true,
     "position_view": "footer",
     "order": 2
 }

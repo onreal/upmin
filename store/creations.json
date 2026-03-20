@@ -9,5 +9,7 @@
     "section": false,
     "position": "system",
     "position_view": "footer",
+    "update_deploy": true,
+    "strategy_deploy": "merge",
     "order": 4
 }

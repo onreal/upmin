@@ -49,7 +49,7 @@
   box-shadow: none;
 }
 
-#system-update-label {
+#system-update-action.app-icon-button #system-update-label {
   display: none;
 }
 
