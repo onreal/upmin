@@ -4,12 +4,13 @@
     "name": "Website Builder",
     "data": {
         "provider": "codex-cli",
-        "model": "gpt-5.3-codex",
+        "model": "gpt-5.3",
         "position": "system",
         "systemPromptFile": "prompts/system.md",
         "adminPromptFile": "prompts/admin.md",
         "providerId": "8ce22d66-9670-5394-99eb-05f53845ebf3"
     },
     "id": "4e36dc80-3bcb-4052-9520-e1e48366d162",
-    "order": 3
+    "order": 3,
+    "update_deploy": true
 }
