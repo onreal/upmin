@@ -12,6 +12,7 @@ await mkdir(outdir, { recursive: true });
 const styleFiles = [
   "web/src/styles/tokens.css",
   "web/src/styles/base.css",
+  "web/src/styles/boot-loader.css",
   "web/src/styles/layout.css",
   "web/src/styles/components.css",
   "web/src/styles/modules.css",

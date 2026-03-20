@@ -20,6 +20,7 @@ import { clearAgentState } from "../features/agents/state";
 import { refreshAgentEditControls } from "../features/agents/view";
 import { pushNotice } from "../ui/notice";
 import { adminText } from "./translations";
+import { hideBootLoader, showBootLoader } from "../ui/boot-loader";
 
 let systemUpdatePollHandle: number | null = null;
 const DELEGATED_LOGIN_GRANT_PARAM = "loginGrant";
@@ -33,6 +34,7 @@ const showLogin = (app: HTMLElement, error?: string) => {
     onSuccess: renderApp,
     onClearAgentState: clearAgentState,
   }, error);
+  hideBootLoader();
 };
 
 const clearDelegatedLoginParam = () => {
@@ -261,6 +263,7 @@ const renderApp = async () => {
     renderAppShell({ moduleChecklistHtml: (selected) => buildModuleChecklistHtml(state.modules, selected) });
     initNotifications();
     renderSystemUpdateControls();
+    hideBootLoader();
     return;
   }
 
@@ -347,10 +350,12 @@ const renderApp = async () => {
 
   await reloadAgents();
   await refreshNavigation(loadDocument);
+  hideBootLoader();
 };
 
 export const bootstrap = () => {
   initTheme();
+  showBootLoader();
   window.addEventListener("app:session-expired", ((event: Event) => {
     const app = document.getElementById("app");
     if (!app) {
@@ -372,6 +377,7 @@ export const bootstrap = () => {
     stopRealtime();
     const app = document.getElementById("app");
     if (!app) {
+      hideBootLoader();
       return;
     }
     showLogin(app);

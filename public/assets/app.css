@@ -159,6 +159,123 @@ body {
   }
 }
 
+.app-boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--app-accent) 10%, transparent), transparent 38%),
+    color-mix(in srgb, var(--app-bg) 92%, transparent);
+  transition: opacity 180ms ease;
+}
+
+.app-boot-loader.is-visible {
+  opacity: 1;
+}
+
+.app-boot-loader.is-hiding {
+  opacity: 0;
+}
+
+.app-boot-loader__panel {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+}
+
+.app-boot-loader__svg {
+  width: 72px;
+  height: 72px;
+  overflow: visible;
+}
+
+.app-boot-loader__halo {
+  fill: color-mix(in srgb, var(--app-accent) 6%, transparent);
+  stroke: color-mix(in srgb, var(--app-border) 82%, transparent);
+  stroke-width: 1;
+}
+
+.app-boot-loader__arc {
+  fill: none;
+  stroke: url(#appBootLoaderGradient);
+  stroke-linecap: round;
+}
+
+.app-boot-loader__arc--outer {
+  stroke-width: 4;
+  stroke-dasharray: 44 160;
+  transform-origin: 60px 60px;
+  animation: app-boot-loader-spin 1.8s linear infinite;
+}
+
+.app-boot-loader__arc--inner {
+  stroke-width: 3;
+  stroke-dasharray: 28 132;
+  opacity: 0.55;
+  transform-origin: 60px 60px;
+  animation: app-boot-loader-spin-reverse 1.3s linear infinite;
+}
+
+.app-boot-loader__orbit {
+  transform-origin: 60px 60px;
+  animation: app-boot-loader-spin 1.5s linear infinite;
+}
+
+.app-boot-loader__orbit--reverse {
+  animation-direction: reverse;
+  animation-duration: 2.3s;
+}
+
+.app-boot-loader__core {
+  fill: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%);
+  stroke: color-mix(in srgb, var(--app-accent) 36%, transparent);
+  stroke-width: 1.5;
+  animation: app-boot-loader-pulse 1.4s ease-in-out infinite;
+}
+
+.app-boot-loader__label {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+@keyframes app-boot-loader-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes app-boot-loader-spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes app-boot-loader-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+  }
+
+  50% {
+    transform: scale(1);
+  }
+}
+
 .navbar.app-surface {
   border-radius: 0;
   box-shadow: none;
