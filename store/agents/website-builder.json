@@ -4,7 +4,7 @@
     "name": "Website Builder",
     "data": {
         "provider": "codex-cli",
-        "model": "gpt-5.3",
+        "model": "gpt-5.4",
         "position": "system",
         "systemPromptFile": "prompts/system.md",
         "adminPromptFile": "prompts/admin.md",
